@@ -1,13 +1,15 @@
 <div align="center">
 
-<img src="assets/images/favicon_LPM-2026.png" alt="LAN Party Manager logo" width="200" height="200" />
+<img src="assets/images/favicon_LPM.png" alt="LAN Party Manager logo" width="200" height="200" />
 
 # LAN Party Manager
 
 **Self-hosted event management for LAN parties** — crew invites, tournaments, treasury,
 media, and live streams, all running on hardware you own. From a Raspberry Pi to a NUC.
 
-[![Version](https://img.shields.io/badge/version-1.6.0--beta-FF3D00?style=flat-square)](#)
+Official Website: https://www.lanpartymanager.com
+
+[![Version](https://img.shields.io/badge/version-1.7.0--beta-FF3D00?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-GPL--2.0-4C566A?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -20,7 +22,7 @@ media, and live streams, all running on hardware you own. From a Raspberry Pi to
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 
-`BETA 1.6.0`
+`BETA 1.7.0`
 
 </div>
 
@@ -56,11 +58,13 @@ no telemetry, no subscription. Your crew's data stays on your box.
 | **Flexible Sign-In** | Log in with **either your nickname or your email**; optional **Discord SSO** for one-click sign-in and registration. Players link/unlink Discord from their profile; admins configure it in Settings. |
 | **Crew Management** | Registration gated by a per-event invite code (6-char, seats tied to event capacity); user profiles, t-shirt sizes, WebP avatar uploads. |
 | **LAN Party Calendar** | Schedule events with dates, location, description, and optional capacity cap; RSVP with arrival/departure dates bounded to the event window and a live attendee count; QR-shareable invite code per event. |
+| **Planning (Calendar View)** | Propose games for an event and **approval-vote on the hours** to play them on a day × hour heatmap — bounded by each player's RSVP window — then an organizer **locks** the schedule. Two independent toggles (members can propose / vote). Opt-in. |
 | **Treasury** | Expense tracking by category, automatic **pro-rata cost splitting** based on attendance nights, P2P settlement, and one-click CSV export. |
-| **Arena / Tournaments** | Team or solo/individual events; **single-elimination brackets and round-robin** (W/L/D/Pts standings); per-team seeding; live score tracking; full-screen bracket view for projecting. |
+| **Arena / Tournaments** | Team or solo/individual events; **single-elimination brackets and round-robin** (W/L/D/Pts standings); per-team seeding; live score tracking; **self-service phone score reporting** (players report, organizer confirms); full-screen bracket view for projecting. |
 | **Live Streams** | Twitch channel **and clip** embeds; live status + viewer count via the Twitch Helix API; optional chat iframe. |
 | **Media Gallery** | Shared photo/video vault; event-tagged uploads; admin bulk delete; ffmpeg-generated video thumbnails; inline lightbox. |
 | **Activity & Hall of Fame** | Dashboard feed of the 20 most recent events, plus a player win-rate leaderboard derived from completed tournaments. |
+| **Announcements & Presence** | Admin **PA banner** (info/alert, auto-expiry, optional Discord fan-out) shown across the app; the HUB roster shows **who's online right now** via a lightweight browser heartbeat. |
 | **Audit Log** | Admin-only trail of sensitive actions (event/tournament create & delete) with actor and timestamp. |
 | **Admin Settings** | Twitch + Discord SSO credentials, currency, optional-feature toggles, and a one-click DB + uploads backup as `tar.gz`. |
 | **Role-Based Access** | Admin, Treasurer, and User roles enforced per route — not just hidden in the UI. |

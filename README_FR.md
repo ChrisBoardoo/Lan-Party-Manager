@@ -1,13 +1,15 @@
 <div align="center">
 
-<img src="assets/images/favicon_LPM-2026.png" alt="Logo LAN Party Manager" width="200" height="200" />
+<img src="assets/images/favicon_LPM.png" alt="Logo LAN Party Manager" width="200" height="200" />
 
 # LAN Party Manager
 
 **Gestion d'événements auto-hébergée pour LAN parties** — invitations, tournois, trésorerie,
 médias et streams en direct, le tout sur votre propre matériel. D'un Raspberry Pi à un NUC.
 
-[![Version](https://img.shields.io/badge/version-1.6.0--beta-FF3D00?style=flat-square)](#)
+Site officiel : https://www.lanpartymanager.com
+
+[![Version](https://img.shields.io/badge/version-1.7.0--beta-FF3D00?style=flat-square)](#)
 [![Licence](https://img.shields.io/badge/licence-GPL--2.0-4C566A?style=flat-square)](LICENSE)
 [![Plateforme](https://img.shields.io/badge/plateforme-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -20,7 +22,7 @@ médias et streams en direct, le tout sur votre propre matériel. D'un Raspberry
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 
-`BETA 1.6.0`
+`BETA 1.7.0`
 
 **Français** · [English](README.md)
 
@@ -59,11 +61,13 @@ compte cloud, aucune télémétrie, aucun abonnement. Les données de votre équ
 | **Connexion flexible** | Connectez-vous avec **votre pseudo ou votre e-mail** ; **SSO Discord** optionnel pour une connexion et une inscription en un clic. Les joueurs lient/délient Discord depuis leur profil ; les admins le configurent dans les Réglages. |
 | **Gestion de l'équipe** | Inscription protégée par un code d'invitation par événement (6 caractères, places liées à la capacité de l'événement) ; profils, tailles de t-shirt, avatars WebP. |
 | **Calendrier des LAN** | Planifiez des événements avec dates, lieu, description et capacité optionnelle ; RSVP avec dates d'arrivée/départ bornées à la fenêtre de l'événement et décompte en direct des participants ; code d'invitation partageable par QR pour chaque événement. |
+| **Planification (vue calendrier)** | Proposez des jeux pour un événement et **votez sur les heures** pour y jouer via une heatmap jour × heure — dans les limites de la présence de chacun — puis un organisateur **verrouille** le planning. Deux bascules indépendantes (proposer / voter). Optionnel. |
 | **Trésorerie** | Suivi des dépenses par catégorie, **répartition automatique au prorata** selon les nuits de présence, règlement entre pairs (P2P) et export CSV en un clic. |
-| **Arène / Tournois** | Événements par équipe ou solo/individuel ; **arbres à élimination directe et toutes rondes** (classement V/D/N/Pts) ; têtes de série par équipe ; suivi des scores en direct ; vue plein écran de l'arbre pour la projection. |
+| **Arène / Tournois** | Événements par équipe ou solo/individuel ; **arbres à élimination directe et toutes rondes** (classement V/D/N/Pts) ; têtes de série par équipe ; suivi des scores en direct ; **signalement des scores depuis le téléphone** (les joueurs signalent, l'organisateur confirme) ; vue plein écran de l'arbre pour la projection. |
 | **Streams en direct** | Intégration des chaînes **et clips** Twitch ; statut en direct + nombre de spectateurs via l'API Twitch Helix ; iframe de chat optionnelle. |
 | **Galerie média** | Espace photo/vidéo partagé ; envois taggés par événement ; suppression groupée (admin) ; miniatures vidéo générées par ffmpeg ; lightbox intégrée. |
 | **Activité et Panthéon** | Fil des 20 événements les plus récents sur le tableau de bord, plus un classement des joueurs par taux de victoire issu des tournois terminés. |
+| **Annonces et présence** | **Bannière PA** admin (info/alerte, expiration auto, relais Discord optionnel) affichée dans toute l'app ; la liste du HUB montre **qui est en ligne** via un heartbeat léger du navigateur. |
 | **Journal d'audit** | Trace réservée aux admins des actions sensibles (création/suppression d'événements et de tournois) avec auteur et horodatage. |
 | **Réglages admin** | Identifiants Twitch + SSO Discord, devise, activation des fonctionnalités optionnelles, et sauvegarde en un clic de la BDD + envois au format `tar.gz`. |
 | **Accès par rôle** | Rôles Admin, Trésorier et Utilisateur appliqués côté serveur pour chaque route — pas seulement masqués dans l'interface. |
