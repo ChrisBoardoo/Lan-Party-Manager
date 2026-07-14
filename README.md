@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/images/favicon_LPM.png" alt="LAN Party Manager logo" width="200" height="200" />
+<img src="assets/images/favicon_LPM-2026.png" alt="LAN Party Manager logo" width="200" height="200" />
 
 # LAN Party Manager
 
