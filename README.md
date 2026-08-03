@@ -1,15 +1,13 @@
 <div align="center">
 
-<img src="assets/images/favicon_LPM-2026.png" alt="LAN Party Manager logo" width="200" height="200" />
+<img src="assets/images/favicon_LPM.png" alt="LAN Party Manager logo" width="200" height="200" />
 
 # LAN Party Manager
 
 **Self-hosted event management for LAN parties** — crew invites, tournaments, treasury,
 media, and live streams, all running on hardware you own. From a Raspberry Pi to a NUC.
 
-Official Website: https://www.lanpartymanager.com
-
-[![Version](https://img.shields.io/badge/version-1.7.0--beta-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.0.0--rc6-FF3D00?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-GPL--2.0-4C566A?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -22,7 +20,7 @@ Official Website: https://www.lanpartymanager.com
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 
-`BETA 1.7.0`
+`RC 1.0.0`
 
 </div>
 
@@ -45,6 +43,7 @@ no telemetry, no subscription. Your crew's data stays on your box.
 - [Roles & Permissions](#roles--permissions)
 - [Pro-Rata Cost Splitting](#pro-rata-cost-splitting)
 - [Troubleshooting](#troubleshooting)
+- [Desktop App (Windows)](#desktop-app-windows)
 - [Project Structure](#project-structure)
 - [Localization](#localization)
 - [License](#license)
@@ -55,18 +54,25 @@ no telemetry, no subscription. Your crew's data stays on your box.
 
 | | |
 |---|---|
-| **Flexible Sign-In** | Log in with **either your nickname or your email**; optional **Discord SSO** for one-click sign-in and registration. Players link/unlink Discord from their profile; admins configure it in Settings. |
-| **Crew Management** | Registration gated by a per-event invite code (6-char, seats tied to event capacity); user profiles, t-shirt sizes, WebP avatar uploads. |
-| **LAN Party Calendar** | Schedule events with dates, location, description, and optional capacity cap; RSVP with arrival/departure dates bounded to the event window and a live attendee count; QR-shareable invite code per event. |
+| **Flexible Sign-In** | Log in with **either your nickname or your email**; optional **Discord SSO** for one-click sign-in and registration; self-service **forgot/reset password** by email (SMTP). Players link/unlink Discord from their profile; admins configure it in Settings. |
+| **Crew Management** | Registration gated by a per-event invite code (6-char, seats tied to event capacity); user profiles, t-shirt sizes, WebP avatar uploads, public player profile pages. |
+| **LAN Party Calendar** | Schedule events with dates, location, description, and optional capacity cap; RSVP with arrival/departure dates bounded to the event window and a live attendee count; QR-shareable invite code per event; **add-to-calendar** (Google Calendar link or `.ics` download) per event. |
 | **Planning (Calendar View)** | Propose games for an event and **approval-vote on the hours** to play them on a day × hour heatmap — bounded by each player's RSVP window — then an organizer **locks** the schedule. Two independent toggles (members can propose / vote). Opt-in. |
+| **Gear / BYO** | Per-event "who's bringing what": members **pledge** kit they're hauling in, admins post **requests** ("need a 4th monitor") a member can **claim**, and a personal gear locker carries a member's usual kit into the next event in one tap. Opt-in. |
+| **Packing Checklist** | A **private**, per-member packing checklist for each event — 9 pre-filled items (computer, screen, cables, headset, …) plus up to 10 custom fields, with one-tap carryover of "your usual list" from the last event. Nobody but the owner can ever see it, not even an admin. Opt-in. |
 | **Treasury** | Expense tracking by category, automatic **pro-rata cost splitting** based on attendance nights, P2P settlement, and one-click CSV export. |
+| **Prizes** | Showcase per-event prizes (photo + description) for tournament winners. Enabling Prizes hides Treasury — crews giving out prizes don't usually split expenses. Opt-in. |
+| **Sponsors** | Sponsor banners (image or video) with a click-through link, shown on the event, tournaments, and player profile pages. Opt-in. |
 | **Arena / Tournaments** | Team or solo/individual events; **single-elimination brackets and round-robin** (W/L/D/Pts standings); per-team seeding; live score tracking; **self-service phone score reporting** (players report, organizer confirms); full-screen bracket view for projecting. |
 | **Live Streams** | Twitch channel **and clip** embeds; live status + viewer count via the Twitch Helix API; optional chat iframe. |
-| **Media Gallery** | Shared photo/video vault; event-tagged uploads; admin bulk delete; ffmpeg-generated video thumbnails; inline lightbox. |
+| **Media Gallery** | Shared photo/video vault; event-tagged uploads; **emoji reactions**; admin bulk delete; ffmpeg-generated video thumbnails; inline lightbox. |
+| **My Setup** | A member's gaming PC showcase on their profile — components, custom fields, up to 5 photos, emoji reactions from crewmates — with an optional public share link they mint and revoke themselves. Opt-in. |
+| **Post-Event Recap** | Auto-generated highlight page for a finished event — champion, MVP, nights stayed, best photos, spend, and badges — derived on read from every other feature, nothing duplicated. Optional public share link (never includes money). Opt-in. |
+| **Kiosk / Big Screen** | An ambient, read-only projector display for the LAN room, authorized by a revocable token (no personal login on the shared screen). Rotates through activity, standings, streams, and the planning schedule. Opt-in. |
 | **Activity & Hall of Fame** | Dashboard feed of the 20 most recent events, plus a player win-rate leaderboard derived from completed tournaments. |
 | **Announcements & Presence** | Admin **PA banner** (info/alert, auto-expiry, optional Discord fan-out) shown across the app; the HUB roster shows **who's online right now** via a lightweight browser heartbeat. |
 | **Audit Log** | Admin-only trail of sensitive actions (event/tournament create & delete) with actor and timestamp. |
-| **Admin Settings** | Twitch + Discord SSO credentials, currency, optional-feature toggles, and a one-click DB + uploads backup as `tar.gz`. |
+| **Admin Settings** | Twitch + Discord SSO credentials, SMTP (password-reset email), currency, per-feature opt-in/opt-out toggles, and a one-click DB + uploads backup as `tar.gz`. |
 | **Role-Based Access** | Admin, Treasurer, and User roles enforced per route — not just hidden in the UI. |
 
 ---
@@ -312,6 +318,8 @@ List endpoints support `?limit=` and `?offset=` pagination.
 | POST   | `/api/auth/login`             | Public   | Login with `identifier` (**nickname or email**) + password, returns JWT |
 | GET    | `/api/auth/me`                | Required | Current user info                                                      |
 | GET    | `/api/auth/invite-required`   | Public   | Returns `{ required: bool }`                                           |
+| POST   | `/api/auth/forgot-password`   | Public   | Email a password-reset link if the address matches an account (SMTP)  |
+| POST   | `/api/auth/reset-password`    | Public   | Set a new password from a valid reset token                           |
 | GET    | `/api/auth/discord/config`    | Public   | Returns `{ enabled: bool }` — is Discord SSO configured?              |
 | GET    | `/api/auth/discord/authorize` | Public   | Begin Discord login/registration (`?code=` optional invite)           |
 | GET    | `/api/auth/discord/link`      | Required | Begin linking Discord to the current account                          |
@@ -337,6 +345,31 @@ List endpoints support `?limit=` and `?offset=` pagination.
 | POST   | `/api/expenses/`        | Treasurer / Admin | Create expense                                                   |
 | PUT    | `/api/expenses/{id}`    | Treasurer / Admin | Update expense                                                   |
 | DELETE | `/api/expenses/{id}`    | Treasurer / Admin | Delete expense                                                   |
+
+### Prizes
+
+*Opt-in — 404 for non-admins while the `prizes` flag is off; enabling it hides Treasury.*
+
+| Method | Path                        | Auth       | Description                        |
+|--------|-----------------------------|------------|-------------------------------------|
+| GET    | `/api/prizes/`              | Any        | List prizes (`?event_id=` filter)   |
+| POST   | `/api/prizes/`              | Admin only | Create a prize                      |
+| POST   | `/api/prizes/{id}/photo`    | Admin only | Upload/replace the prize photo      |
+| PUT    | `/api/prizes/{id}`          | Admin only | Update title/description            |
+| DELETE | `/api/prizes/{id}`          | Admin only | Delete a prize                      |
+
+### Sponsors
+
+*Opt-in — 404 for non-admins while the `sponsors` flag is off.*
+
+| Method | Path                          | Auth       | Description                                    |
+|--------|-------------------------------|------------|-------------------------------------------------|
+| GET    | `/api/sponsors/`              | Any        | List sponsors (`?event_id=` filter)             |
+| GET    | `/api/sponsors/active`        | Any        | Sponsors for the current/soonest event          |
+| POST   | `/api/sponsors/`              | Admin only | Create a sponsor                                |
+| POST   | `/api/sponsors/{id}/banner`   | Admin only | Upload a banner (image or `.webm` video)        |
+| PUT    | `/api/sponsors/{id}`          | Admin only | Update name/link/sort order                     |
+| DELETE | `/api/sponsors/{id}`          | Admin only | Delete a sponsor                                |
 
 ### Tournaments
 
@@ -371,6 +404,46 @@ List endpoints support `?limit=` and `?offset=` pagination.
 | DELETE | `/api/events/{id}/invite`            | Admin only | Revoke this event's invite code                                     |
 | GET    | `/api/events/invite/validate/{code}` | Public     | Validate a code — `{valid, full, event_title, event_start, event_end}` |
 
+### Planning (Calendar View)
+
+*Opt-in — 404 for non-admins while the `planning` flag is off; per-event `can_propose`/`can_vote` toggles further gate individual endpoints.*
+
+| Method | Path                                    | Auth | Description                                              |
+|--------|------------------------------------------|------|-----------------------------------------------------------|
+| GET    | `/api/planning/events/{event_id}`         | Any  | Full planning board — proposals, blocks, votes           |
+| POST   | `/api/planning/events/{event_id}/blocks`  | Any  | Propose a game for a day × hour block                    |
+| DELETE | `/api/planning/blocks/{block_id}`         | Any  | Remove a proposed block                                  |
+| PUT    | `/api/planning/blocks/{block_id}/votes`   | Any  | Cast/change your approval vote, bounded by your RSVP window |
+| POST   | `/api/planning/blocks/{block_id}/lock`    | Any  | Organizer locks a block as the final pick                |
+| POST   | `/api/planning/blocks/{block_id}/unlock`  | Any  | Unlock a previously locked block                          |
+
+### Gear / BYO
+
+*Opt-in — 404 for non-admins while the `gear` flag is off.*
+
+| Method | Path                                        | Auth       | Description                                                    |
+|--------|----------------------------------------------|------------|-------------------------------------------------------------------|
+| GET    | `/api/gear/events/{event_id}`                 | Any        | The whole gear list for one event (pledges + open requests)       |
+| GET    | `/api/gear/suggestions`                       | Any        | Your personal gear locker — everything you've pledged before      |
+| POST   | `/api/gear/events/{event_id}/items`           | Any        | Pledge kit you're bringing                                        |
+| POST   | `/api/gear/events/{event_id}/requests`        | Admin only | Post a "we need X" request a member can claim                     |
+| POST   | `/api/gear/events/{event_id}/carryover`       | Any        | Bulk-pledge your usual kit from your gear locker (idempotent)      |
+| POST   | `/api/gear/items/{item_id}/claim`             | Any        | Claim an open request                                              |
+| POST   | `/api/gear/items/{item_id}/unclaim`           | Any        | Release a claimed request                                          |
+| PUT    | `/api/gear/items/{item_id}`                   | Any        | Update a pledge/request                                            |
+| DELETE | `/api/gear/items/{item_id}`                   | Any        | Remove a pledge/request                                            |
+
+### Packing Checklist
+
+*Opt-in — 404 for non-admins while the `checklist` flag is off. **Private by design:** every route resolves "the caller's own checklist" — there is no route that can read or write another member's list, not even for an admin.*
+
+| Method | Path                                              | Auth | Description                                                     |
+|--------|-----------------------------------------------------|------|-------------------------------------------------------------------|
+| GET    | `/api/checklist/events/{event_id}`                    | Any  | Your checklist for this event (empty shape if unsaved)            |
+| PUT    | `/api/checklist/events/{event_id}`                    | Any  | Save the 9 fixed items + up to 10 custom fields (replace-all)     |
+| GET    | `/api/checklist/suggestions`                          | Any  | Your most recent non-empty checklist from another event           |
+| POST   | `/api/checklist/events/{event_id}/carryover`          | Any  | Merge your usual list into this event's checklist (safe to repeat) |
+
 ### Live Streams
 
 | Method | Path                       | Auth          | Description                             |
@@ -389,6 +462,56 @@ List endpoints support `?limit=` and `?offset=` pagination.
 | POST   | `/api/media/upload`      | Any           | Upload image or video (max 100 MB); ffmpeg thumbnails  |
 | POST   | `/api/media/bulk-delete` | Admin only    | Delete multiple items by ID list                       |
 | DELETE | `/api/media/{id}`        | Owner / Admin | Delete media item                                      |
+
+### My Setup
+
+*Opt-in — 404 while the `setup` flag is off. Every route that writes is `/me` — there is no `/{user_id}` write route, so the owner-only rule is enforced by the URL space itself, not a role check.*
+
+| Method | Path                              | Auth          | Description                                                        |
+|--------|------------------------------------|---------------|----------------------------------------------------------------------|
+| GET    | `/api/setup/shared`                 | Public (token) | A setup fetched by its public share token — no login, rate-limited |
+| GET    | `/api/setup/me`                     | Any           | Your own setup (empty shape if unsaved)                              |
+| PUT    | `/api/setup/me`                     | Any           | Save the 14 components + custom fields                               |
+| POST   | `/api/setup/me/photos`              | Any           | Add a photo (up to 5)                                                 |
+| PATCH  | `/api/setup/me/photos/{photo_id}`   | Any           | Caption a photo (blank clears it)                                    |
+| DELETE | `/api/setup/me/photos/{photo_id}`   | Any           | Delete a photo                                                        |
+| GET    | `/api/setup/me/share`               | Any           | Your current public share link, if any                               |
+| POST   | `/api/setup/me/share`               | Any           | Mint/rotate your public share link                                   |
+| DELETE | `/api/setup/me/share`               | Any           | Revoke your public share link                                        |
+| GET    | `/api/setup/{user_id}`              | Any           | View another member's setup in-app                                    |
+| POST   | `/api/setup/{user_id}/react`        | Any           | React to a member's rig with an emoji                                 |
+
+### Post-Event Recap
+
+*Opt-in — 404 for non-admins while the `recap` flag is off. Financial figures are included for signed-in members (when Treasury is on) but never in the publicly shared version.*
+
+| Method | Path                             | Auth       | Description                                                     |
+|--------|------------------------------------|------------|--------------------------------------------------------------------|
+| GET    | `/api/recap/shared`                 | Public (token) | A recap fetched by its public share token — no login, no money |
+| GET    | `/api/recap/{event_id}`             | Any        | Full recap for a member — champion, MVP, nights, photos, spend    |
+| GET    | `/api/recap/{event_id}/share`       | Admin only | Current public share link, if any                                 |
+| POST   | `/api/recap/{event_id}/share`       | Admin only | Mint/rotate the event's public share link                         |
+| DELETE | `/api/recap/{event_id}/share`       | Admin only | Revoke the event's public share link                              |
+
+### Kiosk / Big Screen
+
+*Opt-in — the `/summary` read is authorized only by a revocable kiosk token (constant-time compare), never a personal JWT, so it's safe to leave running on a shared projector.*
+
+| Method | Path                     | Auth            | Description                                              |
+|--------|---------------------------|-----------------|--------------------------------------------------------------|
+| GET    | `/api/kiosk/admin`          | Admin only      | Current kiosk state (token minted? enabled?)                  |
+| POST   | `/api/kiosk/admin/token`    | Admin only      | Generate/rotate the kiosk token (invalidates any old URL)     |
+| DELETE | `/api/kiosk/admin/token`    | Admin only      | Clear the token — no kiosk URL works until a new one is minted |
+| GET    | `/api/kiosk/summary`        | Public (token)  | Everything the projector display rotates through, in one poll |
+
+### Announcements & Presence
+
+| Method | Path                       | Auth       | Description                                                    |
+|--------|-----------------------------|------------|-------------------------------------------------------------------|
+| GET    | `/api/announcements/`         | Any        | Currently active announcements (expired ones filtered out)        |
+| POST   | `/api/announcements/`         | Admin only | Post an announcement (optional Discord fan-out)                    |
+| DELETE | `/api/announcements/{id}`     | Admin only | Delete/dismiss an announcement                                     |
+| POST   | `/api/presence/ping`          | Any        | Browser heartbeat — powers the HUB roster's "who's online" list   |
 
 ### Settings, Activity, Audit & Backup
 
@@ -467,6 +590,33 @@ repos. The build runs unmodified on ARM64.
 
 ---
 
+## Desktop App (Windows)
+
+A native Windows tray client for crews who'd rather not keep a browser tab open — same login, same
+everything, unmodified, plus native notifications and background updates.
+
+- **Same app, real window.** A [Tauri](https://tauri.app/) shell asks for your instance's server URL
+  once (like picking a Slack workspace), then embeds the actual web app unmodified — no separate UI
+  to build or keep in sync.
+- **Stays signed in.** 30-day sliding-session tokens; no daily re-login.
+- **Lives in the tray.** Minimizes instead of quitting; native Windows toast notifications for new
+  tournaments, media, planning updates, and gear requests, with per-category toggles, and a click on
+  a toast jumps straight to the relevant page.
+- **Discord SSO** opens in your system browser rather than an embedded popup, and hands control back
+  automatically once you're signed in.
+- **Auto-updates itself** once installed — checks once per launch, no manual re-downloads.
+
+Source lives in [`desktopapp/`](desktopapp/) — see [`desktopapp/README.md`](desktopapp/README.md) for
+build/dev instructions. Installers aren't published yet; build and run from source for now:
+
+```powershell
+cd desktopapp
+npm install
+npm run dev
+```
+
+---
+
 ## Project Structure
 
 ```
@@ -487,19 +637,31 @@ LANPARTYMANAGER/
 │   ├── activity.py            # Activity + audit log helpers
 │   ├── prorata.py             # Pro-rata calculation logic (per event)
 │   ├── alembic/               # Schema migrations (versioned)
-│   ├── router_auth.py         # /api/auth (login by nickname/email, invite gate, Discord SSO)
+│   ├── router_auth.py         # /api/auth (login by nickname/email, invite gate, Discord SSO, password reset)
 │   ├── router_users.py        # /api/users
 │   ├── router_expenses.py     # /api/expenses (prorata takes ?event_id=)
+│   ├── router_prizes.py       # /api/prizes (opt-in, replaces Treasury when on)
+│   ├── router_sponsors.py     # /api/sponsors (opt-in banners: image/webm + link)
 │   ├── router_tournaments.py  # /api/tournaments (round-robin, standings, HoF, seeding)
 │   ├── router_events.py       # /api/events (RSVP with dates, capacity, per-event invite codes)
+│   ├── router_planning.py     # /api/planning (opt-in propose/vote/lock scheduling)
+│   ├── router_gear.py         # /api/gear (opt-in BYO pledges, requests, gear locker carryover)
+│   ├── router_checklist.py    # /api/checklist (opt-in, private per-event packing checklist)
 │   ├── router_streams.py      # /api/streams (clip detection, Twitch live status)
-│   ├── router_media.py        # /api/media (event filter, bulk delete)
+│   ├── router_media.py        # /api/media (event filter, reactions, bulk delete)
+│   ├── router_setup.py        # /api/setup (opt-in "My Setup" showcase + public share link)
+│   ├── router_recap.py        # /api/recap (opt-in post-event highlight page + public share link)
+│   ├── router_kiosk.py        # /api/kiosk (opt-in token-authorized projector display)
+│   ├── router_announcements.py# /api/announcements (admin PA banner + Discord fan-out)
+│   ├── router_presence.py     # /api/presence (browser heartbeat, who's online)
 │   ├── router_settings.py     # /api/settings
 │   ├── router_activity.py     # /api/activity
 │   ├── router_audit.py        # /api/audit
-│   └── router_backup.py       # /api/backup
+│   ├── router_backup.py       # /api/backup
+│   ├── mailer.py               # SMTP client — password-reset emails
+│   └── discord_notify.py       # Discord webhook — announcements + RSVP reminders
 │
-└── frontend/
+├── frontend/
     ├── Dockerfile             # node:20-alpine build → nginx:alpine serve
     ├── nginx.conf             # SPA fallback, /api proxy, /uploads direct serve
     ├── package.json
@@ -510,24 +672,41 @@ LANPARTYMANAGER/
         ├── types/index.ts     # TypeScript interfaces
         ├── i18n/              # i18next setup + EN/FR locale files
         ├── components/
-        │   ├── Navbar.tsx     # Responsive nav; admin-only Settings + Audit links
+        │   ├── Navbar.tsx     # Responsive nav; feature-gated links; admin-only Settings + Audit
         │   ├── Footer.tsx
         │   ├── TournamentBracket.tsx
         │   ├── ProRataTable.tsx
+        │   ├── ChecklistSection.tsx  # Packing checklist widget (event detail page)
+        │   ├── AnnouncementsManager.tsx # Admin: compose/expire the PA banner
+        │   ├── KioskManager.tsx      # Admin: mint/revoke the kiosk token
+        │   ├── MediaReactions.tsx    # Emoji reactions (shared by Media and My Setup)
         │   └── ui/            # QRModal, Lightbox, DiscordButton, LanguageToggle, …
         └── pages/
             ├── Login.tsx          # Nickname/email + password, invite quick-entry, Discord SSO
             ├── Register.tsx       # Invite code validation, event context, RSVP dates, Discord SSO
+            ├── ForgotPassword.tsx # Request a reset link by email
+            ├── ResetPassword.tsx  # Set a new password from a reset token
             ├── DiscordComplete.tsx # OAuth2 landing — reads JWT from URL fragment, then redirects
             ├── Dashboard.tsx      # Crew roster, activity feed, hall of fame
-            ├── Profile.tsx        # Avatar, t-shirt, roles, Discord link, upcoming events
+            ├── Profile.tsx        # Avatar, t-shirt, roles, Discord link, My Setup, upcoming events
+            ├── PlayerProfile.tsx  # A crewmate's public-in-app profile (setup, sponsors, stats)
             ├── Events.tsx         # RSVP with dates, capacity display, admin invite codes
+            ├── EventDetailPage.tsx # Gear, Checklist, Planning, Sponsors for one event
+            ├── Planning.tsx       # Day × hour propose/vote heatmap, organizer lock
             ├── Finances.tsx       # Expenses + pro-rata CSV export
+            ├── Prizes.tsx         # Per-event prize board (photo + description)
             ├── Tournaments.tsx    # Round-robin standings + seeding UI
             ├── Streams.tsx        # Clip + channel embeds, live badge, chat toggle
-            ├── Media.tsx          # Event filter, bulk delete, video thumbnails
-            ├── Settings.tsx       # Admin: Twitch + Discord SSO, currency, backup
+            ├── Media.tsx          # Event filter, reactions, bulk delete, video thumbnails
+            ├── RecapPage.tsx      # Post-event highlight page (+ SharedRecapPage, token-based)
+            ├── SharedSetupPage.tsx # Public "My Setup" view via share token
+            ├── Kiosk.tsx          # Token-authorized, read-only projector display
+            ├── Settings.tsx       # Admin: Twitch + Discord SSO, SMTP, currency, feature toggles, backup
             └── AuditLog.tsx       # Admin: audit trail
+│
+└── desktopapp/                # Windows tray client (Tauri) — see "Desktop App" above
+    ├── ui/                     # the embedded shell — server-URL screen, tray settings panel
+    └── src-tauri/              # Rust: window/tray, activity polling, Discord SSO, auto-updater
 ```
 
 ---
