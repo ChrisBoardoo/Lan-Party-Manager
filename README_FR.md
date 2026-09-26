@@ -133,7 +133,7 @@ root, mais pourquoi ? ») ont leurs réponses franches dans la
 
 ## Licence
 
-**AGPL-3.0** — voir [LICENSE](LICENSE). Les versions jusqu'à la 1.3.2 étaient en GPL-2.0 ;
+**AGPL-3.0** — voir [LICENSE](LICENSE). Les versions jusqu'à la 1.3.2 était en private-testing ;
 le passage en AGPL-3.0 commence avec la 1.3.3. Faites-la tourner, forkez-la,
 améliorez-la — si vous servez une version modifiée à votre équipe, partagez vos
 changements. C'est le deal.

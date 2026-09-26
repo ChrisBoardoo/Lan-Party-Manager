@@ -131,8 +131,8 @@ straight answers in the **[website FAQ](https://lanpartymanager.com/#faq)**.
 
 ## License
 
-**AGPL-3.0** — see [LICENSE](LICENSE). Versions up to 1.3.2 were GPL-2.0; the move to
-AGPL-3.0 starts with 1.3.3. Run it, fork it, improve it — if you serve a modified
+**AGPL-3.0** — see [LICENSE](LICENSE). Versions up to 1.3.1 were private testing; the move to
+AGPL-3.0 starts with 1.3.2. Run it, fork it, improve it — if you serve a modified
 version to your crew, share the changes. That's the deal.
 
 ---
