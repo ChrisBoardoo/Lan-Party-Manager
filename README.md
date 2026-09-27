@@ -126,7 +126,7 @@ The full technical documentation — configuration, API reference, roles & permi
 the pro-rata math, troubleshooting, project structure — lives in
 **[docs/README.md](docs/README.md)**.
 
-Spicier questions ("Why SQLite?", "Smells vibecoded?", "Root access, why the F?") get
+Spicier questions ("Why SQLite?", "Smells vibecoded?", "A 250 MB backend image?") get
 straight answers in the **[website FAQ](https://lanpartymanager.com/#faq)**.
 
 ## License

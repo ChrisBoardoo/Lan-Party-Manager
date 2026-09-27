@@ -127,8 +127,8 @@ La documentation technique complète — configuration, référence API, rôles 
 le calcul du prorata, dépannage, structure du projet — vit dans
 **[docs/README_FR.md](docs/README_FR.md)**.
 
-Les questions qui piquent (« Pourquoi SQLite ? », « Ça sent le vibecodé ? », « Accès
-root, mais pourquoi ? ») ont leurs réponses franches dans la
+Les questions qui piquent (« Pourquoi SQLite ? », « Ça sent le vibecodé ? », « Une image
+backend de 250 Mo ? ») ont leurs réponses franches dans la
 **[FAQ du site](https://lanpartymanager.com/fr/#faq)**.
 
 ## Licence
