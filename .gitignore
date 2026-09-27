@@ -1,0 +1,65 @@
+# ── Secrets ───────────────────────────────────────────────────────────────────
+.env
+*.env.*
+
+# ── Data & uploads (runtime volumes, never baked into repo) ───────────────────
+data/
+uploads/
+.claude
+
+# ── Markdown — only README.md, commands.md and update/ patchnotes are tracked ─
+*.md
+md/
+!README.md
+!README_FR.md
+!commands.md
+!update/*.md
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.venv_test/
+*.egg-info/
+dist/
+.pytest_cache/
+
+# ── Node / Frontend ───────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Desktop app (Tauri) ─────────────────────────────────────────────────────
+desktopapp/node_modules/
+desktopapp/ui/dist/
+desktopapp/src-tauri/target/
+desktopapp/src-tauri/gen/
+
+# ── Mobile Android app (Tauri Mobile) ───────────────────────────────────────
+mobile/android/node_modules/
+mobile/android/ui/dist/
+mobile/android/src-tauri/target/
+# gen/android is the Android Studio/Gradle project `tauri android init`
+# scaffolds — generated, not hand-authored, same treatment as desktopapp's
+# src-tauri/gen/.
+mobile/android/src-tauri/gen/
+# local.properties holds a machine-local Android SDK path; *.jks/*.keystore
+# are APK signing keys — neither should ever be committed (see androidplan.md
+# "Signing" — losing a keystore or leaking one both have real consequences,
+# unlike desktopapp's updater keypair which can at least be rotated).
+mobile/android/**/local.properties
+mobile/android/**/*.jks
+mobile/android/**/*.keystore
+mobile/android/**/key.properties
+# Built APK/AAB artifacts land here for handing to crew members — binaries,
+# not source, so not committed (same reasoning as desktopapp's installers
+# only being published as GitHub Release assets, not tracked in git).
+mobile/android/apk/*.apk
+mobile/android/apk/*.aab

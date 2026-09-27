@@ -1,0 +1,62 @@
+# Pour un déploiement en ligne de commande (docker compose up -d).
+#
+# ⚠️ Déploiement via Portainer : ne colle PAS ce fichier tel quel. La substitution
+# ${VAR:-défaut} y résout à vide, et un SECRET_KEY vide fait sortir le backend au
+# démarrage (auth.py lève un RuntimeError à l'import). Le conteneur est créé puis
+# meurt, son enregistrement DNS disparaît, et nginx renvoie 502 sur tout /api — ce
+# qui se présente comme un « login failed » alors que la base n'y est pour rien.
+# Utilise md/portainerStack1.0.0-rc7.md, qui met les valeurs en littéral.
+services:
+  backend:
+    # https://hub.docker.com/r/crosswax/lanpartymanager-backend
+    # Pin to a release tag (e.g. :1.0.0-rc7) instead of :latest if you'd rather
+    # decide when to move — both tags are published for every release.
+    image: crosswax/lanpartymanager-backend:latest
+    # No `ports:` on purpose. The frontend's nginx reaches the backend over the
+    # Docker network (backend:8000). Publishing 8000 would bypass nginx and its
+    # request-size cap, expose /docs, and let any client forge X-Forwarded-For —
+    # and Docker-published ports skip the host firewall (ufw).
+    volumes:
+      - ./data:/app/data        # SQLite database + scheduled backup snapshots (persisted)
+      - ./uploads:/app/uploads  # Avatars, media files, video thumbnails (persisted)
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-lanparty-secret-CHANGE-ME}
+      DATABASE_URL: sqlite:///./data/lanparty.db
+      UPLOAD_DIR: /app/uploads
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-true}   # daily 03:00 snapshot into ./data/backups
+      BACKUP_KEEP_COUNT: ${BACKUP_KEEP_COUNT:-7}
+    restart: unless-stopped
+    healthcheck:
+      # Requires an image with the /health endpoint (1.0.0-rc7 or newer). On an older
+      # :latest this reports unhealthy — pull before adopting this file.
+      # No curl in the backend image (see Dockerfile) — urllib is stdlib, no extra install needed.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    # https://hub.docker.com/r/crosswax/lanpartymanager-frontend
+    image: crosswax/lanpartymanager-frontend:latest
+    ports:
+      - "3001:80"
+    environment:
+      # Where your reverse proxy (Nginx Proxy Manager, Caddy…) connects from. The
+      # default covers a proxy running in Docker on this host — see README,
+      # "Fronting with your own reverse proxy".
+      LPM_TRUSTED_PROXIES: "172.16.0.0/12"
+    volumes:
+      - ./uploads:/app/uploads  # Nginx serves uploads directly — no Python/Uvicorn hop
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      # 127.0.0.1, pas localhost : nginx.conf déclare `listen 80;` (IPv4 seul), tandis que
+      # le wget de BusyBox résout localhost en ::1 d'abord et se prend un "connection
+      # refused" — le conteneur passe unhealthy alors qu'il sert le trafic réel très bien.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lan Party Manager</title>
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <img class="logo" src="./logo.png" alt="" width="72" height="72" />
+    <h1>LAN Party Manager</h1>
+    <p class="subtitle">Enter your crew's server address to sign in.</p>
+
+    <form id="server-form" hidden>
+      <label for="server-url">Server URL</label>
+      <input
+        id="server-url"
+        name="server-url"
+        type="text"
+        placeholder="https://your-lan.example.com"
+        autocomplete="off"
+        autofocus
+      />
+      <p id="error" class="error" role="alert" hidden></p>
+      <button id="submit-btn" type="submit">Continue</button>
+    </form>
+
+    <p id="loading" class="loading">Loading…</p>
+  </main>
+  <!-- clipboard-write only: the app's "copy" buttons use writeText. No clipboard-read — the
+       app never reads the clipboard itself (Ctrl+V into a field doesn't need it), and granting
+       it would let an XSS or a rogue server silently read whatever the player copies. -->
+  <iframe id="app-frame" title="LAN Party Manager" allow="clipboard-write" hidden></iframe>
+
+  <button id="settings-btn" class="settings-fab" title="Settings" aria-label="Settings" hidden>⚙</button>
+
+  <div id="settings-panel" class="settings-overlay" hidden>
+    <div class="settings-card">
+      <div class="settings-card-header">
+        <h2>Settings</h2>
+        <button id="settings-close" class="settings-close" aria-label="Close settings">×</button>
+      </div>
+
+      <section class="settings-section">
+        <span class="settings-label">Server</span>
+        <p id="settings-server-url" class="settings-value"></p>
+        <button id="settings-switch-server" class="settings-secondary" type="button">Switch server…</button>
+      </section>
+
+      <section class="settings-section">
+        <label class="settings-toggle">
+          <input type="checkbox" id="settings-launch-minimized" />
+          Launch minimized
+        </label>
+        <label class="settings-toggle">
+          <input type="checkbox" id="settings-autostart" />
+          Start with Windows
+        </label>
+      </section>
+
+      <section class="settings-section">
+        <span class="settings-label">Notify me about</span>
+        <label class="settings-toggle"><input type="checkbox" data-category="tournaments" /> Tournaments</label>
+        <label class="settings-toggle"><input type="checkbox" data-category="media" /> Media</label>
+        <label class="settings-toggle"><input type="checkbox" data-category="planning" /> Planning</label>
+        <label class="settings-toggle"><input type="checkbox" data-category="gear" /> Gear</label>
+        <label class="settings-toggle"><input type="checkbox" data-category="announcements" /> Announcements</label>
+      </section>
+
+      <section class="settings-section">
+        <span class="settings-label">League of Legends</span>
+        <label class="settings-toggle">
+          <input type="checkbox" id="settings-lol-capture" />
+          Send my games to my crew's LoL stats
+        </label>
+        <label class="settings-toggle settings-toggle-sub">
+          <input type="checkbox" id="settings-lol-outside-lan" />
+          Also outside a LAN (at home, between LANs)
+        </label>
+        <p class="settings-hint">Games played during a LAN you're attending count for that LAN; the others only show in the Global stats. Needs your crew to have LoL stats on. Reads the end-of-game screen from the League client — nothing else.</p>
+      </section>
+
+      <p id="settings-version" class="settings-version"></p>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

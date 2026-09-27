@@ -7,7 +7,7 @@
 **The self-hosted HQ for your LAN party weekends.**
 Invites, brackets, shared costs, photos, big-screen hype — on a box you own.
 
-[![Version](https://img.shields.io/badge/version-1.3.2-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.3.3-FF3D00?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-4C566A?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -134,6 +134,12 @@ straight answers in the **[website FAQ](https://lanpartymanager.com/#faq)**.
 **AGPL-3.0** — see [LICENSE](LICENSE). Versions up to 1.3.2 were private testing; the move to
 AGPL-3.0 starts with 1.3.3. Run it, fork it, improve it — if you serve a modified
 version to your crew, share the changes. That's the deal.
+
+## Contributing
+
+Issues are very welcome — bugs, ideas, "this broke at our LAN" stories. Pull requests
+aren't accepted for now: this public repo receives a snapshot of each release, and
+development happens elsewhere, so a PR couldn't be merged as-is anyway.
 
 ---
 

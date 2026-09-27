@@ -1,0 +1,602 @@
+[
+  {
+    "name": "Counter-Strike 2 / CS:S",
+    "genre": "FPS Tactique",
+    "default_max_players": 10,
+    "notes": "Le classique ultime du FPS compétitif."
+  },
+  {
+    "name": "Team Fortress 2",
+    "genre": "FPS par Classes",
+    "default_max_players": 32,
+    "notes": "Gratuit, accessible, très fun en équipe."
+  },
+  {
+    "name": "Halo: The Master Chief Collection",
+    "genre": "FPS Arena",
+    "default_max_players": 16,
+    "notes": "Idéal pour du Slayer, CTF et Infection."
+  },
+  {
+    "name": "Unreal Tournament 2004",
+    "genre": "Fast-FPS",
+    "default_max_players": 32,
+    "notes": "Ultra nerveux, véhicules (*Onslaught*) et CTF."
+  },
+  {
+    "name": "Quake Live",
+    "genre": "Fast-FPS",
+    "default_max_players": 16,
+    "notes": "Du pur Skill-FPS très rapide en Deathmatch."
+  },
+  {
+    "name": "Left 4 Dead 2",
+    "genre": "FPS Coop / VS",
+    "default_max_players": 8,
+    "notes": "Mode Versus (4v4) ou coop élargie via mods."
+  },
+  {
+    "name": "Call of Duty 4: Modern Warfare",
+    "genre": "FPS Arcade",
+    "default_max_players": 16,
+    "notes": "L'âge d'or de CoD pour du LAN rétro."
+  },
+  {
+    "name": "Battlefield 2",
+    "genre": "FPS Armes combinées",
+    "default_max_players": 64,
+    "notes": "Infiltration, véhicules et grandes cartes."
+  },
+  {
+    "name": "Day of Defeat: Source",
+    "genre": "FPS Tactique WWII",
+    "default_max_players": 32,
+    "notes": "Combats urbains dynamiques par objectifs."
+  },
+  {
+    "name": "Fistful of Frags",
+    "genre": "FPS Western",
+    "default_max_players": 16,
+    "notes": "Gratuit, ambiance Far West déjantée."
+  },
+  {
+    "name": "The Battle Grounds III",
+    "genre": "FPS Historique",
+    "default_max_players": 32,
+    "notes": "Mod gratuit sur la Guerre d'indépendance."
+  },
+  {
+    "name": "Natural Selection 2",
+    "genre": "FPS / RTS Hybride",
+    "default_max_players": 24,
+    "notes": "Combat tactique Marines vs Aliens."
+  },
+  {
+    "name": "S.T.A.L.K.E.R. (Shadow of Chernobyl)",
+    "genre": "FPS Survival",
+    "default_max_players": 32,
+    "notes": "Mode multijoueur PvP brut et atmosphérique."
+  },
+  {
+    "name": "PAYDAY 2",
+    "genre": "FPS Braquage",
+    "default_max_players": 4,
+    "notes": "Coop tactique étendu à plus de 4 joueurs."
+  },
+  {
+    "name": "Overwatch 2",
+    "genre": "Hero Shooter",
+    "default_max_players": 10,
+    "notes": "Matchs personnalisés équilibrés à 10."
+  },
+  {
+    "name": "Among Us",
+    "genre": "Social Deduction",
+    "default_max_players": 15,
+    "notes": "Enquêtes, bluff et trahisons."
+  },
+  {
+    "name": "Garry’s Mod",
+    "genre": "Sandbox / Party",
+    "default_max_players": 32,
+    "notes": "Modes *TTT*, *Murder* et *Prop Hunt*."
+  },
+  {
+    "name": "Atomic Bomberman",
+    "genre": "Arcade / Party",
+    "default_max_players": 10,
+    "notes": "Référence rétro des batailles à 10."
+  },
+  {
+    "name": "Golf With Your Friends",
+    "genre": "Party / Sport",
+    "default_max_players": 12,
+    "notes": "Mini-golf loufoque et frénétique."
+  },
+  {
+    "name": "Pummel Party",
+    "genre": "Board Game / Party",
+    "default_max_players": 8,
+    "notes": "Style Mario Party avec des mini-jeux déjantés."
+  },
+  {
+    "name": "Duck Game",
+    "genre": "Platform Fighter",
+    "default_max_players": 8,
+    "notes": "Combat 2D rapide et hilarant."
+  },
+  {
+    "name": "Gang Beasts",
+    "genre": "Party / Brawler",
+    "default_max_players": 8,
+    "notes": "Combats de bonshommes à la physique loufoque."
+  },
+  {
+    "name": "Stick Fight: The Game",
+    "genre": "Action / Brawler",
+    "default_max_players": 8,
+    "notes": "Arènes frénétiques et armes absurdes."
+  },
+  {
+    "name": "Crab Game",
+    "genre": "Mini-jeux / Action",
+    "default_max_players": 35,
+    "notes": "Épreuves d'élimination à la Squid Game."
+  },
+  {
+    "name": "Project Winter",
+    "genre": "Rôle Caché / Survie",
+    "default_max_players": 8,
+    "notes": "Sabotage et survie en milieu enneigé."
+  },
+  {
+    "name": "Deceit",
+    "genre": "FPS / Rôle Caché",
+    "default_max_players": 6,
+    "notes": "Paranoïa et monstres infiltrés."
+  },
+  {
+    "name": "Worms Armageddon",
+    "genre": "Artillerie 2D",
+    "default_max_players": 18,
+    "notes": "Tour par tour stratégique et comique."
+  },
+  {
+    "name": "StarCraft II",
+    "genre": "RTS / Arcade",
+    "default_max_players": 8,
+    "notes": "Modes 4v4 et cartes custom (*Squadron TD*)."
+  },
+  {
+    "name": "Warcraft III: Reforged",
+    "genre": "RTS / Customs",
+    "default_max_players": 12,
+    "notes": "Cartes custom (*Footmen*, *Castle Fight*)."
+  },
+  {
+    "name": "Age of Empires II: DE",
+    "genre": "RTS Historique",
+    "default_max_players": 8,
+    "notes": "Grandes batailles médiévales en équipe."
+  },
+  {
+    "name": "Age of Mythology: Retold",
+    "genre": "RTS Mythologique",
+    "default_max_players": 12,
+    "notes": "Unité mythiques, pouvoirs divins et 4v4+."
+  },
+  {
+    "name": "C&C: Generals - Zero Hour",
+    "genre": "RTS Arcade",
+    "default_max_players": 8,
+    "notes": "Stratégie moderne rapide et explosive."
+  },
+  {
+    "name": "Supreme Commander: FA",
+    "genre": "RTS Grand-angle",
+    "default_max_players": 12,
+    "notes": "Affrontements épiques à grande échelle."
+  },
+  {
+    "name": "Rise of Nations",
+    "genre": "RTS / 4X",
+    "default_max_players": 8,
+    "notes": "Évolution de la Préhistoire à nos jours."
+  },
+  {
+    "name": "Civilization VI",
+    "genre": "Stratégie 4X",
+    "default_max_players": 12,
+    "notes": "Tour par tour diplomatique et militaire."
+  },
+  {
+    "name": "Dota 2",
+    "genre": "MOBA",
+    "default_max_players": 10,
+    "notes": "Lobbies privés à 5 contre 5."
+  },
+  {
+    "name": "League of Legends",
+    "genre": "MOBA",
+    "default_max_players": 10,
+    "notes": "Affrontements 5v5 sur la Faille."
+  },
+  {
+    "name": "TrackMania Nations Forever",
+    "genre": "Course Arcade",
+    "default_max_players": 64,
+    "notes": "Gratuit, très fluide et circuits fun."
+  },
+  {
+    "name": "Wreckfest",
+    "genre": "Course / Destruction",
+    "default_max_players": 24,
+    "notes": "Demolition derby et tôles froissées."
+  },
+  {
+    "name": "Blur",
+    "genre": "Course / Power-ups",
+    "default_max_players": 20,
+    "notes": "Mario Kart avec de vraies voitures."
+  },
+  {
+    "name": "FlatOut 2",
+    "genre": "Course / Cascades",
+    "default_max_players": 8,
+    "notes": "Carnage automobile et mini-jeux d'éjection."
+  },
+  {
+    "name": "Supraball",
+    "genre": "Sport / FPS",
+    "default_max_players": 10,
+    "notes": "Football à la première personne."
+  },
+  {
+    "name": "Barotrauma",
+    "genre": "Survie / Simulation",
+    "default_max_players": 16,
+    "notes": "Gestion d'un sous-marin en équipage."
+  },
+  {
+    "name": "Terraria",
+    "genre": "Survie / Sandbox 2D",
+    "default_max_players": 255,
+    "notes": "Exploration, construction et bosses coop."
+  },
+  {
+    "name": "Factorio",
+    "genre": "Automation / Sandbox",
+    "default_max_players": null,
+    "notes": "Construction et optimisation d'usines à 10."
+  },
+  {
+    "name": "Minecraft",
+    "genre": "Sandbox / Survie",
+    "default_max_players": null,
+    "notes": "Serveur local avec mini-jeux ou survie."
+  },
+  {
+    "name": "Valheim",
+    "genre": "Survie / Exploration",
+    "default_max_players": 10,
+    "notes": "Aventure coopérative dans un monde viking."
+  },
+  {
+    "name": "Rust",
+    "genre": "Survie Hardcore",
+    "default_max_players": null,
+    "notes": "Serveur privé pour des guerres de clans."
+  },
+  {
+    "name": "ARK: Survival Evolved",
+    "genre": "Survie / Dinosaures",
+    "default_max_players": null,
+    "notes": "Taming, construction et tribus sur serveur privé."
+  },
+  {
+    "name": "Project Zomboid",
+    "genre": "Survie Zombie",
+    "default_max_players": null,
+    "notes": "Simulation de survie hyper détaillée en coop."
+  },
+  {
+    "name": "Insurgency / Insurgency: Sandstorm",
+    "genre": "FPS Tactique",
+    "default_max_players": 32,
+    "notes": "Coopération tendue contre l'IA ou PvP immersif."
+  },
+  {
+    "name": "Squad",
+    "genre": "FPS MilSim",
+    "default_max_players": 100,
+    "notes": "Tactique et communication sur grande carte."
+  },
+  {
+    "name": "Hell Let Loose",
+    "genre": "FPS Seconde Guerre mondiale",
+    "default_max_players": 100,
+    "notes": "Batailles historiques stratégiques à grande échelle."
+  },
+  {
+    "name": "Red Orchestra 2 / Rising Storm",
+    "genre": "FPS Tactique Historique",
+    "default_max_players": 64,
+    "notes": "Guerres réalistes du Front de l'Est et du Pacifique."
+  },
+  {
+    "name": "Killing Floor 2",
+    "genre": "FPS Horreur Coop",
+    "default_max_players": 6,
+    "notes": "Vagues de Zeds très gore et nerveuses."
+  },
+  {
+    "name": "SWAT 4",
+    "genre": "FPS Tactique Policier",
+    "default_max_players": 10,
+    "notes": "Infiltrations coopératives ou PvP tactique."
+  },
+  {
+    "name": "Serious Sam HD / 3 / 4",
+    "genre": "Fast-FPS Bourrin",
+    "default_max_players": 16,
+    "notes": "Coop complètement frénétique contre des hordes."
+  },
+  {
+    "name": "Duke Nukem 3D: 20th Anniversary",
+    "genre": "Fast-FPS Retro",
+    "default_max_players": 8,
+    "notes": "Le \"DukeMatch\" old-school parfait en LAN."
+  },
+  {
+    "name": "Doom3 / Quake 4",
+    "genre": "Fast-FPS Arena",
+    "default_max_players": 16,
+    "notes": "Deathmatchs classiques en couloirs sombres."
+  },
+  {
+    "name": "Halo 2: Anniversary / Halo 3",
+    "genre": "FPS Arena",
+    "default_max_players": 16,
+    "notes": "Incontournable en LAN pour le multijoueur local."
+  },
+  {
+    "name": "Chivalry 2",
+    "genre": "Action / Slashing Médio",
+    "default_max_players": 64,
+    "notes": "Combats de mêlée médiévaux chaotiques et sanglants."
+  },
+  {
+    "name": "Mordhau",
+    "genre": "Action / Mêlée Médiévale",
+    "default_max_players": 64,
+    "notes": "Duel et batailles médiévales ultra exigeantes."
+  },
+  {
+    "name": "Holdfast: Nations at War",
+    "genre": "FPS Historique",
+    "default_max_players": 150,
+    "notes": "Batailles napoléoniennes déjantées et vocales."
+  },
+  {
+    "name": "Mount & Blade II: Bannerlord",
+    "genre": "Action / RPG Médio",
+    "default_max_players": 100,
+    "notes": "Sièges et batailles rangées à grande échelle."
+  },
+  {
+    "name": "Titanfall 2",
+    "genre": "FPS / Mecha",
+    "default_max_players": 10,
+    "notes": "Duels de Titans et parkour ultra dynamique."
+  },
+  {
+    "name": "Screencheat",
+    "genre": "FPS Party Game",
+    "default_max_players": 8,
+    "notes": "FPS où tout le monde est invisible : il faut regarder l'écran des autres."
+  },
+  {
+    "name": "Unrailed!",
+    "genre": "Party / Arcade",
+    "default_max_players": 4,
+    "notes": "Poser des rails en urgence en équipe pour éviter le crash."
+  },
+  {
+    "name": "Human: Fall Flat",
+    "genre": "Physique / Puzzle",
+    "default_max_players": 8,
+    "notes": "Puzzles physiques absurdes et désopilants."
+  },
+  {
+    "name": "Ultimate Chicken Horse",
+    "genre": "Party / Plateforme",
+    "default_max_players": 4,
+    "notes": "Créer le niveau en direct pour piéger les copains."
+  },
+  {
+    "name": "SpeedRunners",
+    "genre": "Course Plateforme 2D",
+    "default_max_players": 4,
+    "notes": "Course à élimination ultra rapide et compétitive."
+  },
+  {
+    "name": "Move or Die",
+    "genre": "Party / Action 2D",
+    "default_max_players": 4,
+    "notes": "Les règles changent toutes les 20 secondes, ne pas rester immobile."
+  },
+  {
+    "name": "Brawlhalla",
+    "genre": "Platform Fighter",
+    "default_max_players": 8,
+    "notes": "Alternative gratuite à Smash Bros, très fluide."
+  },
+  {
+    "name": "TowerFall Ascension",
+    "genre": "Combat Archerie 2D",
+    "default_max_players": 8,
+    "notes": "Arènes frénétiques à l'arc avec flèches limitées."
+  },
+  {
+    "name": "Soldat",
+    "genre": "Action 2D Side-scroller",
+    "default_max_players": 32,
+    "notes": "Classique gratuit et nerveux en vue de côté."
+  },
+  {
+    "name": "SICO / Teeworlds",
+    "genre": "Action / Tir 2d",
+    "default_max_players": 16,
+    "notes": "Tir en 2D au grappin ultra rapide et addictif."
+  },
+  {
+    "name": "Star Wars Jedi Knight: Jedi Academy",
+    "genre": "Action / Sabres",
+    "default_max_players": 32,
+    "notes": "Duels au sabre laser mythiques et voltige."
+  },
+  {
+    "name": "Star Wars Battlefront II (2005)",
+    "genre": "Action / Shooter",
+    "default_max_players": 64,
+    "notes": "La version classique parfaite pour la nostalgie LAN."
+  },
+  {
+    "name": "Company of Heroes 2",
+    "genre": "RTS WWII",
+    "default_max_players": 8,
+    "notes": "Stratégie tactique avec couverture et blindés."
+  },
+  {
+    "name": "Stronghold Crusader HD",
+    "genre": "RTS / Gestion Châteaux",
+    "default_max_players": 8,
+    "notes": "Construction de citadelles et sièges médiévaux."
+  },
+  {
+    "name": "Empire Earth (Gold)",
+    "genre": "RTS Historique",
+    "default_max_players": 8,
+    "notes": "Gestion couvrant 500 000 ans d'histoire."
+  },
+  {
+    "name": "C&C: Red Alert 2 / Yuri's Revenge",
+    "genre": "RTS Arcade",
+    "default_max_players": 8,
+    "notes": "Guerre froide alternative survoltée et rétro."
+  },
+  {
+    "name": "Dawn of War (Soulstorm / Dark Crusade)",
+    "genre": "RTS Warhammer 40K",
+    "default_max_players": 8,
+    "notes": "Combats tactiques brutaux dans l'univers 40K."
+  },
+  {
+    "name": "Heroes of Might and Magic III (HD / HotA)",
+    "genre": "Stratégie Tour par Tour",
+    "default_max_players": 8,
+    "notes": "L'indémodable classique fantasy au tour par tour."
+  },
+  {
+    "name": "Northgard",
+    "genre": "RTS / Survie Viking",
+    "default_max_players": 8,
+    "notes": "Stratégie et gestion de clan nordique rapide."
+  },
+  {
+    "name": "Sins of a Solar Empire: Rebellion",
+    "genre": "RTS / 4X Spatial",
+    "default_max_players": 10,
+    "notes": "Conquête spatiale tactique en temps réel."
+  },
+  {
+    "name": "Stellaris",
+    "genre": "4X Spatial",
+    "default_max_players": 32,
+    "notes": "Conquête et diplomatie spatiale de grande ampleur."
+  },
+  {
+    "name": "Smite",
+    "genre": "MOBA Vue 3ème personne",
+    "default_max_players": 10,
+    "notes": "Affrontements mythologiques en arène."
+  },
+  {
+    "name": "Assetto Corsa",
+    "genre": "Simulation Automobile",
+    "default_max_players": 32,
+    "notes": "Serveur privé pour des sessions circuit ou drift."
+  },
+  {
+    "name": "rFactor 2",
+    "genre": "Simulation Course",
+    "default_max_players": 32,
+    "notes": "Idéal pour organiser un mini-championnat LAN."
+  },
+  {
+    "name": "Dirt Rally 2.0 / WRC",
+    "genre": "Course Rallye",
+    "default_max_players": 8,
+    "notes": "Sessions contre-la-montre et Rallycross en direct."
+  },
+  {
+    "name": "Need for Speed: Underground 2 / Most Wanted",
+    "genre": "Course Arcade",
+    "default_max_players": 8,
+    "notes": "Courses de rue et poursuites rétro."
+  },
+  {
+    "name": "7 Days to Die",
+    "genre": "Survie / Voxel Zombie",
+    "default_max_players": 8,
+    "notes": "Crafting, base-building et vagues de zombies tous les 7 jours."
+  },
+  {
+    "name": "Palworld",
+    "genre": "Survie / Collection",
+    "default_max_players": 32,
+    "notes": "Serveur dédié pour capturer et crafter à plusieurs."
+  },
+  {
+    "name": "Conan Exiles",
+    "genre": "Survie / Action RPG",
+    "default_max_players": 40,
+    "notes": "Survie barbare avec construction et boss."
+  },
+  {
+    "name": "Don't Starve Together",
+    "genre": "Survie 2D",
+    "default_max_players": 6,
+    "notes": "Survie sombre et poétique en coopération."
+  },
+  {
+    "name": "V Rising",
+    "genre": "Survie / Action RPG",
+    "default_max_players": 60,
+    "notes": "Construction de château et chasse de sang entre vampires."
+  },
+  {
+    "name": "Astroneer",
+    "genre": "Survie / Exploration",
+    "default_max_players": 4,
+    "notes": "Exploration spatiale chill et colorée."
+  },
+  {
+    "name": "Space Engineers",
+    "genre": "Sandbox / Spatial",
+    "default_max_players": 16,
+    "notes": "Construction de vaisseaux physiques et bases spatiales."
+  },
+  {
+    "name": "ArmA 3",
+    "genre": "Simulation Militaire",
+    "default_max_players": 100,
+    "notes": "Scénarios coop (Zeus, Invade & Annex) personnalisés."
+  },
+  {
+    "name": "Satisfactory",
+    "genre": "Usine / Exploration",
+    "default_max_players": 4,
+    "notes": "Construction d'usines géantes en vue FPS."
+  }
+]

@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  backend-tests:
+    name: Backend tests (pytest)
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ci-secret-not-for-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+      - name: Run pytest
+        working-directory: backend
+        run: python -m pytest
+
+  frontend-build:
+    name: Frontend typecheck + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Typecheck + build
+        working-directory: frontend
+        run: npm run build  # runs `tsc && vite build`
+
+  frontend-tests:
+    name: Frontend tests (vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Run tests
+        working-directory: frontend
+        run: npm run test
+
+  arm64-migration-smoke-test:
+    name: Alembic migrations on arm64 (Raspberry Pi parity)
+    runs-on: ubuntu-latest
+    # Backend-tests above never actually runs a migration file (conftest.py
+    # builds the schema straight from Base.metadata), and even a native
+    # ubuntu-latest run of Alembic wouldn't reproduce this: a 2026-09-14
+    # production incident had a migration's `op.add_column(..., server_
+    # default=sa.func.now())` work fine against the newer SQLite bundled
+    # with dev/CI x86 Python, but raise "Cannot add a column with
+    # non-constant default" against the OLDER SQLite bundled in the arm64
+    # python:3.11-slim image actually deployed on a Raspberry Pi 4 — see
+    # backend/alembic/versions/0024_craving_chat_v2.py and backend/tests/
+    # test_migrations.py's static guard for the fix and the general-purpose
+    # check. This job is the one thing that runs the *real* migration chain
+    # inside the *real* target architecture's SQLite build, which is the
+    # only way to actually catch this class of bug before a Pi does.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - name: Run the full Alembic chain twice inside an arm64 container
+        run: |
+          docker run --rm --platform linux/arm64/v8 \
+            -v "${{ github.workspace }}/backend:/app" -w /app \
+            -e SECRET_KEY=ci-secret-not-for-production \
+            -e DATABASE_URL=sqlite:////tmp/arm-smoke.db \
+            python:3.11-slim bash -c "
+              set -e
+              pip install -q -r requirements.txt
+              python -c 'from db_migrate import run_migrations; run_migrations()'
+              python -c 'from db_migrate import run_migrations; run_migrations()'
+            "
+
+  i18n-parity:
+    name: i18n EN/FR parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check translation parity
+        run: python scripts/check_i18n_parity.py
+
+  version-sync:
+    name: Version sync across files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check version consistency
+        run: python scripts/check_version_sync.py

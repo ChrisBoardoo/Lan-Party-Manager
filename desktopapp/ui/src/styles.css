@@ -1,0 +1,315 @@
+:root {
+  /* This shell is always dark — "light dark" here would let Chromium fall
+     back to native light-mode chrome (scrollbars, form controls) on systems
+     set to light mode, before any of the explicit overrides below apply. */
+  color-scheme: dark;
+  --bg: #0f1115;
+  --card: #171a21;
+  --border: #2a2f3a;
+  --text: #e8eaed;
+  --muted: #9aa1ac;
+  --accent: #ff3d00;
+  --error: #ff5c5c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  /* The shell's own page never has scrollable content — the embedded app
+     (#app-frame) fills the viewport via position:fixed and scrolls inside
+     its own document. This is defensive: it stops the shell itself from
+     ever showing a scrollbar, so the only one visible is the app's own
+     (styled in frontend/src/index.css to match this same dark look). */
+  overflow: hidden;
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 8px;
+  border: 2px solid var(--bg);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #3a3a3a;
+}
+
+.shell {
+  width: 100%;
+  max-width: 360px;
+  padding: 32px;
+  text-align: center;
+}
+
+.logo {
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+
+h1 {
+  font-size: 1.25rem;
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin: 0 0 24px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+button {
+  margin-top: 6px;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.error {
+  color: var(--error);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.loading {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.loading[hidden] {
+  display: none;
+}
+
+#app-frame {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+#app-frame[hidden] {
+  display: none;
+}
+
+.settings-fab {
+  /* top:64px, not the corner: the embedded app fills the whole window
+     (#app-frame is inset:0), and its own top-right corner is never empty —
+     the logged-in Navbar is a full-width h-14 (56px) strip, and the
+     logged-out Login/Register pages have their own LanguageToggle sitting
+     right at the physical top-right edge (that row isn't inside the
+     Navbar's centered max-w-6xl container, so it really does reach the
+     window edge). A corner-hugging fab collided with both. 64px clears the
+     Navbar's bottom edge and the shorter login toggle row alike. */
+  position: fixed;
+  top: 64px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  margin: 0;
+  border-radius: 50%;
+  background: rgba(23, 26, 33, 0.85);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1;
+  z-index: 10;
+}
+
+.settings-fab[hidden] {
+  display: none;
+}
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.settings-overlay[hidden] {
+  display: none;
+}
+
+.settings-card {
+  width: 100%;
+  max-width: 320px;
+  max-height: min(560px, 90vh);
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: left;
+}
+
+.settings-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.settings-card-header h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.settings-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.settings-section:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.settings-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings-value {
+  font-size: 0.85rem;
+  margin: 0;
+  word-break: break-all;
+}
+
+.settings-hint {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  margin: 0;
+  color: var(--muted);
+}
+
+.settings-secondary {
+  margin-top: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 500;
+  align-self: flex-start;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  width: auto;
+  accent-color: var(--accent);
+}
+
+/* A sub-option of the toggle above it (LoL: "also outside a LAN"). */
+.settings-toggle-sub {
+  padding-left: 22px;
+}
+
+.settings-toggle:has(input:disabled) {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings-version {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-align: center;
+  user-select: text;
+}

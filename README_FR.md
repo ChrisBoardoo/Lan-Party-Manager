@@ -7,7 +7,7 @@
 **Le QG auto-hébergé de vos week-ends LAN.**
 Invitations, brackets, frais partagés, photos, hype sur grand écran — sur une machine à vous.
 
-[![Version](https://img.shields.io/badge/version-1.3.2-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.3.3-FF3D00?style=flat-square)](#)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0-4C566A?style=flat-square)](LICENSE)
 [![Plateforme](https://img.shields.io/badge/plateforme-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -133,10 +133,17 @@ root, mais pourquoi ? ») ont leurs réponses franches dans la
 
 ## Licence
 
-**AGPL-3.0** — voir [LICENSE](LICENSE). Les versions jusqu'à la 1.3.2 était en private-testing ;
+**AGPL-3.0** — voir [LICENSE](LICENSE). Les versions jusqu'à la 1.3.2 étaient en private-testing ;
 le passage en AGPL-3.0 commence avec la 1.3.3. Faites-la tourner, forkez-la,
 améliorez-la — si vous servez une version modifiée à votre équipe, partagez vos
 changements. C'est le deal.
+
+## Contribuer
+
+Les issues sont les bienvenues — bugs, idées, récits de « ça a planté pendant notre LAN ».
+Les pull requests ne sont pas acceptées pour l'instant : ce dépôt public reçoit un
+instantané de chaque version, et le développement se fait ailleurs, donc une PR ne
+pourrait de toute façon pas être fusionnée telle quelle.
 
 ---
 

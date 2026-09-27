@@ -1,0 +1,13 @@
+# Dependencies and build output are produced inside the image (npm ci +
+# npm run build) — never ship the host's copies into the build context.
+# (Docker does NOT read .gitignore, so this must be listed here explicitly.)
+node_modules
+dist
+
+# Logs / local env / editor cruft
+npm-debug.log*
+yarn-error.log*
+.vite
+*.local
+.DS_Store
+Thumbs.db

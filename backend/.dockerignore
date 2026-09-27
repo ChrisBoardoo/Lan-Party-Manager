@@ -1,0 +1,24 @@
+# Python bytecode / test caches — regenerated inside the image, never ship them.
+# (Docker does NOT read .gitignore, so list these explicitly.)
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Virtualenvs and secrets must never enter the build context
+.venv*
+venv/
+.env
+
+# Local data never ships in the image. Images are built from the working copy
+# and pushed to Docker Hub publicly — a real lanparty.db or a restored backup
+# sitting in data/ would go out with every password hash and the Discord/SMTP
+# secrets. The Dockerfile recreates empty data/ and uploads/ itself.
+data/
+uploads/
+**/*.db
+
+# Tests run from the source tree (CI mounts backend/ as a volume), never from
+# the image.
+tests/

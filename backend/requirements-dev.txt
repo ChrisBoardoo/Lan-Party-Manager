@@ -1,0 +1,5 @@
+# Test-only dependencies. Not installed into the runtime Docker image.
+# Install alongside requirements.txt when running the suite:
+#   pip install -r requirements.txt -r requirements-dev.txt && pytest
+-r requirements.txt
+pytest==8.3.4

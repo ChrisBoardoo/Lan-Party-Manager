@@ -1,0 +1,45 @@
+services:
+  backend:
+    build: ./backend
+    # Loopback only: /docs stays handy on the machine that builds from source,
+    # but nothing on the network can reach the backend without going through
+    # the frontend's nginx. Never publish it on all interfaces — see
+    # docker-compose-web.yml.
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/app/data        # SQLite database + scheduled backup snapshots (persisted)
+      - ./uploads:/app/uploads  # Avatars, media files, video thumbnails (persisted)
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-lanparty-secret-CHANGE-ME}
+      DATABASE_URL: sqlite:///./data/lanparty.db
+      UPLOAD_DIR: /app/uploads
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-true}   # daily 03:00 snapshot into ./data/backups
+      BACKUP_KEEP_COUNT: ${BACKUP_KEEP_COUNT:-7}
+    restart: unless-stopped
+    healthcheck:
+      # No curl in the backend image (see Dockerfile) — urllib is stdlib, no extra install needed.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3001:80"
+    volumes:
+      - ./uploads:/app/uploads  # Nginx serves uploads directly — no Python/Uvicorn hop
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      # 127.0.0.1, pas localhost : nginx.conf déclare `listen 80;` (IPv4 seul), tandis que
+      # le wget de BusyBox résout localhost en ::1 d'abord et se prend un "connection
+      # refused" — le conteneur passe unhealthy alors qu'il sert le trafic réel très bien.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
