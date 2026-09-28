@@ -145,7 +145,7 @@ docker compose up -d
 ### Option B — Compilation depuis les sources
 
 ```bash
-git clone <url-de-votre-depot>
+git clone https://github.com/ChrisBoardoo/Lan-Party-Manager.git
 cd LANPARTYMANAGER
 echo "SECRET_KEY=change-me-to-a-long-random-string" > .env
 docker compose up --build
