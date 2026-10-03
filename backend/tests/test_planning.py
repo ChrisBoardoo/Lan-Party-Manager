@@ -9,8 +9,8 @@ import pytest
 
 from conftest import register, login, auth_header, make_user
 
-EVENT_START = "2026-08-15"
-EVENT_END = "2026-08-17"
+EVENT_START = "2099-08-15"
+EVENT_END = "2099-08-17"
 
 
 @pytest.fixture
@@ -105,7 +105,7 @@ def test_vote_is_bounded_by_rsvp_window(client, admin):
     _set(client, admin, "planning_enabled", "true")
     event_id = _create_event(client, admin)
     member = _member(client)
-    _rsvp(client, member, event_id, "2026-08-15", "2026-08-16")  # present 15→16 only
+    _rsvp(client, member, event_id, "2099-08-15", "2099-08-16")  # present 15→16 only
     block_id = _propose(client, admin, event_id).json()["id"]
 
     def vote(token, slots):
@@ -115,18 +115,18 @@ def test_vote_is_bounded_by_rsvp_window(client, admin):
         )
 
     # In-window, on the hour → OK, tally + my_slots reflect it.
-    ok = vote(member, ["2026-08-15T20:00:00"])
+    ok = vote(member, ["2099-08-15T20:00:00"])
     assert ok.status_code == 200
     body = ok.json()
-    assert body["my_slots"] == ["2026-08-15T20:00:00"]
-    assert body["tallies"] == [{"slot_start": "2026-08-15T20:00:00", "count": 1}]
+    assert body["my_slots"] == ["2099-08-15T20:00:00"]
+    assert body["tallies"] == [{"slot_start": "2099-08-15T20:00:00", "count": 1}]
 
     # After the member's departure day → rejected.
-    assert vote(member, ["2026-08-17T20:00:00"]).status_code == 400
+    assert vote(member, ["2099-08-17T20:00:00"]).status_code == 400
     # Before the event starts → rejected.
-    assert vote(member, ["2026-08-14T20:00:00"]).status_code == 400
+    assert vote(member, ["2099-08-14T20:00:00"]).status_code == 400
     # Not top-of-the-hour → rejected.
-    assert vote(member, ["2026-08-15T20:30:00"]).status_code == 400
+    assert vote(member, ["2099-08-15T20:30:00"]).status_code == 400
 
 
 def test_vote_requires_rsvp(client, admin):
@@ -136,7 +136,7 @@ def test_vote_requires_rsvp(client, admin):
     block_id = _propose(client, admin, event_id).json()["id"]
     resp = client.put(
         f"/api/planning/blocks/{block_id}/votes",
-        json={"slots": ["2026-08-15T20:00:00"]}, headers=auth_header(member),
+        json={"slots": ["2099-08-15T20:00:00"]}, headers=auth_header(member),
     )
     assert resp.status_code == 400
 
@@ -145,39 +145,39 @@ def test_vote_toggle_blocks_members_but_not_admin(client, admin):
     _set(client, admin, "planning_enabled", "true")
     _set(client, admin, "planning_default_can_vote", "false")
     event_id = _create_event(client, admin)
-    _rsvp(client, admin, event_id, "2026-08-15", "2026-08-17")
+    _rsvp(client, admin, event_id, "2099-08-15", "2099-08-17")
     member = _member(client)
-    _rsvp(client, member, event_id, "2026-08-15", "2026-08-17")
+    _rsvp(client, member, event_id, "2099-08-15", "2099-08-17")
     block_id = _propose(client, admin, event_id).json()["id"]
 
     # Member blocked by the toggle; admin bypasses it (still bounded by RSVP).
     assert client.put(
         f"/api/planning/blocks/{block_id}/votes",
-        json={"slots": ["2026-08-15T21:00:00"]}, headers=auth_header(member),
+        json={"slots": ["2099-08-15T21:00:00"]}, headers=auth_header(member),
     ).status_code == 403
     assert client.put(
         f"/api/planning/blocks/{block_id}/votes",
-        json={"slots": ["2026-08-15T21:00:00"]}, headers=auth_header(admin),
+        json={"slots": ["2099-08-15T21:00:00"]}, headers=auth_header(admin),
     ).status_code == 200
 
 
 def test_tally_counts_multiple_voters(client, admin):
     _set(client, admin, "planning_enabled", "true")
     event_id = _create_event(client, admin)
-    _rsvp(client, admin, event_id, "2026-08-15", "2026-08-17")
+    _rsvp(client, admin, event_id, "2099-08-15", "2099-08-17")
     m1 = _member(client, "alice")
     m2 = _member(client, "bob")
-    _rsvp(client, m1, event_id, "2026-08-15", "2026-08-17")
-    _rsvp(client, m2, event_id, "2026-08-15", "2026-08-17")
+    _rsvp(client, m1, event_id, "2099-08-15", "2099-08-17")
+    _rsvp(client, m2, event_id, "2099-08-15", "2099-08-17")
     block_id = _propose(client, admin, event_id).json()["id"]
 
-    slot = ["2026-08-16T20:00:00"]
+    slot = ["2099-08-16T20:00:00"]
     for tok in (m1, m2):
         client.put(f"/api/planning/blocks/{block_id}/votes", json={"slots": slot}, headers=auth_header(tok)).raise_for_status()
 
     blocks = client.get(f"/api/planning/events/{event_id}", headers=auth_header(admin)).json()["blocks"]
     tallies = blocks[0]["tallies"]
-    assert tallies == [{"slot_start": "2026-08-16T20:00:00", "count": 2}]
+    assert tallies == [{"slot_start": "2099-08-16T20:00:00", "count": 2}]
 
 
 # ── Lock / unlock ────────────────────────────────────────────────────────────────
@@ -189,7 +189,7 @@ def test_lock_unlock_permissions(client, admin):
     stranger = _member(client, "stranger")
     block_id = _propose(client, member, event_id).json()["id"]
 
-    lock_body = {"locked_start": "2026-08-16T20:00:00", "locked_end": "2026-08-16T22:00:00"}
+    lock_body = {"locked_start": "2099-08-16T20:00:00", "locked_end": "2099-08-16T22:00:00"}
 
     # A non-proposer, non-admin member cannot lock.
     assert client.post(
@@ -200,7 +200,7 @@ def test_lock_unlock_permissions(client, admin):
     locked = client.post(f"/api/planning/blocks/{block_id}/lock", json=lock_body, headers=auth_header(admin))
     assert locked.status_code == 200
     assert locked.json()["status"] == "locked"
-    assert locked.json()["locked_start"] == "2026-08-16T20:00:00"
+    assert locked.json()["locked_start"] == "2099-08-16T20:00:00"
 
     # Unlock clears it.
     unlocked = client.post(f"/api/planning/blocks/{block_id}/unlock", headers=auth_header(admin))
@@ -214,7 +214,7 @@ def test_lock_rejects_backwards_window(client, admin):
     block_id = _propose(client, admin, event_id).json()["id"]
     resp = client.post(
         f"/api/planning/blocks/{block_id}/lock",
-        json={"locked_start": "2026-08-16T22:00:00", "locked_end": "2026-08-16T20:00:00"},
+        json={"locked_start": "2099-08-16T22:00:00", "locked_end": "2099-08-16T20:00:00"},
         headers=auth_header(admin),
     )
     assert resp.status_code == 400
@@ -229,7 +229,7 @@ def test_lock_with_and_without_color(client, admin):
 
     locked = client.post(
         f"/api/planning/blocks/{block_id}/lock",
-        json={"locked_start": "2026-08-16T20:00:00", "locked_end": "2026-08-16T22:00:00", "color": "peacock"},
+        json={"locked_start": "2099-08-16T20:00:00", "locked_end": "2099-08-16T22:00:00", "color": "peacock"},
         headers=auth_header(admin),
     )
     assert locked.status_code == 200
@@ -239,7 +239,7 @@ def test_lock_with_and_without_color(client, admin):
     block_id_2 = _propose(client, admin, event_id, game="Overwatch").json()["id"]
     locked_2 = client.post(
         f"/api/planning/blocks/{block_id_2}/lock",
-        json={"locked_start": "2026-08-16T20:00:00", "locked_end": "2026-08-16T22:00:00"},
+        json={"locked_start": "2099-08-16T20:00:00", "locked_end": "2099-08-16T22:00:00"},
         headers=auth_header(admin),
     )
     assert locked_2.json()["color"] is None

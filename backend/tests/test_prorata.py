@@ -73,15 +73,17 @@ def test_dates_clamp_to_event_window():
 
 
 def test_zero_person_nights_no_division_error():
-    """Everyone attends zero nights -> no ZeroDivisionError, all shares 0."""
+    """Everyone attends zero nights -> no ZeroDivisionError, and the cost is
+    split equally between the attendees (it used to be 0 for everyone, so
+    whoever paid was never reimbursed)."""
     event = _event(date(2026, 8, 1), date(2026, 8, 1))  # 0 nights
     rsvps = [_rsvp(1, date(2026, 8, 1), date(2026, 8, 1))]
     result = calculate_prorata(event, rsvps, [_expense(40.0)])
 
     assert result["total_person_nights"] == 0
     assert result["shares"][0]["nights"] == 0
-    assert result["shares"][0]["percentage"] == 0.0
-    assert result["shares"][0]["amount"] == 0.0
+    assert result["shares"][0]["percentage"] == 100.0
+    assert result["shares"][0]["amount"] == 40.0
 
 
 def test_rsvp_without_dates_is_excluded():

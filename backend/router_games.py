@@ -319,7 +319,7 @@ def import_from_steam(
     user: User = Depends(require_feature("games")),
 ):
     """Bulk-adds the current user's Steam-owned games to their library, via
-    the account linked in Profile (see md/Steam_Link.md). Steam doesn't give a
+    the account linked in Profile (see md/2.features/Steam_Link.md). Steam doesn't give a
     max-player count, so an imported game's `max_players_override` is left
     unset — the catalog's own default (if any) still applies, and a member can
     always set their own override afterward exactly like a manually-added

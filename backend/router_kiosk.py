@@ -17,7 +17,7 @@ import secrets
 from datetime import date, datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
@@ -69,7 +69,6 @@ def _kiosk_enabled(db: Session) -> bool:
 # ── Auth: token-only, for the unattended display ──────────────────────────────
 
 def require_kiosk(
-    token: Optional[str] = Query(None),
     x_kiosk_token: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ) -> None:
@@ -77,11 +76,14 @@ def require_kiosk(
 
     Rejects with 404 when the feature is off (so the surface is invisible unless
     an admin turned it on) and 401 when the token is missing or wrong. The
-    compare is constant-time to avoid leaking the token via timing."""
+    compare is constant-time to avoid leaking the token via timing.
+
+    Header-only, like the recap and setup shares: a `?token=` query string
+    lands in access logs (it used to be accepted here too)."""
     if not _kiosk_enabled(db):
         raise HTTPException(404, "Kiosk is not enabled")
     stored = get_setting(db, KIOSK_TOKEN_KEY)
-    provided = token or x_kiosk_token
+    provided = x_kiosk_token
     # Compare bytes: secrets.compare_digest raises TypeError on non-ASCII str
     # input, which would surface as a 500 instead of a clean 401.
     if not stored or not provided or not secrets.compare_digest(

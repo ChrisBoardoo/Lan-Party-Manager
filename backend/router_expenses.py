@@ -5,12 +5,22 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import User, Expense, LanEvent, EventRSVP, SettlementPayment
 from schemas import ExpenseCreate, ExpenseOut
-from auth import require_treasurer
+from activity import add_audit
+from auth import require_treasurer as _require_treasurer_role
 from prorata import calculate_prorata
-from event_utils import current_event, event_prorata_inputs
+from event_utils import event_prorata_inputs, treasury_default_event
 from router_settings import require_feature
 
 router = APIRouter()
+
+
+def require_treasurer(
+    user: User = Depends(_require_treasurer_role),
+    _feature: User = Depends(require_feature("treasury")),
+) -> User:
+    """Treasurer or admin, and the treasury feature on (admins pass anyway):
+    writes used to go through with the feature off while reads 404'd."""
+    return user
 
 _EMPTY_PRORATA = {
     "total_expenses": 0.0,
@@ -41,13 +51,13 @@ def get_prorata(
         if not event:
             raise HTTPException(404, "Event not found")
     else:
-        event = current_event(db)
+        event = treasury_default_event(db)
 
     if not event:
         return _EMPTY_PRORATA
 
-    rsvps, expenses, paid_pairs = event_prorata_inputs(db, event)
-    return calculate_prorata(event, rsvps, expenses, paid_pairs, current_user.id)
+    rsvps, expenses, payments = event_prorata_inputs(db, event)
+    return calculate_prorata(event, rsvps, expenses, payments, current_user.id)
 
 
 @router.get("/unassigned-count")
@@ -69,7 +79,7 @@ def get_expenses(
     event_id: int = Query(None),
     db: Session = Depends(get_db),
     _: User = Depends(require_feature("treasury")),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(1000, ge=1, le=5000),
     offset: int = Query(0, ge=0),
 ):
     query = db.query(Expense)
@@ -83,6 +93,21 @@ def _validate_payer(db: Session, paid_by):
         raise HTTPException(400, "paid_by user not found")
 
 
+def _validate_event(db: Session, event_id):
+    if event_id is not None and not db.query(LanEvent).filter(LanEvent.id == event_id).first():
+        raise HTTPException(400, "event not found")
+
+
+def _describe(db: Session, expense: Expense) -> str:
+    """One line for the audit log: what, how much, who paid, which event."""
+    payer = db.query(User.username).filter(User.id == expense.paid_by).scalar() or "?"
+    event = (
+        db.query(LanEvent.title).filter(LanEvent.id == expense.event_id).scalar()
+        if expense.event_id is not None else None
+    ) or "no event"
+    return f"{expense.description} — {expense.amount:.2f} € paid by {payer} ({event})"
+
+
 @router.post("/", response_model=ExpenseOut, status_code=201)
 def create_expense(
     data: ExpenseCreate,
@@ -93,8 +118,12 @@ def create_expense(
     # Default the payer to whoever is entering the expense.
     payload["paid_by"] = payload.get("paid_by") or current_user.id
     _validate_payer(db, payload["paid_by"])
+    _validate_event(db, payload["event_id"])
     expense = Expense(**payload, created_by=current_user.id)
     db.add(expense)
+    db.flush()
+    # Every expense moves what everyone owes: keep a trace of who wrote what.
+    add_audit(db, current_user.id, "expense_created", _describe(db, expense))
     db.commit()
     db.refresh(expense)
     return expense
@@ -113,8 +142,12 @@ def update_expense(
     payload = data.model_dump()
     payload["paid_by"] = payload.get("paid_by") or expense.paid_by or current_user.id
     _validate_payer(db, payload["paid_by"])
+    _validate_event(db, payload["event_id"])
+    before = _describe(db, expense)
     for field, value in payload.items():
         setattr(expense, field, value)
+    db.flush()
+    add_audit(db, current_user.id, "expense_updated", f"{before} → {_describe(db, expense)}")
     db.commit()
     db.refresh(expense)
     return expense
@@ -124,18 +157,22 @@ def update_expense(
 def delete_expense(
     expense_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_treasurer),
+    current_user: User = Depends(require_treasurer),
 ):
     expense = db.query(Expense).filter(Expense.id == expense_id).first()
     if not expense:
         raise HTTPException(404, "Expense not found")
+    add_audit(db, current_user.id, "expense_deleted", _describe(db, expense))
     db.delete(expense)
     db.commit()
     return {"ok": True}
 
 
-# ── Settlement "payment sent" markers (self-service, any member) ────────────────
+# ── Settlement "payment sent" (self-service, any member) ────────────────────────
 # A debtor marks/reverses only their OWN debt line (from_user_id == themselves).
+# Marking records the amount of the line as it stands right now; the split then
+# counts it, so anything that changes later (a late receipt, new dates) shows
+# up as what is still owed instead of silently relabelling the old line.
 
 @router.post("/settlements/mark")
 def mark_settlement(
@@ -145,6 +182,21 @@ def mark_settlement(
 ):
     if data.to_user_id == current_user.id:
         raise HTTPException(400, "You cannot owe yourself")
+    event = db.query(LanEvent).filter(LanEvent.id == data.event_id).first()
+    if not event:
+        raise HTTPException(404, "Event not found")
+    rsvps, expenses, payments = event_prorata_inputs(db, event)
+    result = calculate_prorata(event, rsvps, expenses, payments, current_user.id)
+    line = next(
+        (
+            l for l in result["settlements"]
+            if not l["paid"] and l["from_user_id"] == current_user.id and l["to_user_id"] == data.to_user_id
+        ),
+        None,
+    )
+    if line is None:
+        raise HTTPException(400, "Nothing is owed on this line")
+
     existing = (
         db.query(SettlementPayment)
         .filter(
@@ -154,14 +206,19 @@ def mark_settlement(
         )
         .first()
     )
-    if not existing:
+    # One row per pair (unique constraint): a second transfer to the same
+    # person adds up into it.
+    if existing:
+        existing.amount = round((existing.amount or 0) + line["amount"], 2)
+    else:
         db.add(SettlementPayment(
             event_id=data.event_id,
             from_user_id=current_user.id,
             to_user_id=data.to_user_id,
+            amount=line["amount"],
         ))
-        db.commit()
-    return {"ok": True, "paid": True}
+    db.commit()
+    return {"ok": True, "paid": True, "amount": line["amount"]}
 
 
 @router.delete("/settlements/mark")

@@ -8,7 +8,7 @@ import SetupView from '../components/SetupView'
 import Logo from '../components/ui/Logo'
 
 /**
- * The public, token-authorized setup at /setup/shared?token=… — no login, no
+ * The public, token-authorized setup at /setup/shared#token=… — no login, no
  * Navbar/Layout, exactly like the kiosk and the shared recap.
  *
  * Its payload carries a username, an avatar, the parts list and the photos, and
@@ -17,7 +17,8 @@ import Logo from '../components/ui/Logo'
 export default function SharedSetupPage() {
   const { t } = useTranslation()
   const [params] = useSearchParams()
-  const token = params.get('token')
+  // #token= since 1.3.4; ?token= for links shared before.
+  const token = new URLSearchParams(window.location.hash.slice(1)).get('token') ?? params.get('token')
   const [setup, setSetup] = useState<SharedSetup | null>(null)
   const [loading, setLoading] = useState(true)
 

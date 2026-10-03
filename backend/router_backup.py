@@ -92,6 +92,10 @@ def _extract_safely(tar: tarfile.TarFile, dest: str) -> None:
     safe = []
     for m in tar.getmembers():
         name = m.name.replace("\\", "/").lstrip("/")
+        # Extract under the name that was checked, not the raw one: the raw
+        # name may be absolute ("/uploads/../app/main.py"), which tarfile would
+        # write as is and land outside `dest`.
+        m.name = name
         if name != "lanparty.db" and name != "uploads" and not name.startswith("uploads/"):
             continue
         if not (m.isfile() or m.isdir()):
@@ -100,9 +104,11 @@ def _extract_safely(tar: tarfile.TarFile, dest: str) -> None:
         if target != dest and not target.startswith(dest + os.sep):
             continue  # path traversal attempt
         safe.append(m)
-    if not any(m.name.replace("\\", "/").lstrip("/") == "lanparty.db" for m in safe):
+    if not any(m.name == "lanparty.db" for m in safe):
         raise HTTPException(400, "Backup archive does not contain lanparty.db")
-    tar.extractall(dest, members=safe)
+    # filter="data" (3.11.4+) is tarfile's own guard against the same family:
+    # absolute paths, `..`, links and special files raise instead of escaping.
+    tar.extractall(dest, members=safe, filter="data")
 
 
 @router.post("/import")

@@ -21,7 +21,7 @@ def _event_with_attendees(founder_id, other_id):
     session = database.SessionLocal()
     try:
         event = models.LanEvent(
-            title="LAN", start_date=date(2026, 8, 1), end_date=date(2026, 8, 3),
+            title="LAN", start_date=date(2099, 8, 1), end_date=date(2099, 8, 3),
             created_by=founder_id,
         )
         session.add(event)
@@ -31,7 +31,7 @@ def _event_with_attendees(founder_id, other_id):
         for uid in (founder_id, other_id):
             session.add(models.EventRSVP(
                 event_id=event.id, user_id=uid, status="in",
-                arrival_date=date(2026, 8, 1), departure_date=date(2026, 8, 3),
+                arrival_date=date(2099, 8, 1), departure_date=date(2099, 8, 3),
             ))
         session.commit()
         return event.id
@@ -67,7 +67,7 @@ def test_deactivated_member_freed_capacity_slot(client):
     session = database.SessionLocal()
     try:
         event = models.LanEvent(
-            title="Small LAN", start_date=date(2026, 8, 1), end_date=date(2026, 8, 3),
+            title="Small LAN", start_date=date(2099, 8, 1), end_date=date(2099, 8, 3),
             created_by=founder_id, capacity=2,
         )
         session.add(event)
@@ -76,7 +76,7 @@ def test_deactivated_member_freed_capacity_slot(client):
         for uid in (founder_id, bob_id):
             session.add(models.EventRSVP(
                 event_id=event.id, user_id=uid, status="in",
-                arrival_date=date(2026, 8, 1), departure_date=date(2026, 8, 3),
+                arrival_date=date(2099, 8, 1), departure_date=date(2099, 8, 3),
             ))
         session.commit()
         event_id = event.id
@@ -88,7 +88,7 @@ def test_deactivated_member_freed_capacity_slot(client):
     # Full at capacity 2 — a third RSVP is rejected.
     resp = client.post(
         f"/api/events/{event_id}/rsvp",
-        json={"arrival_date": "2026-08-01", "departure_date": "2026-08-03"},
+        json={"arrival_date": "2099-08-01", "departure_date": "2099-08-03"},
         headers=auth_header(charlie_token),
     )
     assert resp.status_code == 400
@@ -98,7 +98,7 @@ def test_deactivated_member_freed_capacity_slot(client):
     # Deactivating bob should free his capacity slot.
     resp = client.post(
         f"/api/events/{event_id}/rsvp",
-        json={"arrival_date": "2026-08-01", "departure_date": "2026-08-03"},
+        json={"arrival_date": "2099-08-01", "departure_date": "2099-08-03"},
         headers=auth_header(charlie_token),
     )
     assert resp.status_code == 200
@@ -144,7 +144,7 @@ def test_deleted_member_username_and_email_are_free_for_reuse(client):
 
     event_resp = client.post(
         "/api/events/",
-        json={"title": "LAN", "start_date": "2026-08-01", "end_date": "2026-08-03"},
+        json={"title": "LAN", "start_date": "2099-08-01", "end_date": "2099-08-03"},
         headers=auth_header(founder_token),
     )
     event_id = event_resp.json()["id"]
@@ -156,7 +156,7 @@ def test_deleted_member_username_and_email_are_free_for_reuse(client):
         "/api/auth/register",
         json={
             "username": "bob", "email": "bob@example.com", "password": "password123",
-            "invite_code": code, "arrival_date": "2026-08-01", "departure_date": "2026-08-02",
+            "invite_code": code, "arrival_date": "2099-08-01", "departure_date": "2099-08-02",
         },
     )
     assert resp.status_code == 201
@@ -171,7 +171,7 @@ def test_deleted_member_username_and_email_are_free_for_reuse(client):
         "/api/auth/register",
         json={
             "username": "bob", "email": "bob@example.com", "password": "password456",
-            "invite_code": code, "arrival_date": "2026-08-01", "departure_date": "2026-08-02",
+            "invite_code": code, "arrival_date": "2099-08-01", "departure_date": "2099-08-02",
         },
     )
     assert resp.status_code == 201

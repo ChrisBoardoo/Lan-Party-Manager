@@ -1,7 +1,7 @@
 """calendar view — schedule_blocks.color / users.planning_schedule_view
 
 Adds the two columns needed by the Planning > Schedule calendar view
-(md/calendarview.md):
+(md/2.features/calendarview.md):
   * schedule_blocks.color         — palette key chosen at lock time; NULL falls
                                      back to a deterministic hash of `game`
   * users.planning_schedule_view  — "list" | "calendar", per-account display

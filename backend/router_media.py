@@ -11,7 +11,7 @@ from schemas import MediaItemOut, MediaItemUpdate, MediaReact, MediaReactionCoun
 from auth import get_current_user
 from activity import add_activity
 from file_validation import matches_declared
-from uploads import UPLOAD_DIR, read_capped
+from uploads import UPLOAD_DIR, read_capped, remove_upload
 
 router = APIRouter()
 MAX_SIZE = 100 * 1024 * 1024  # 100 MB — a media policy, not an image one
@@ -174,7 +174,8 @@ async def upload_media(
 
     file_type = "image" if file.content_type.startswith("image/") else "video"
     ext = _MIME_TO_EXT.get(file.content_type, "bin")
-    filename = f"media_{current_user.id}_{uuid.uuid4().hex[:12]}.{ext}"
+    # A full uuid: /uploads/ is public, the name is the only thing guarding it.
+    filename = f"media_{current_user.id}_{uuid.uuid4().hex}.{ext}"
     media_dir = os.path.join(UPLOAD_DIR, "media")
     os.makedirs(media_dir, exist_ok=True)
 
@@ -285,6 +286,18 @@ class BulkDeleteRequest(BaseModel):
     ids: List[int]
 
 
+def _remove_media_files(item: MediaItem) -> None:
+    """The file and, for a video, its thumbnail — a deleted clip's frame used
+    to stay publicly reachable under /uploads/thumbnails/."""
+    filepath = os.path.join(UPLOAD_DIR, "media", item.filename)
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+        except OSError:
+            pass
+    remove_upload(item.thumbnail_url, "thumbnails")
+
+
 @router.post("/bulk-delete")
 def bulk_delete_media(
     data: BulkDeleteRequest,
@@ -298,12 +311,7 @@ def bulk_delete_media(
 
     items = db.query(MediaItem).filter(MediaItem.id.in_(data.ids)).all()
     for item in items:
-        filepath = os.path.join(UPLOAD_DIR, "media", item.filename)
-        if os.path.exists(filepath):
-            try:
-                os.remove(filepath)
-            except OSError:
-                pass
+        _remove_media_files(item)
         db.delete(item)
     db.commit()
     return {"deleted": len(items)}
@@ -321,13 +329,7 @@ def delete_media(
     if item.uploaded_by != current_user.id and current_user.role != "admin":
         raise HTTPException(403, "Forbidden")
 
-    filepath = os.path.join(UPLOAD_DIR, "media", item.filename)
-    if os.path.exists(filepath):
-        try:
-            os.remove(filepath)
-        except OSError:
-            pass
-
+    _remove_media_files(item)
     db.delete(item)
     db.commit()
     return {"ok": True}

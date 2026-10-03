@@ -129,7 +129,7 @@ async def save_image_upload(
     img = _decode(content)
     img.thumbnail(box)
 
-    filename = f"{prefix}_{uuid.uuid4().hex[:8]}.webp"
+    filename = f"{prefix}_{uuid.uuid4().hex}.webp"
     target_dir = os.path.join(UPLOAD_DIR, subdir) if subdir else UPLOAD_DIR
     os.makedirs(target_dir, exist_ok=True)
     img.save(os.path.join(target_dir, filename), "WEBP", quality=quality)
@@ -167,7 +167,7 @@ def rotate_image_file(
     except Exception as e:
         raise HTTPException(400, f"Could not rotate image: {e}")
 
-    filename = f"{prefix}_{uuid.uuid4().hex[:8]}.webp"
+    filename = f"{prefix}_{uuid.uuid4().hex}.webp"
     img.save(_disk_path(subdir, filename), "WEBP", quality=quality)
     remove_upload(url, subdir)
     return _public_url(subdir, filename)

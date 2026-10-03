@@ -110,6 +110,19 @@
     text-transform: uppercase;
   }
 
+  /* Kiosk/projector variant of .font-mono-label: the same face, but NO font-size.
+     .font-mono-label's 0.75rem comes after Tailwind's text-[…] utilities in the
+     built CSS (same specificity, later wins), so on the kiosk it pinned every
+     `font-mono-label text-[1.4vw]` label at 12px whatever the screen — unreadable
+     on a projector. Here the size always comes from the element's own text-[Nvw]
+     (or its parent's). The app-wide class is left alone on purpose: ~170 labels
+     elsewhere combine it with text-[10px]/[11px] and would all shrink at once. */
+  .font-mono-kiosk {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
   /* Navbar-only variant of .font-mono-label, ~17% larger (0.75rem -> 0.875rem)
      per crew feedback that the header text/contrast was hard to read.
      Deliberately a separate class rather than bumping .font-mono-label

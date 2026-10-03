@@ -1,7 +1,7 @@
 """steam link — user.steam_id / steam_username / steam_avatar
 
 Adds the columns needed to link a Steam account (link-only — see
-md/Steam_Link.md, no sign-up/login via Steam):
+md/2.features/Steam_Link.md, no sign-up/login via Steam):
   * users.steam_id       — SteamID64 (unique; nullable)
   * users.steam_username — Steam persona name (for the profile UI)
   * users.steam_avatar   — Steam avatar URL (already a full URL, unlike

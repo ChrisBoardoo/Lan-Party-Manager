@@ -69,12 +69,12 @@ export default function LiveDrop({ item, more, serverTime }: { item: KioskMedia;
       )}
 
       <div className="relative flex items-center justify-between px-[4vw] pt-[3vh] shrink-0">
-        <div className="lw-in flex items-center gap-[0.8vw] font-mono-label text-accent text-[1.4vw] tracking-widest">
+        <div className="lw-in flex items-center gap-[0.8vw] font-mono-kiosk text-accent text-[1.4vw] tracking-widest">
           <span className="w-[0.9vw] h-[0.9vw] bg-accent kiosk-pulse" />
           {t('kiosk.dropLabel')}
         </div>
         {ready && more > 0 && (
-          <div className="lw-rise font-mono-label text-muted-foreground text-[1.2vw]" style={{ '--lw-delay': '1200ms' } as React.CSSProperties}>
+          <div className="lw-rise font-mono-kiosk text-muted-foreground text-[1.2vw]" style={{ '--lw-delay': '1200ms' } as React.CSSProperties}>
             {t('kiosk.dropMore', { count: more })}
           </div>
         )}
@@ -117,7 +117,7 @@ export default function LiveDrop({ item, more, serverTime }: { item: KioskMedia;
           <div className="min-w-0">
             <div className="lw-rise flex items-baseline gap-[1.2vw]" style={{ '--lw-delay': '1250ms' } as React.CSSProperties}>
               <span className="text-[3.4vw] font-black tracking-tighter leading-none truncate">{item.uploader}</span>
-              {ago && <span className="font-mono-label text-muted-foreground text-[1.1vw] shrink-0">{ago}</span>}
+              {ago && <span className="font-mono-kiosk text-muted-foreground text-[1.1vw] shrink-0">{ago}</span>}
             </div>
             {item.caption && (
               <div

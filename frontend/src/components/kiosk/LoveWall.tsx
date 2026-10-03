@@ -179,7 +179,7 @@ export default function LoveWall({
             <div className="bg-white p-[0.8vw] w-full">
               <QRCode value={`${joinBase}/media`} size={256} style={{ width: '100%', height: 'auto' }} viewBox="0 0 256 256" />
             </div>
-            <div className="font-mono-label text-accent text-[1.1vw] tracking-widest">📸 {t('kiosk.wallPostYours')}</div>
+            <div className="font-mono-kiosk text-accent text-[1.1vw] tracking-widest">📸 {t('kiosk.wallPostYours')}</div>
             <div className="text-[1vw] text-muted-foreground leading-snug">{t('kiosk.wallPostYoursHint')}</div>
           </div>
         </div>
@@ -194,7 +194,7 @@ function WallStat({ value, label, accent = false }: { value: number; label: stri
       <div className={`text-[3.6vw] font-black tracking-tighter leading-none tabular-nums ${accent ? 'text-accent' : ''}`}>
         {value}
       </div>
-      <div className="font-mono-label text-muted-foreground text-[0.95vw] mt-[0.8vh]">{label}</div>
+      <div className="font-mono-kiosk text-muted-foreground text-[0.95vw] mt-[0.8vh]">{label}</div>
     </div>
   )
 }
@@ -252,12 +252,12 @@ function WallTile({
 
           <div className="lw-rise absolute top-0 inset-x-0 p-[1vw] flex items-start justify-between gap-[1vw]">
             {item.love_pick ? (
-              <span className="bg-accent text-accent-foreground font-mono-label text-[0.9vw] px-[0.7vw] py-[0.5vh]">
+              <span className="bg-accent text-accent-foreground font-mono-kiosk text-[0.9vw] px-[0.7vw] py-[0.5vh]">
                 ❤ {t('kiosk.wallLovePick')}
               </span>
             ) : <span />}
             {item.file_type === 'video' && (
-              <span className="bg-background/70 font-mono-label text-[0.8vw] px-[0.6vw] py-[0.4vh]">▶ {t('kiosk.wallVideo')}</span>
+              <span className="bg-background/70 font-mono-kiosk text-[0.8vw] px-[0.6vw] py-[0.4vh]">▶ {t('kiosk.wallVideo')}</span>
             )}
           </div>
 
@@ -270,7 +270,7 @@ function WallTile({
                   {item.caption}
                 </div>
               )}
-              <div className={`flex items-center gap-[0.6vw] font-mono-label min-w-0 ${hero ? 'text-[1.1vw]' : 'text-[0.85vw]'}`}>
+              <div className={`flex items-center gap-[0.6vw] font-mono-kiosk min-w-0 ${hero ? 'text-[1.1vw]' : 'text-[0.85vw]'}`}>
                 {hero && (item.uploader_avatar_url ? (
                   <img src={item.uploader_avatar_url} alt="" className="w-[2.2vw] h-[2.2vw] object-cover shrink-0" />
                 ) : item.uploader ? (

@@ -16,7 +16,12 @@ import models  # noqa: F401  (registers all tables on Base.metadata)
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False: migrations run inside the app's own
+    # process at startup (db_migrate.run_migrations, called from main.py), after
+    # uvicorn has set up its loggers. fileConfig's default would switch every
+    # one of them off — no access log, no startup line, nothing but alembic's
+    # own lines in the container logs.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

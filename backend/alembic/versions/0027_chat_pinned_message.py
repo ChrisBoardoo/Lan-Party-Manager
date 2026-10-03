@@ -4,7 +4,7 @@ Adds lan_events.pinned_message_id: at most one pinned chat message per event
 (a carpool meeting point, a voice-chat link, …), pointing at chat_messages.id.
 NULL = nothing pinned (every existing event, and the default state of a new
 one). Modeled as a single pointer on LanEvent rather than a flag column on
-ChatMessage, per md/craving_chat_suggestions.md's own suggestion — "at most
+ChatMessage, per md/2.features/craving_chat_suggestions.md's own suggestion — "at most
 one" falls out naturally from a single FK instead of needing a uniqueness
 constraint enforced elsewhere.
 

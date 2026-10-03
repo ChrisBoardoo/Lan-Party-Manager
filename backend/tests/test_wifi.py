@@ -145,7 +145,7 @@ def test_kiosk_summary_carries_wifi_and_join_url(client):
     _set(client, admin, "app_base_url", "https://lan.example.com/")
     _set(client, admin, "kiosk_enabled", "true")
     token = client.post("/api/kiosk/admin/token", headers=auth_header(admin)).json()["token"]
-    body = client.get(f"/api/kiosk/summary?token={token}").json()
+    body = client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()
     assert body["wifi"]["ssid"] == "LAN-Invites"
     assert body["wifi"]["password"] == "Pizza;Froide42"
     assert body["join_url"] == "https://lan.example.com"
@@ -155,6 +155,6 @@ def test_kiosk_summary_without_wifi(client):
     _, admin = _setup(client)
     _set(client, admin, "kiosk_enabled", "true")
     token = client.post("/api/kiosk/admin/token", headers=auth_header(admin)).json()["token"]
-    body = client.get(f"/api/kiosk/summary?token={token}").json()
+    body = client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()
     assert body["wifi"] is None
     assert body["join_url"] is None

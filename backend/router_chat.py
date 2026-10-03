@@ -15,21 +15,27 @@ bump `updated_at`, a plain new message already has `updated_at == created_at`
 which is naturally caught by the same watermark check.
 
 Moderation v1: a user can delete only their own messages. No admin-delete yet
-— see md/craving_chat_suggestions.md for future ideas.
+— see md/2.features/craving_chat_suggestions.md for future ideas.
 """
 import asyncio
 import logging
 import re
+import time
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
-from jose import JWTError, jwt
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session, selectinload
 
 import link_preview
 from activity import add_activity
-from auth import ALGORITHM, SECRET_KEY, get_current_user
+from auth import (
+    WS_RECHECK_EVERY,
+    authenticate_websocket,
+    close_unauthorized,
+    get_current_user,
+    session_still_valid,
+)
 from database import SessionLocal, get_db
 from models import ChatMessage, ChatMessageMention, ChatMessageReaction, EventRSVP, LanEvent, User
 from schemas import (
@@ -470,16 +476,6 @@ def unpin_message(
 
 # ── WebSocket (live push) ────────────────────────────────────────────────────
 
-def _user_id_from_ws_token(token: str) -> int | None:
-    """See router_activity.py's twin helper — a WS connection can't carry the
-    Authorization header, so the JWT rides as a query param instead."""
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return int(payload["sub"])
-    except (JWTError, KeyError, TypeError, ValueError):
-        return None
-
-
 # event_id -> every currently-connected socket in that room's chat_ws. Purely
 # in-process (fine for this app's single-worker, self-hosted-per-crew model —
 # same assumption the SQLite backing store already makes). Used only for the
@@ -487,6 +483,12 @@ def _user_id_from_ws_token(token: str) -> int | None:
 # reach every OTHER open connection immediately — unlike messages/pinned,
 # which are already covered by each connection's own poll-and-push loop.
 _event_connections: dict[int, set[WebSocket]] = defaultdict(set)
+# Open sockets per (event, user): a few tabs or devices are normal, a script
+# opening hundreds is not.
+_user_connections: dict[tuple[int, int], int] = defaultdict(int)
+MAX_SOCKETS_PER_USER = 5
+# At most one "typing" relay per connection per this many seconds.
+TYPING_MIN_INTERVAL = 1.0
 
 
 async def _broadcast(event_id: int, payload: dict, *, exclude: WebSocket) -> None:
@@ -502,7 +504,22 @@ async def _broadcast(event_id: int, payload: dict, *, exclude: WebSocket) -> Non
         _event_connections[event_id].discard(ws)
 
 
-async def _push_loop(websocket: WebSocket, event_id: int, user_id: int) -> None:
+def _may_stay_connected(db: Session, event_id: int, user_id: int, token_version: int) -> bool:
+    """Everything chat_ws checks at connect, re-checked on an open socket: the
+    session is still valid, the feature is on (or the user is an admin), the
+    chat window is open and the user still attends."""
+    if not session_still_valid(db, user_id, token_version):
+        return False
+    user = db.query(User).filter(User.id == user_id).first()
+    event = db.query(LanEvent).filter(LanEvent.id == event_id).first()
+    if event is None:
+        return False
+    if user.role != "admin" and not is_feature_enabled(db, "craving_chat"):
+        return False
+    return _window_open(event) and _is_attendee(db, event_id, user_id)
+
+
+async def _push_loop(websocket: WebSocket, event_id: int, user_id: int, token_version: int) -> None:
     """Polls for anything a connected client needs pushed to it: changed
     messages (watermark, not an id — a message can change via edit/reaction
     with no new row appearing, so "did MAX(id) grow" isn't enough here, every
@@ -517,9 +534,14 @@ async def _push_loop(websocket: WebSocket, event_id: int, user_id: int) -> None:
     finally:
         db.close()
 
+    tick = 0
     while True:
         db = SessionLocal()
         try:
+            tick += 1
+            if tick % WS_RECHECK_EVERY == 0 and not _may_stay_connected(db, event_id, user_id, token_version):
+                await close_unauthorized(websocket)
+                return
             tick_time = datetime.utcnow()
             changed = (
                 db.query(ChatMessage)
@@ -555,25 +577,30 @@ async def _receive_loop(websocket: WebSocket, event_id: int, user_id: int, usern
     """The only thing a client ever sends is an ephemeral "I'm typing" ping
     (no persistence, nothing to poll for) — relayed to every other currently
     connected client in the same room. Anything malformed/unexpected is
-    ignored rather than killing the connection; only an actual disconnect
-    (WebSocketDisconnect) is allowed to end this loop."""
+    ignored rather than killing the connection; a disconnect ends this loop,
+    and so does any other receive error (a closed socket would otherwise
+    spin here forever). Typing relays are throttled per connection."""
+    last_typing = 0.0
     while True:
         try:
             data = await websocket.receive_json()
-        except WebSocketDisconnect:
-            raise
-        except Exception:
+        except (ValueError, KeyError):  # not JSON, or a binary frame
             continue
         if isinstance(data, dict) and data.get("type") == "typing":
+            now = time.monotonic()
+            if now - last_typing < TYPING_MIN_INTERVAL:
+                continue
+            last_typing = now
             await _broadcast(event_id, {"type": "typing", "user_id": user_id, "username": username}, exclude=websocket)
 
 
 @router.websocket("/{event_id}/ws")
-async def chat_ws(websocket: WebSocket, event_id: int, token: str = Query(...)):
-    user_id = _user_id_from_ws_token(token)
-    if user_id is None:
-        await websocket.close(code=4401)
+async def chat_ws(websocket: WebSocket, event_id: int):
+    # The client authenticates with its first frame — see auth.authenticate_websocket.
+    session = await authenticate_websocket(websocket)
+    if session is None:
         return
+    user_id, token_version = session
 
     db = SessionLocal()
     try:
@@ -592,10 +619,13 @@ async def chat_ws(websocket: WebSocket, event_id: int, token: str = Query(...)):
     finally:
         db.close()
 
-    await websocket.accept()
+    if _user_connections[(event_id, user_id)] >= MAX_SOCKETS_PER_USER:
+        await websocket.close(code=4429)
+        return
+    _user_connections[(event_id, user_id)] += 1
     _event_connections[event_id].add(websocket)
     try:
-        push_task = asyncio.create_task(_push_loop(websocket, event_id, user_id))
+        push_task = asyncio.create_task(_push_loop(websocket, event_id, user_id, token_version))
         receive_task = asyncio.create_task(_receive_loop(websocket, event_id, user_id, username))
         done, pending = await asyncio.wait({push_task, receive_task}, return_when=asyncio.FIRST_COMPLETED)
         for task in pending:
@@ -608,6 +638,9 @@ async def chat_ws(websocket: WebSocket, event_id: int, token: str = Query(...)):
             except (WebSocketDisconnect, asyncio.CancelledError):
                 pass
     finally:
+        _user_connections[(event_id, user_id)] -= 1
+        if _user_connections[(event_id, user_id)] <= 0:
+            del _user_connections[(event_id, user_id)]
         conns = _event_connections.get(event_id)
         if conns is not None:
             conns.discard(websocket)

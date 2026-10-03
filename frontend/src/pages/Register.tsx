@@ -244,7 +244,7 @@ export default function Register() {
               autoComplete="new-password"
               {...register('password', {
                 required: t('register.passwordRequired'),
-                minLength: { value: 6, message: t('register.passwordMinLength') },
+                minLength: { value: 8, message: t('register.passwordMinLength') },
                 validate: (v) =>
                   new TextEncoder().encode(v).length <= 72 || t('register.passwordMaxLength'),
               })}

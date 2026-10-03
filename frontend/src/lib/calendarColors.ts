@@ -1,5 +1,5 @@
 // Palette + color assignment for the Planning > Schedule calendar view
-// (md/calendarview.md). These are the 11 official Google Calendar event
+// (md/2.features/calendarview.md). These are the 11 official Google Calendar event
 // colors, kept as-is rather than reinterpreted — the whole point was to
 // borrow those exact codes. `ScheduleBlock.game` is free text with no linked
 // game library, so a game's color is either chosen explicitly at lock time

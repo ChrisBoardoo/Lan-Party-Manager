@@ -45,7 +45,7 @@ function ShareControls() {
   }, [])
 
   const url = token
-    ? `${window.location.origin}/setup/shared?token=${encodeURIComponent(token)}`
+    ? `${window.location.origin}/setup/shared#token=${encodeURIComponent(token)}`
     : null
 
   const run = async (fn: () => Promise<{ token: string | null }>) => {

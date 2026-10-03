@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 import secrets
 
@@ -8,9 +9,20 @@ from database import get_db
 from models import Game, User
 from schemas import (
     BadgeOut, DeletedUserOut, UserGameStatsLine, UserOut, UserPublic, UserUpdate, UserPasswordChange,
+    RESERVED_USERNAME_PREFIX,
 )
-from auth import get_current_user, require_admin, get_password_hash, verify_password, UNUSABLE_PASSWORD
+from auth import (
+    create_access_token,
+    get_current_user,
+    get_password_hash,
+    invalidate_reset_tokens,
+    require_admin,
+    revoke_sessions,
+    verify_password,
+    UNUSABLE_PASSWORD,
+)
 from activity import add_audit
+from limiter import limiter
 from badges import user_badges
 from riot_id import parse_riot_id
 from router_lol import link_captured_players
@@ -53,7 +65,7 @@ def get_deleted_users(
     _: User = Depends(require_admin),
 ):
     """History of deleted accounts, for the admin Settings panel — the same
-    place a future "banned" list would live (see md/ban-feature-idea.md).
+    place a future "banned" list would live (see md/2.features/ban-feature-idea.md).
     Newest deletion first."""
     return (
         db.query(User)
@@ -147,10 +159,13 @@ def update_user(
         new_username = (fields.pop("username") or "").strip()
         if len(new_username) < 3:
             raise HTTPException(400, "Username must be at least 3 characters")
+        if new_username.lower().startswith(RESERVED_USERNAME_PREFIX):
+            raise HTTPException(400, "This username is reserved")
         if new_username != user.username:
+            # Case-insensitive, like registration.
             taken = (
                 db.query(User)
-                .filter(User.username == new_username, User.id != user.id)
+                .filter(func.lower(User.username) == new_username.lower(), User.id != user.id)
                 .first()
             )
             if taken:
@@ -190,7 +205,9 @@ def update_user(
 
 
 @router.post("/{user_id}/change-password")
+@limiter.limit("10/minute")  # it checks the current password: no free guessing
 def change_password(
+    request: Request,
     user_id: int,
     data: UserPasswordChange,
     db: Session = Depends(get_db),
@@ -207,8 +224,13 @@ def change_password(
         raise HTTPException(400, "Current password is incorrect")
 
     current_user.hashed_password = get_password_hash(data.new_password)
+    # Changing the password is what you do when you think someone else has
+    # it: end every session (this one included) and dead-end old reset links.
+    # The caller gets a fresh token so their own session carries on.
+    revoke_sessions(current_user)
+    invalidate_reset_tokens(db, current_user.id)
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "access_token": create_access_token(current_user)}
 
 
 @router.post("/{user_id}/avatar", response_model=UserOut)
@@ -271,6 +293,8 @@ def deactivate_user(
         raise HTTPException(404, "User not found")
 
     user.is_active = False
+    # Reactivating must not bring the old sessions back with it.
+    revoke_sessions(user)
     add_audit(db, current_user.id, "user_deactivated", f"User: {user.username}")
     db.commit()
     db.refresh(user)
@@ -286,6 +310,8 @@ def reactivate_user(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(404, "User not found")
+    if user.deleted_at is not None:
+        raise HTTPException(400, "A deleted account can't be reactivated")
 
     user.is_active = True
     add_audit(db, current_user.id, "user_reactivated", f"User: {user.username}")
@@ -344,10 +370,14 @@ def delete_user(
     user.discord_id = None
     user.discord_username = None
     user.discord_avatar = None
+    user.steam_id = None
+    user.steam_username = None
+    user.steam_avatar = None
     user.riot_id = None
     user.riot_id_key = None
     user.is_active = False
     user.deleted_at = datetime.utcnow()
+    revoke_sessions(user)
 
     add_audit(db, current_user.id, "user_deleted", f"User: {original_username}")
     db.commit()
@@ -364,9 +394,13 @@ def reset_password(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(404, "User not found")
+    if user.deleted_at is not None:
+        raise HTTPException(400, "A deleted account can't be reset")
 
     temp_password = secrets.token_urlsafe(9)
     user.hashed_password = get_password_hash(temp_password)
+    revoke_sessions(user)
+    invalidate_reset_tokens(db, user.id)
     add_audit(db, current_user.id, "password_reset", f"User: {user.username}")
     db.commit()
 
@@ -378,7 +412,7 @@ def update_role(
     user_id: int,
     role: str,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
 ):
     if role not in ("admin", "treasurer", "user"):
         raise HTTPException(400, "Invalid role. Must be admin, treasurer, or user.")
@@ -386,7 +420,24 @@ def update_role(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(404, "User not found")
+    if user.deleted_at is not None:
+        raise HTTPException(400, "A deleted account can't be given a role")
 
+    # Never leave the instance without an active admin: recovering from that
+    # takes a hand edit of the database.
+    if user.role == "admin" and role != "admin":
+        other_admins = (
+            db.query(User)
+            .filter(User.role == "admin", User.is_active == True, User.id != user.id)  # noqa: E712
+            .count()
+        )
+        if other_admins == 0:
+            raise HTTPException(400, "This is the last admin: make someone else admin first")
+
+    if user.role != role:
+        # Roles grant money (treasurer) or everything (admin): keep a trace,
+        # like deactivation, deletion and resets already do.
+        add_audit(db, current_user.id, "role_changed", f"User: {user.username} — {user.role} → {role}")
     user.role = role
     db.commit()
     db.refresh(user)

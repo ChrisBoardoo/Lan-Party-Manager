@@ -200,10 +200,10 @@ def _money(db: Session, event: LanEvent) -> Optional[RecapMoney]:
     if not is_feature_enabled(db, "treasury"):
         return None
 
-    rsvps, expenses, paid_pairs = event_prorata_inputs(db, event)
+    rsvps, expenses, payments = event_prorata_inputs(db, event)
     # viewer_id=None: aggregates only, and it also guarantees calculate_prorata
     # never populates a creditor's phone number.
-    result = calculate_prorata(event, rsvps, expenses, paid_pairs, viewer_id=None)
+    result = calculate_prorata(event, rsvps, expenses, payments, viewer_id=None)
     lines = result["settlements"]
     shares = result["shares"]
 

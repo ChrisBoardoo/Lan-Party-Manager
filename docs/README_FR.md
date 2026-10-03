@@ -7,7 +7,7 @@
 **Gestion d'événements auto-hébergée pour LAN parties** — invitations, tournois, trésorerie,
 médias et streams en direct, le tout sur votre propre matériel. D'un Raspberry Pi à un NUC.
 
-[![Version](https://img.shields.io/badge/version-1.3.3-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.3.4-FF3D00?style=flat-square)](#)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0-4C566A?style=flat-square)](../LICENSE)
 [![Plateforme](https://img.shields.io/badge/plateforme-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -120,7 +120,10 @@ services:
       - ./data:/app/data
       - ./uploads:/app/uploads
     environment:
-      SECRET_KEY: change-me-to-a-long-random-string
+      # Facultatif — absente ou vide, le backend génère une clé aléatoire au premier
+      # démarrage et la garde dans ./data/secret_key. Les valeurs d'exemple connues
+      # et les clés de moins de 16 caractères sont refusées au démarrage.
+      SECRET_KEY: ""
       DATABASE_URL: sqlite:///./data/lanparty.db
       UPLOAD_DIR: /app/uploads
     restart: unless-stopped
@@ -146,8 +149,9 @@ docker compose up -d
 
 ```bash
 git clone https://github.com/ChrisBoardoo/Lan-Party-Manager.git
-cd LANPARTYMANAGER
-echo "SECRET_KEY=change-me-to-a-long-random-string" > .env
+cd Lan-Party-Manager
+# Facultatif : sans .env, le backend génère sa propre clé dans ./data/secret_key
+echo "SECRET_KEY=$(python -c 'import secrets; print(secrets.token_hex(32))')" > .env
 docker compose up --build
 ```
 
@@ -167,7 +171,10 @@ compilation de l'application React).
 > limites de tentatives de connexion. Publier le port `8000` sur toutes les interfaces contournerait
 > les deux (et les ports publiés par Docker passent devant le pare-feu de l'hôte).
 
-> **Important :** définissez toujours une `SECRET_KEY` robuste — elle signe tous les jetons JWT.
+> **Important :** `SECRET_KEY` signe tous les jetons de session. Laissez-la vide et le backend en génère
+> une aléatoire (gardée dans `./data/secret_key`), ou fournissez la vôtre, aléatoire et d'au moins
+> 32 caractères. Les valeurs d'exemple connues et les clés de moins de 16 caractères sont refusées
+> au démarrage.
 
 ### Utiliser votre propre reverse proxy (Nginx, Caddy, Traefik…)
 
@@ -248,7 +255,7 @@ services:
       - ./data:/app/data        # Base de données SQLite (persistée)
       - ./uploads:/app/uploads  # Avatars, médias, miniatures (persistés)
     environment:
-      SECRET_KEY: ${SECRET_KEY:-lanparty-secret-CHANGE-ME}
+      SECRET_KEY: ${SECRET_KEY:-}
       DATABASE_URL: sqlite:///./data/lanparty.db
       UPLOAD_DIR: /app/uploads
 
@@ -266,7 +273,7 @@ services:
 
 | Variable       | Défaut                         | Description                                    |
 |----------------|--------------------------------|------------------------------------------------|
-| `SECRET_KEY`   | `lanparty-secret-CHANGE-ME`    | Secret de signature JWT — **à changer**        |
+| `SECRET_KEY`   | *(générée)*                    | Secret de signature JWT — vide = clé aléatoire générée au premier démarrage, gardée dans `./data/secret_key` |
 | `DATABASE_URL` | `sqlite:///./data/lanparty.db` | Chaîne de connexion SQLAlchemy                 |
 | `UPLOAD_DIR`   | `/app/uploads`                 | Répertoire des avatars, médias et miniatures   |
 | `LPM_TRUSTED_PROXIES` (frontend) | `172.16.0.0/12` | D'où se connecte votre reverse proxy — voir [Utiliser votre propre reverse proxy](#utiliser-votre-propre-reverse-proxy-nginx-caddy-traefik) |
@@ -302,7 +309,6 @@ mkdir -p data uploads
 cd backend
 docker build -t lanparty-backend .
 docker run -p 127.0.0.1:8000:8000 \
-  -e SECRET_KEY=your-secret \
   -v $(pwd)/../data:/app/data \
   -v $(pwd)/../uploads:/app/uploads \
   lanparty-backend
@@ -378,7 +384,8 @@ Les endpoints de liste acceptent la pagination `?limit=` et `?offset=`.
 | POST    | `/api/auth/reset-password`    | Public   | Définit un nouveau mot de passe à partir d'un jeton de réinitialisation valide |
 | GET     | `/api/auth/discord/config`    | Public   | Renvoie `{ enabled: bool }` — le SSO Discord est-il configuré ?       |
 | GET     | `/api/auth/discord/authorize` | Public   | Démarre la connexion/inscription Discord (`?code=` invitation optionnelle) |
-| GET     | `/api/auth/discord/link`      | Requis   | Démarre la liaison de Discord au compte courant                       |
+| POST    | `/api/auth/discord/link-ticket` | Requis | Confirme le mot de passe du compte ; renvoie un ticket de 5 minutes pour `/discord/link` |
+| GET     | `/api/auth/discord/link`      | Requis   | Démarre la liaison de Discord au compte courant (`code` = le ticket)  |
 | DELETE  | `/api/auth/discord/link`      | Requis   | Délie Discord (refusé si le compte n'a pas de mot de passe)           |
 | GET     | `/api/auth/discord/callback`  | Public   | Cible de redirection OAuth2 — finalise la connexion/liaison, renvoie le JWT |
 
@@ -453,8 +460,9 @@ Les endpoints de liste acceptent la pagination `?limit=` et `?offset=`.
 | POST    | `/api/events/`                       | Admin uniquement | Créer un événement (capacité optionnelle)                          |
 | PUT     | `/api/events/{id}`                   | Admin uniquement | Modifier un événement                                              |
 | DELETE  | `/api/events/{id}`                   | Admin uniquement | Supprimer un événement                                            |
-| POST    | `/api/events/{id}/rsvp`              | Tous            | RSVP « présent » avec `{arrival_date, departure_date}` bornées à la fenêtre de l'événement |
-| DELETE  | `/api/events/{id}/rsvp`              | Tous            | Passer le statut RSVP à « absent »                                  |
+| POST    | `/api/events/{id}/rsvp`              | Tous            | RSVP « présent » avec `{arrival_date, departure_date}` bornées à la fenêtre de l'événement ; 409 dès le premier jour |
+| DELETE  | `/api/events/{id}/rsvp`              | Tous            | Passer le statut RSVP à « absent » ; 409 dès le premier jour        |
+| PUT     | `/api/events/{id}/rsvps/{user_id}`   | Trésorier       | Fixer la présence d'un membre `{status, arrival_date, departure_date}` — seul moyen une fois la LAN commencée ; journalisé, membre prévenu |
 | GET     | `/api/events/{id}/invite`            | Admin uniquement | Récupérer le code d'invitation de l'événement (ou `null`)          |
 | POST    | `/api/events/{id}/invite`            | Admin uniquement | Générer/régénérer le code d'invitation de l'événement              |
 | DELETE  | `/api/events/{id}/invite`            | Admin uniquement | Révoquer le code d'invitation de l'événement                       |
@@ -477,7 +485,7 @@ répond comme si le salon n'existait pas.*
 | GET     | `/api/chat/{event_id}/pinned`                         | Participant | Le message actuellement épinglé de l'événement, s'il existe            |
 | POST    | `/api/chat/{event_id}/pin/{message_id}`               | Admin uniquement | Épingler un message (remplace toute épingle précédente)          |
 | DELETE  | `/api/chat/{event_id}/pin`                            | Admin uniquement | Désépingler                                                        |
-| WS      | `/api/chat/{event_id}/ws?token=`                      | Participant | Diffusion en direct des messages/épingle modifiés, plus le relais « en train d'écrire… » |
+| WS      | `/api/chat/{event_id}/ws`                             | Participant | Diffusion en direct des messages/épingle modifiés, plus le relais « en train d'écrire… ». Première trame : `{"type": "auth", "token": "<JWT>"}` (jamais dans l'URL) |
 
 ### Planification (vue calendrier)
 
@@ -725,7 +733,7 @@ npm run dev
 ## Structure du projet
 
 ```
-LANPARTYMANAGER/
+Lan-Party-Manager/
 ├── docker-compose.yml
 ├── data/                      # BDD SQLite (auto-créée, gitignored)
 ├── uploads/                   # Avatars, médias, miniatures (auto-créés, gitignored)

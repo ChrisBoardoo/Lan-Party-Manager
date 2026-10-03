@@ -82,12 +82,19 @@ export const discordApi = {
     client
       .get<{ authorize_url: string }>('/auth/discord/authorize', { params: code ? { code } : {} })
       .then((r) => r.data.authorize_url),
-  // Start linking Discord to the current (logged-in) account.
-  link: () => client.get<{ authorize_url: string }>('/auth/discord/link').then((r) => r.data.authorize_url),
+  // Linking Discord gives a new way into the account, so it takes the password
+  // first: `linkTicket` trades it for a short-lived ticket, which `link` (or
+  // the desktop app, via requestDiscordAuth's invite-code slot) passes on.
+  linkTicket: (password: string) =>
+    client.post<{ ticket: string }>('/auth/discord/link-ticket', { password }).then((r) => r.data.ticket),
+  link: (ticket: string) =>
+    client
+      .get<{ authorize_url: string }>('/auth/discord/link', { params: { code: ticket } })
+      .then((r) => r.data.authorize_url),
   unlink: () => client.delete<{ ok: boolean }>('/auth/discord/link').then((r) => r.data),
 }
 
-// Steam is link-only — no `authorize()` here, see md/Steam_Link.md.
+// Steam is link-only — no `authorize()` here, see md/2.features/Steam_Link.md.
 export const steamApi = {
   // Public: is Steam linking configured/enabled?
   config: () => client.get<{ enabled: boolean }>('/auth/steam/config').then((r) => r.data),
@@ -149,8 +156,12 @@ export const usersApi = {
   resetPassword: (id: number) =>
     client.post<{ temp_password: string }>(`/users/${id}/reset-password`).then((r) => r.data),
 
+  // The change revokes every session of the account; `access_token` replaces
+  // this one (see AuthContext's adoptToken).
   changePassword: (id: number, data: { current_password: string; new_password: string }) =>
-    client.post<{ ok: boolean }>(`/users/${id}/change-password`, data).then((r) => r.data),
+    client
+      .post<{ ok: boolean; access_token: string }>(`/users/${id}/change-password`, data)
+      .then((r) => r.data),
 
   // Gated by the recap feature — 404 for a member when it's off is a NORMAL
   // response, so callers must load this in its own effect with its own .catch,
@@ -235,6 +246,12 @@ export const eventsApi = {
   rsvpIn: (id: number, dates: { arrival_date: string; departure_date: string }) =>
     client.post(`/events/${id}/rsvp`, dates).then((r) => r.data),
   rsvpOut: (id: number) => client.delete(`/events/${id}/rsvp`).then((r) => r.data),
+  // Treasurer/admin: set a member's attendance (the only way once the LAN started).
+  adjustRsvp: (
+    id: number,
+    userId: number,
+    data: { status: 'in' | 'out'; arrival_date?: string; departure_date?: string }
+  ) => client.put<{ status: string; changed: boolean }>(`/events/${id}/rsvps/${userId}`, data).then((r) => r.data),
 
   uploadCover: (id: number, file: File) => {
     const form = new FormData()

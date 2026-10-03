@@ -1,7 +1,7 @@
 """craving chat — link preview
 
 Adds the five nullable columns backing the WhatsApp-style link-preview card
-requested after the v2 pass (md/Craving_chat_v2.md's follow-up feedback):
+requested after the v2 pass (md/2.features/Craving_chat_v2.md's follow-up feedback):
 caching one Open Graph unfurl per message, fetched server-side in the
 background — see link_preview.py and router_chat.py.
 

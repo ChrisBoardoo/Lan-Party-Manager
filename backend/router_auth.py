@@ -1,22 +1,32 @@
+import hashlib
 import re
 import secrets
 from datetime import datetime, timedelta
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from jose import JWTError, jwt
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from database import get_db
+from database import SessionLocal, get_db
 from models import User, PasswordResetToken
-from schemas import UserCreate, UserLogin, UserOut, ForgotPasswordRequest, ResetPasswordConfirm
+from schemas import (
+    UserCreate, UserLogin, UserOut, ForgotPasswordRequest, ResetPasswordConfirm, DiscordLinkTicketRequest,
+    RESERVED_USERNAME_PREFIX,
+)
 from auth import (
+    ALGORITHM,
+    SECRET_KEY,
     get_password_hash,
     verify_password,
     create_access_token,
     get_current_user,
     has_usable_password,
+    invalidate_reset_tokens,
+    revoke_sessions,
     UNUSABLE_PASSWORD,
 )
 from limiter import limiter
@@ -24,6 +34,7 @@ from router_events import _rsvp_in, lookup_event_invite
 from router_settings import get_setting
 from mailer import send_email, render_template
 import oauth_discord
+import oauth_state
 import oauth_steam
 
 router = APIRouter()
@@ -62,7 +73,8 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
         if not data.arrival_date or not data.departure_date:
             raise HTTPException(400, "Arrival and departure dates are required")
 
-    if db.query(User).filter(User.username == data.username).first():
+    # Case-insensitive, so "Admin" and "ADMIN" can't coexist in rosters and chat.
+    if db.query(User).filter(func.lower(User.username) == data.username.lower()).first():
         raise HTTPException(400, "Username already taken")
     # Case-insensitive: data.email is already normalised to lowercase, but match
     # func.lower(email) so a legacy mixed-case row still blocks a duplicate.
@@ -88,6 +100,11 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
     return user
 
 
+# Checked against when the account doesn't exist (or has no password), so a
+# failed login takes the same time either way. Computed once at startup.
+_DUMMY_HASH = get_password_hash(secrets.token_urlsafe(16))
+
+
 @router.post("/login")
 @limiter.limit("10/minute")
 def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
@@ -98,16 +115,19 @@ def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
         user = db.query(User).filter(func.lower(User.email) == ident.lower()).first()
     else:
         user = db.query(User).filter(User.username == ident).first()
+    # Always pay for one bcrypt check, account or not: answering an unknown
+    # name faster than a wrong password told which names and e-mails exist.
+    hashed = user.hashed_password if user is not None and has_usable_password(user.hashed_password) else _DUMMY_HASH
     try:
-        password_ok = user is not None and verify_password(data.password, user.hashed_password)
-    except ValueError:
+        password_ok = verify_password(data.password, hashed) and hashed is not _DUMMY_HASH
+    except ValueError:  # a malformed stored hash
         password_ok = False
     if not password_ok:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account deactivated")
 
-    token = create_access_token({"sub": str(user.id)})
+    token = create_access_token(user)
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -125,7 +145,7 @@ def refresh(current_user: User = Depends(get_current_user)):
     token's 30 days are up. Requires the *current* token to still be valid;
     an already-expired token can't refresh itself, only a fresh login can.
     """
-    token = create_access_token({"sub": str(current_user.id)})
+    token = create_access_token(current_user)
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -133,9 +153,20 @@ def refresh(current_user: User = Depends(get_current_user)):
     }
 
 
+def reset_token_digest(token: str) -> str:
+    """Reset links are stored as a SHA-256 of their token: the database (and
+    its daily backups) never hold a link that works."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 @router.post("/forgot-password")
 @limiter.limit("5/minute")
-def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(
+    request: Request,
+    data: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     generic_response = {"detail": "If that email is registered, a reset link has been sent."}
 
     user = db.query(User).filter(func.lower(User.email) == data.email).first()
@@ -143,27 +174,47 @@ def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session =
         token = secrets.token_urlsafe(32)
         db.add(PasswordResetToken(
             user_id=user.id,
-            token=token,
+            token=reset_token_digest(token),
             expires_at=datetime.utcnow() + RESET_TOKEN_TTL,
         ))
         db.commit()
 
         base_url = get_setting(db, "app_base_url") or ""
-        reset_link = f"{base_url.rstrip('/')}/reset-password?token={token}"
+        # In the fragment, which browsers never send to the server: the link
+        # stays out of nginx's access log and out of Referer headers.
+        reset_link = f"{base_url.rstrip('/')}/reset-password#token={token}"
         subject_tpl = DEFAULT_RESET_SUBJECT
         body_tpl = DEFAULT_RESET_BODY
         context = {"username": user.username, "reset_link": reset_link}
-        send_email(db, user.email, render_template(subject_tpl, **context), render_template(body_tpl, **context))
+        # After the response, on its own session: sending through SMTP takes
+        # seconds, and only for a real account — answering only once it was
+        # done told which e-mails are registered.
+        background_tasks.add_task(
+            _send_reset_email, user.email,
+            render_template(subject_tpl, **context), render_template(body_tpl, **context),
+        )
 
     # Always return the same response, regardless of whether the email exists —
     # anything else would let a caller learn which emails are registered accounts.
     return generic_response
 
 
+def _send_reset_email(to_address: str, subject: str, body: str) -> None:
+    db = SessionLocal()
+    try:
+        send_email(db, to_address, subject, body)
+    finally:
+        db.close()
+
+
 @router.post("/reset-password")
 @limiter.limit("10/minute")
 def reset_password(request: Request, data: ResetPasswordConfirm, db: Session = Depends(get_db)):
-    reset_token = db.query(PasswordResetToken).filter(PasswordResetToken.token == data.token).first()
+    reset_token = (
+        db.query(PasswordResetToken)
+        .filter(PasswordResetToken.token == reset_token_digest(data.token))
+        .first()
+    )
     if (
         not reset_token
         or reset_token.used_at is not None
@@ -172,11 +223,14 @@ def reset_password(request: Request, data: ResetPasswordConfirm, db: Session = D
         raise HTTPException(400, "This reset link is invalid or has expired")
 
     user = db.query(User).filter(User.id == reset_token.user_id).first()
-    if not user:
+    if not user or not user.is_active:
         raise HTTPException(400, "This reset link is invalid or has expired")
 
     user.hashed_password = get_password_hash(data.new_password)
-    reset_token.used_at = datetime.utcnow()
+    # A reset is what someone does after losing control of the account: end
+    # every session, and kill the other reset links still in flight.
+    revoke_sessions(user)
+    invalidate_reset_tokens(db, user.id)
     db.commit()
     return {"ok": True}
 
@@ -246,6 +300,37 @@ def _complete_redirect(base: str, path: str, st: dict) -> RedirectResponse:
     return _front_redirect(base, path)
 
 
+# Browser binding for the web OAuth flows. The signed state proves the
+# callback comes from a flow *we* started, not that it comes back to the
+# browser that started it: without this, someone could start a link flow on
+# their own account and get a victim to finish it, attaching the victim's
+# Discord/Steam to the attacker's account. The start request (a same-origin
+# XHR) sets a random cookie, the state carries the same value, the callback
+# (a top-level GET, so a Lax cookie is sent) must present both. The desktop
+# flow is started by the app itself, not a browser, and relies on its
+# desktop_nonce instead.
+OAUTH_BIND_COOKIE = "lpm_oauth_bind"
+
+
+def _bind_browser(request: Request, response: Response, desktop_port) -> str | None:
+    if desktop_port:
+        return None
+    value = secrets.token_urlsafe(16)
+    response.set_cookie(
+        OAUTH_BIND_COOKIE, value, max_age=int(oauth_state.STATE_TTL.total_seconds()),
+        httponly=True, samesite="lax", secure=request.url.scheme == "https", path="/api/auth",
+    )
+    return value
+
+
+def _same_browser(request: Request, st: dict) -> bool:
+    expected = st.get("bind")
+    if not expected:
+        return True  # desktop flow, or a state signed before 1.3.4
+    got = request.cookies.get(OAUTH_BIND_COOKIE, "")
+    return secrets.compare_digest(got.encode("utf-8"), expected.encode("utf-8"))
+
+
 def _unique_username(db: Session, raw: str) -> str:
     """Derive a valid, unique username from a Discord display name.
 
@@ -253,12 +338,14 @@ def _unique_username(db: Session, raw: str) -> str:
     outside [A-Za-z0-9_-]), pads short names, then appends a numeric suffix
     until it's unique."""
     cleaned = re.sub(r"[^A-Za-z0-9_-]", "", raw or "")
+    if cleaned.lower().startswith(RESERVED_USERNAME_PREFIX):  # kept for deleted accounts
+        cleaned = cleaned[len(RESERVED_USERNAME_PREFIX):]
     if len(cleaned) < 3:
         cleaned = (cleaned + "player")[:16] or "player"
     cleaned = cleaned[:40]
     candidate = cleaned
     n = 1
-    while db.query(User).filter(User.username == candidate).first():
+    while db.query(User).filter(func.lower(User.username) == candidate.lower()).first():
         suffix = str(n)
         candidate = f"{cleaned[: 50 - len(suffix)]}{suffix}"
         n += 1
@@ -276,6 +363,7 @@ def discord_config(db: Session = Depends(get_db)):
 @limiter.limit("20/minute")
 def discord_authorize(
     request: Request,
+    response: Response,
     code: str | None = None,
     desktop_port: int | None = None,
     desktop_nonce: str | None = Query(None, pattern=DESKTOP_NONCE_PATTERN),
@@ -290,6 +378,7 @@ def discord_authorize(
     state = oauth_discord.sign_state({
         "flow": "login", "invite_code": code,
         "desktop_port": desktop_port, "desktop_nonce": desktop_nonce,
+        "bind": _bind_browser(request, response, desktop_port),
     })
     url = oauth_discord.build_authorize_url(
         get_setting(db, "discord_oauth_client_id"), _discord_redirect_uri(db), state
@@ -297,22 +386,81 @@ def discord_authorize(
     return {"authorize_url": url}
 
 
+# A linked Discord is a second way into the account, so starting a link takes
+# the password, not just a session: a token lifted from a log or a borrowed
+# laptop must not be enough to plant the attacker's Discord on the account.
+# The password is checked here and traded for a short ticket, because the link
+# start itself is a GET the desktop app makes on the user's behalf — it
+# forwards the ticket in the `code` param it already sends (the invite-code
+# slot of the login flow), so desktop builds from before this change still work.
+DISCORD_LINK_TICKET_TTL = timedelta(minutes=5)
+DISCORD_LINK_TICKET_TYPE = "discord_link"
+
+
+@router.post("/discord/link-ticket")
+@limiter.limit("10/minute")
+def discord_link_ticket(
+    request: Request,
+    data: DiscordLinkTicketRequest,
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.discord_id:
+        raise HTTPException(409, "A Discord account is already linked; unlink it first")
+    try:
+        password_ok = verify_password(data.password, current_user.hashed_password)
+    except ValueError:  # Discord-only account: no password to check
+        password_ok = False
+    if not password_ok:
+        raise HTTPException(400, "Password is incorrect")
+    ticket = jwt.encode(
+        {
+            "sub": str(current_user.id),
+            "typ": DISCORD_LINK_TICKET_TYPE,
+            "tv": current_user.token_version or 0,
+            "exp": datetime.utcnow() + DISCORD_LINK_TICKET_TTL,
+        },
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+    return {"ticket": ticket}
+
+
+def _check_link_ticket(ticket: str | None, user: User) -> None:
+    try:
+        payload = jwt.decode(ticket or "", SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        payload = {}
+    if (
+        payload.get("typ") != DISCORD_LINK_TICKET_TYPE
+        or payload.get("sub") != str(user.id)
+        or payload.get("tv") != (user.token_version or 0)
+    ):
+        raise HTTPException(403, "Confirm your password to link Discord")
+
+
 @router.get("/discord/link")
 @limiter.limit("20/minute")
 def discord_link(
     request: Request,
+    response: Response,
+    code: str | None = None,
     desktop_port: int | None = None,
     desktop_nonce: str | None = Query(None, pattern=DESKTOP_NONCE_PATTERN),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Start the link flow for a logged-in user. The signed state carries the
+    """Start the link flow for a logged-in user. `code` is the ticket from
+    `/discord/link-ticket` (password confirmed). The signed state carries the
     user id so the callback attaches Discord to the right account.
     `desktop_port`/`desktop_nonce` — see `discord_authorize`."""
     _require_discord(db)
+    _check_link_ticket(code, current_user)
+    if current_user.discord_id:
+        raise HTTPException(409, "A Discord account is already linked; unlink it first")
     state = oauth_discord.sign_state({
         "flow": "link", "user_id": current_user.id,
         "desktop_port": desktop_port, "desktop_nonce": desktop_nonce,
+        "bind": _bind_browser(request, response, desktop_port),
     })
     url = oauth_discord.build_authorize_url(
         get_setting(db, "discord_oauth_client_id"), _discord_redirect_uri(db), state
@@ -358,6 +506,8 @@ def discord_callback(
         st = oauth_discord.verify_state(state)
     except oauth_discord.DiscordOAuthError:
         return _front_redirect(base, "/login?discord=error")
+    if not _same_browser(request, st):
+        return _front_redirect(base, "/login?discord=error")
 
     flow = st.get("flow")
     link_target = "/profile" if flow == "link" else "/login"
@@ -393,6 +543,10 @@ def discord_callback(
         )
         if clash:
             return _complete_redirect(base, "/profile?discord=already_linked", st)
+        # Never swap one Discord for another in place: replacing a link has to
+        # go through an explicit unlink (which needs a usable password).
+        if user.discord_id and user.discord_id != discord_id:
+            return _complete_redirect(base, "/profile?discord=error", st)
         user.discord_id = discord_id
         user.discord_username = discord_username
         user.discord_avatar = discord_avatar
@@ -402,14 +556,15 @@ def discord_callback(
     # ── Login / register flow ──
     user = db.query(User).filter(User.discord_id == discord_id).first()
 
-    # Auto-link to an existing password account only on a *verified* email match.
+    # An existing account with the same e-mail is NOT linked automatically:
+    # LPM never verifies the e-mail typed at registration, so whoever typed it
+    # first (and knows that account's password) would get the Discord
+    # user's sessions too. Its owner signs in with the password and links
+    # Discord from the profile instead. Only said for an e-mail Discord
+    # verified, so it can't be used to probe which addresses are registered.
     if user is None and email and email_verified:
-        user = db.query(User).filter(func.lower(User.email) == email.lower()).first()
-        if user:
-            user.discord_id = discord_id
-            user.discord_username = discord_username
-            user.discord_avatar = discord_avatar
-            db.commit()
+        if db.query(User).filter(func.lower(User.email) == email.lower()).first():
+            return _complete_redirect(base, "/login?discord=link_required", st)
 
     if user is None:
         try:
@@ -424,7 +579,7 @@ def discord_callback(
     if not user.is_active:
         return _complete_redirect(base, "/login?discord=deactivated", st)
 
-    jwt_token = create_access_token({"sub": str(user.id)})
+    jwt_token = create_access_token(user)
     # Hand the JWT to the SPA via the URL fragment (never sent to the server, so
     # it can't leak into access logs); a small front-end page reads and stores it.
     return _complete_redirect(base, f"/auth/discord/complete#token={jwt_token}", st)
@@ -480,7 +635,7 @@ def _create_discord_user(
 # email, so provisioning a brand-new account the way `_create_discord_user`
 # does would need its own placeholder-email logic for a flow nobody asked for;
 # a member links Steam to an *existing* LPM account from their profile instead.
-# See md/Steam_Link.md for the full design.
+# See md/2.features/Steam_Link.md for the full design.
 
 def _steam_enabled(db: Session) -> bool:
     return (
@@ -491,6 +646,16 @@ def _steam_enabled(db: Session) -> bool:
 
 def _steam_return_to(db: Session) -> str:
     return f"{_app_base_url(db)}/api/auth/steam/callback"
+
+
+def _steam_return_to_matches(db: Session, return_to: str, state: str) -> bool:
+    """The assertion's return_to is the exact callback URL we sent Steam,
+    carrying this very state."""
+    got, expected = urlparse(return_to), urlparse(_steam_return_to(db))
+    return (
+        (got.scheme, got.netloc, got.path) == (expected.scheme, expected.netloc, expected.path)
+        and parse_qs(got.query).get("state") == [state]
+    )
 
 
 def _require_steam(db: Session) -> None:
@@ -511,6 +676,7 @@ def steam_config(db: Session = Depends(get_db)):
 @limiter.limit("20/minute")
 def steam_link(
     request: Request,
+    response: Response,
     desktop_port: int | None = None,
     desktop_nonce: str | None = Query(None, pattern=DESKTOP_NONCE_PATTERN),
     db: Session = Depends(get_db),
@@ -523,6 +689,7 @@ def steam_link(
     _require_steam(db)
     state = oauth_steam.sign_state({
         "user_id": current_user.id, "desktop_port": desktop_port, "desktop_nonce": desktop_nonce,
+        "bind": _bind_browser(request, response, desktop_port),
     })
     return_to = f"{_steam_return_to(db)}?state={quote(state, safe='')}"
     url = oauth_steam.build_login_url(return_to, _app_base_url(db))
@@ -560,6 +727,13 @@ def steam_callback(request: Request, db: Session = Depends(get_db)):
         st = oauth_steam.verify_state(state)
     except oauth_steam.SteamOAuthError:
         return _front_redirect(base, "/profile?steam=error")
+    if not _same_browser(request, st):
+        return _front_redirect(base, "/profile?steam=error")
+    # A Steam-signed assertion is only valid for the site it was issued to:
+    # without this check, one obtained on any other "Sign in through Steam"
+    # site could be replayed here to link someone else's SteamID.
+    if not _steam_return_to_matches(db, params.get("openid.return_to", ""), state):
+        return _complete_redirect(base, "/profile?steam=error", st)
 
 
     try:

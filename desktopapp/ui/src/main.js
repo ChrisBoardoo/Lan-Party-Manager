@@ -189,7 +189,7 @@ window.addEventListener("message", (event) => {
     }).catch((err) => console.error("[lpm] start_oauth_auth (discord) failed:", err));
   } else if (data.type === "lpm-start-steam-auth") {
     // Steam link — same loopback pattern as Discord, link-only (no
-    // login/registration via Steam, see md/Steam_Link.md), so always "link".
+    // login/registration via Steam, see md/2.features/Steam_Link.md), so always "link".
     invoke("start_oauth_auth", {
       baseUrl: currentServerOrigin,
       provider: "steam",
@@ -276,7 +276,7 @@ function closeSettings() {
 
 // __LPM_BUILD_SHA__ is injected by vite.config.js's `define` from the
 // LPM_BUILD_SHA env var set by the GitHub Actions release workflow (short
-// commit SHA) — see md/desktop_app_CI_github.md. Falls back to "dev" for
+// commit SHA) — see md/6.github_help/desktop_app_CI_github.md. Falls back to "dev" for
 // local `tauri dev`/`tauri build` runs where that env var isn't set, so the
 // footer never shows a literal unreplaced token.
 const BUILD_SHA = typeof __LPM_BUILD_SHA__ !== "undefined" ? __LPM_BUILD_SHA__ : "dev";

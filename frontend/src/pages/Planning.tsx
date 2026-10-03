@@ -571,7 +571,7 @@ function ScheduleView({
 
 // ── Google-Calendar-style grid view of the locked schedule ───────────────────────
 // Deliberate break from the app's otherwise sharp-cornered, single-accent-color
-// design system — see md/calendarview.md. Colored, rounded event chips only
+// design system — see md/2.features/calendarview.md. Colored, rounded event chips only
 // live here.
 
 const ROW_HEIGHT = 40 // px per hour row

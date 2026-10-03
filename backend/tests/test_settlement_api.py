@@ -84,22 +84,27 @@ def test_mark_is_idempotent(client):
     event_id = _seed_event_with_debt(founder_id, bob_id)
     bob = login(client, "bob")
 
+    statuses = []
     for _ in range(2):
         r = client.post(
             "/api/expenses/settlements/mark",
             json={"event_id": event_id, "to_user_id": founder_id},
             headers=auth_header(bob),
         )
-        assert r.status_code == 200
+        statuses.append(r.status_code)
+    # The first mark records the line's amount; after it nothing is owed on
+    # that line, so a second (double) click is refused, not counted twice.
+    assert statuses == [200, 400]
 
     session = database.SessionLocal()
     try:
-        count = session.query(models.SettlementPayment).filter(
+        rows = session.query(models.SettlementPayment).filter(
             models.SettlementPayment.event_id == event_id,
             models.SettlementPayment.from_user_id == bob_id,
             models.SettlementPayment.to_user_id == founder_id,
-        ).count()
-        assert count == 1  # no duplicate row
+        ).all()
+        assert len(rows) == 1  # no duplicate row
+        assert rows[0].amount is not None and rows[0].amount > 0
     finally:
         session.close()
 

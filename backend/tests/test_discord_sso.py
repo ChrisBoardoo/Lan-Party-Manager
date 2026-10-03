@@ -12,6 +12,15 @@ from auth import create_access_token, get_password_hash, UNUSABLE_PASSWORD
 from conftest import register, auth_header
 
 
+def _token_for(user_id):
+    """A session token for `user_id`, carrying its current token_version."""
+    s = database.SessionLocal()
+    try:
+        return create_access_token(s.get(models.User, user_id))
+    finally:
+        s.close()
+
+
 # ── helpers ────────────────────────────────────────────────────────────────────
 
 def _set_settings(**kv):
@@ -151,7 +160,9 @@ def test_callback_bad_state_redirects_error(client):
 
 # ── callback: auto-link by verified email ──────────────────────────────────────
 
-def test_callback_autolinks_existing_account_by_verified_email(client, monkeypatch):
+def test_callback_does_not_autolink_existing_account_by_email(client, monkeypatch):
+    # LPM never verified the e-mail typed at registration: linking on a match
+    # would hand the Discord user's sessions to whoever registered it first.
     register(client, "founder", "founder@example.com")
     _enable_discord()
     _patch_discord(monkeypatch, {
@@ -161,9 +172,8 @@ def test_callback_autolinks_existing_account_by_verified_email(client, monkeypat
 
     resp = client.get(f"/api/auth/discord/callback?code=abc&state={state}", follow_redirects=False)
     assert resp.status_code == 303
-    assert "/auth/discord/complete#token=" in resp.headers["location"]
-    linked = _get_user(discord_id="555")
-    assert linked is not None and linked.username == "founder"
+    assert "/login?discord=link_required" in resp.headers["location"]
+    assert _get_user(discord_id="555") is None
 
 
 def test_callback_unverified_email_does_not_autolink(client, monkeypatch):
@@ -227,7 +237,7 @@ def test_unlink_blocked_for_passwordless_account(client):
         uid = u.id
     finally:
         s.close()
-    token = create_access_token({"sub": str(uid)})
+    token = _token_for(uid)
     resp = client.request("DELETE", "/api/auth/discord/link", headers=auth_header(token))
     assert resp.status_code == 400
     assert _get_user(discord_id="888") is not None  # still linked
@@ -243,7 +253,7 @@ def test_unlink_succeeds_for_password_account(client):
         s.commit()
     finally:
         s.close()
-    token = create_access_token({"sub": str(admin.id)})
+    token = _token_for(admin.id)
     resp = client.request("DELETE", "/api/auth/discord/link", headers=auth_header(token))
     assert resp.status_code == 200
     assert _get_user(username="founder").discord_id is None

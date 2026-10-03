@@ -18,7 +18,9 @@ export default function KioskManager({ appBaseUrl }: { appBaseUrl?: string | nul
   const [showQR, setShowQR] = useState(false)
 
   const base = (appBaseUrl && appBaseUrl.replace(/\/$/, '')) || window.location.origin
-  const url = token ? `${base}/kiosk?token=${encodeURIComponent(token)}` : ''
+  // Token in the fragment: never sent to the server, so it stays out of the
+  // access logs (Kiosk.tsx still reads the old ?token= links).
+  const url = token ? `${base}/kiosk#token=${encodeURIComponent(token)}` : ''
 
   useEffect(() => {
     kioskApi

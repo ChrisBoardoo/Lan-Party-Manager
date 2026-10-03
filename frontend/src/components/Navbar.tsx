@@ -41,7 +41,7 @@ export default function Navbar() {
     // Temporary on purpose — only exists while a Craving Chat is actually
     // reachable (30 days before an event through 15 days after), so it never
     // permanently eats space in a nav that's already tight at the desktop
-    // app's default width — see md/Craving_chat_v2.md's follow-up feedback.
+    // app's default width — see md/2.features/Craving_chat_v2.md's follow-up feedback.
     // A real page (CravingChatPage.tsx), not an anchor scroll on the Hub —
     // the scroll version felt unsatisfying as a nav destination reachable
     // from any page in the app.

@@ -118,7 +118,9 @@ export default function Login() {
                 <p className="font-mono-label text-red-400">
                   {discordError === 'deactivated'
                     ? t('login.accountDeactivated')
-                    : t('discord.signInFailed')}
+                    : discordError === 'link_required'
+                      ? t('discord.linkRequired')
+                      : t('discord.signInFailed')}
                 </p>
               </div>
             )}

@@ -31,7 +31,7 @@ interface PasswordChangeForm {
 }
 
 export default function Profile() {
-  const { user, refreshUser, isAdmin } = useAuth()
+  const { user, refreshUser, isAdmin, adoptToken } = useAuth()
   const { recapEnabled, setupEnabled, merchSizeEnabled, gamesEnabled, lolStatsEnabled } = useAppConfig()
   const { t } = useTranslation()
   const [saving, setSaving] = useState(false)
@@ -105,6 +105,10 @@ export default function Profile() {
   // second invocation from a duplicate WebView2 click event landing in the
   // same tick, since `disabled` only takes effect on the next render.
   const discordBusyRef = useRef(false)
+  // Linking takes the account password first (a stolen session alone must not
+  // be enough to add a new way into the account).
+  const [discordPw, setDiscordPw] = useState('')
+  const [discordPwError, setDiscordPwError] = useState('')
 
   useEffect(() => {
     discordApi.config().then((c) => setDiscordEnabled(c.enabled)).catch(() => {})
@@ -124,11 +128,24 @@ export default function Profile() {
     if (discordBusyRef.current) return
     discordBusyRef.current = true
     setDiscordBusy(true)
+    setDiscordPwError('')
     try {
+      let ticket: string
+      try {
+        ticket = await discordApi.linkTicket(discordPw)
+      } catch (e: any) {
+        setDiscordPwError(
+          e.response?.status === 400 ? t('profile.currentPasswordIncorrect') : t('discord.signInFailed')
+        )
+        return
+      }
+      setDiscordPw('')
       if (isEmbeddedInDesktop()) {
-        requestDiscordAuth('link')
+        // The desktop app forwards its "invite code" argument as `code`,
+        // which is exactly where /auth/discord/link reads the ticket.
+        requestDiscordAuth('link', ticket)
       } else {
-        window.location.href = await discordApi.link()
+        window.location.href = await discordApi.link(ticket)
       }
     } finally {
       // See DiscordButton.tsx's `go()` — the desktop app's case keeps this
@@ -152,7 +169,7 @@ export default function Profile() {
     }
   }
 
-  // ── Steam linking (link-only — no login/registration via Steam, see md/Steam_Link.md) ──
+  // ── Steam linking (link-only — no login/registration via Steam, see md/2.features/Steam_Link.md) ──
   const [steamEnabled, setSteamEnabled] = useState(false)
   const [steamBusy, setSteamBusy] = useState(false)
   const [steamNotice, setSteamNotice] = useState('')
@@ -275,10 +292,11 @@ export default function Profile() {
     if (!user) return
     setPwError('')
     try {
-      await usersApi.changePassword(user.id, {
+      const res = await usersApi.changePassword(user.id, {
         current_password: data.current_password,
         new_password: data.new_password,
       })
+      adoptToken(res.access_token)
       resetPw()
       setPwSaved(true)
       setTimeout(() => setPwSaved(false), 3000)
@@ -612,10 +630,20 @@ export default function Profile() {
             ) : (
               <>
                 <p className="text-xs text-muted-foreground">{t('profile.discordLinkHint')}</p>
+                <div className="max-w-xs">
+                  <Input
+                    label={t('profile.discordLinkPasswordLabel')}
+                    type="password"
+                    autoComplete="current-password"
+                    value={discordPw}
+                    onChange={(e) => setDiscordPw(e.target.value)}
+                    error={discordPwError || undefined}
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={linkDiscord}
-                  disabled={discordBusy}
+                  disabled={discordBusy || !discordPw}
                   className="w-full max-w-xs h-10 flex items-center justify-center gap-2 bg-[#5865F2] text-white font-mono-label hover:bg-[#4752c4] transition-colors disabled:opacity-50"
                 >
                   {discordBusy ? t('discord.redirecting') : t('profile.discordLink')}
@@ -696,7 +724,7 @@ export default function Profile() {
               autoComplete="new-password"
               {...registerPw('new_password', {
                 required: t('profile.newPasswordRequired'),
-                minLength: { value: 6, message: t('register.passwordMinLength') },
+                minLength: { value: 8, message: t('register.passwordMinLength') },
                 validate: (v) =>
                   new TextEncoder().encode(v).length <= 72 || t('register.passwordMaxLength'),
               })}

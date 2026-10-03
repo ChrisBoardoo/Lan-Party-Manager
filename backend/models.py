@@ -38,7 +38,7 @@ class User(Base):
     # green dot on the HUB roster; NULL until a user's first ping.
     last_seen = Column(DateTime, nullable=True)
     # Planning "Calendar View" display preference — "list" | "calendar". NULL =
-    # no preference saved yet, frontend falls back to "list". See md/calendarview.md.
+    # no preference saved yet, frontend falls back to "list". See md/2.features/calendarview.md.
     planning_schedule_view = Column(String, nullable=True)
 
     # Discord SSO — set when an account is created via, or linked to, Discord.
@@ -47,7 +47,7 @@ class User(Base):
     discord_username = Column(String, nullable=True)
     discord_avatar = Column(String, nullable=True)
 
-    # Steam link — link-only (no sign-up via Steam, see md/Steam_Link.md):
+    # Steam link — link-only (no sign-up via Steam, see md/2.features/Steam_Link.md):
     # `steam_id` is the SteamID64 (unique); the other two are for display, set
     # from GetPlayerSummaries on link. Unlike Discord's avatar (a hash you build
     # a URL from), `steam_avatar` is already a full URL — Steam's API returns
@@ -68,6 +68,11 @@ class User(Base):
     # follows the member between the browser and the desktop app. NULL = never
     # touched, frontend shows the defaults. Shape: schemas.GameLibraryFilters.
     games_library_filters = Column(Text, nullable=True)
+
+    # Copied into every session token (`tv` claim). Bumping it — password
+    # change or reset, deactivation, deletion — invalidates every token issued
+    # before, see auth.revoke_sessions.
+    token_version = Column(Integer, nullable=False, default=0, server_default="0")
 
     expenses = relationship("Expense", foreign_keys="Expense.created_by", back_populates="creator")
     tournaments = relationship("Tournament", back_populates="organizer")
@@ -109,16 +114,21 @@ class Expense(Base):
 
 
 class SettlementPayment(Base):
-    """A debtor's self-declared "I've sent this payment" marker for one
-    who-owes-whom line, per event. Existence of a row = marked paid; deleting it
-    reverses the mark. The settlement graph is recomputed live, so a marker whose
-    (from, to) pair no longer appears is simply ignored at render time — harmless."""
+    """What a debtor declared sending to a creditor for one event ("payment
+    sent"). `amount` is the money sent, accumulated over successive marks for
+    the same pair (one row per pair, see the unique constraint); it counts in
+    the balances, so whatever changes afterwards (a late receipt, new dates)
+    shows up as what's still owed. Deleting the row reverses it.
+
+    Rows from before 1.3.4 have no amount: they stay plain "paid" flags on the
+    matching line, the way they always worked (see prorata._normalize_payments)."""
     __tablename__ = "settlement_payments"
 
     id = Column(Integer, primary_key=True, index=True)
     event_id = Column(Integer, ForeignKey("lan_events.id"), nullable=False)
     from_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # debtor
     to_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)    # creditor
+    amount = Column(Float, nullable=True)
     marked_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (UniqueConstraint("event_id", "from_user_id", "to_user_id"),)
@@ -902,6 +912,21 @@ class EventReminderSent(Base):
 
     __table_args__ = (UniqueConstraint("event_id", "user_id"),)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class LanCountdownSent(Base):
+    """One row per countdown reminder delivered (J-10, J-7, J-1 before an
+    event): the daily job's idempotency gate, so a restart or a second run on
+    the same day never notifies anyone twice. See lan_reminders.py."""
+    __tablename__ = "lan_countdown_sent"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("lan_events.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    days_before = Column(Integer, nullable=False)
+    sent_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("event_id", "user_id", "days_before"),)
 
 
 class Game(Base):

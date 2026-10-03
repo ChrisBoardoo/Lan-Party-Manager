@@ -16,7 +16,7 @@ export default defineConfig({
   // Baked into the shell's settings footer (ui/src/main.js) so an installed
   // build can be traced back to the exact commit it came from. The GitHub
   // Actions release workflow sets LPM_BUILD_SHA to the short commit SHA
-  // before `tauri build` — see md/desktop_app_CI_github.md. Local dev/build
+  // before `tauri build` — see md/6.github_help/desktop_app_CI_github.md. Local dev/build
   // runs leave it unset, which the shell renders as "dev".
   define: {
     __LPM_BUILD_SHA__: JSON.stringify(process.env.LPM_BUILD_SHA || "dev"),

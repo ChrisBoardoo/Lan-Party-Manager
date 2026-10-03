@@ -9,7 +9,7 @@ import { UserX } from 'lucide-react'
 // visible at all, since a deleted row never appears in the HUB roster
 // (backend/router_users.py::get_all_users filters it out unconditionally).
 // Named generically ("removed" rather than just "deleted") because a future
-// "banned" state (see md/ban-feature-idea.md) would belong in this same
+// "banned" state (see md/2.features/ban-feature-idea.md) would belong in this same
 // list — not built yet, so this only ever shows deletions for now.
 export default function DeletedUsersHistory() {
   const { t } = useTranslation()

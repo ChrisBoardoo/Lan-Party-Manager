@@ -13,7 +13,7 @@ export interface User {
   deleted_at?: string | null  // set by admin full-deletion; distinct from is_active — see backend/router_users.py
   created_at: string
   discord_username?: string | null  // set when a Discord account is linked (self/admin only)
-  steam_username?: string | null  // set when a Steam account is linked (self/admin only) — link-only, see md/Steam_Link.md
+  steam_username?: string | null  // set when a Steam account is linked (self/admin only) — link-only, see md/2.features/Steam_Link.md
   riot_id?: string | null  // "GameName#TAG", typed on the profile (self/admin only) — see backend/riot_id.py
   has_password?: boolean  // false for Discord-only accounts; gates the unlink action
   last_seen?: string | null  // last presence heartbeat (server UTC)
@@ -193,6 +193,9 @@ export interface LanEvent {
   my_rsvp: 'in' | 'out' | null
   my_arrival_date: string | null
   my_departure_date: string | null
+  // From the event's first day: a member can't change their own stay any
+  // more, only a treasurer or an admin can (it moves everyone's share).
+  attendance_locked: boolean
   attendees: EventAttendee[]
   created_by: number
   created_at: string
@@ -233,6 +236,8 @@ export interface ProRataShare {
   username: string
   avatar_url: string | null
   nights: number
+  arrival_date?: string
+  departure_date?: string
   percentage: number
   amount: number
 }
@@ -244,7 +249,10 @@ export interface SettlementLine {
   to_username: string
   to_phone?: string | null  // only present for the debtor (viewer) of this line
   amount: number
+  // true = a payment the debtor recorded (amount = what was sent); false =
+  // still owed. A paid line no longer counts as debt.
   paid: boolean
+  payment_id?: number | null
 }
 
 export interface ProRataResult {

@@ -24,15 +24,22 @@ from jose import JWTError, jwt
 from auth import ALGORITHM, SECRET_KEY
 
 STATE_TTL = timedelta(minutes=10)
+# Same key as session tokens, so the type claim is what keeps the two apart:
+# a state is never accepted as a session (auth.user_from_token wants "access"),
+# and a session token is never accepted as a state.
+STATE_TYPE = "oauth_state"
 
 
 def sign_state(payload: dict) -> str:
-    data = {**payload, "exp": datetime.utcnow() + STATE_TTL}
+    data = {**payload, "typ": STATE_TYPE, "exp": datetime.utcnow() + STATE_TTL}
     return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def verify_state(token: str, error_cls: type[Exception] = ValueError) -> dict:
     try:
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError as exc:
         raise error_cls("Invalid or expired sign-in state") from exc
+    if payload.get("typ") != STATE_TYPE:
+        raise error_cls("Invalid or expired sign-in state")
+    return payload

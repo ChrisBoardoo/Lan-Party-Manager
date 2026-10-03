@@ -7,7 +7,7 @@
 **Self-hosted event management for LAN parties** — crew invites, tournaments, treasury,
 media, and live streams, all running on hardware you own. From a Raspberry Pi to a NUC.
 
-[![Version](https://img.shields.io/badge/version-1.3.3-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.3.4-FF3D00?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-4C566A?style=flat-square)](../LICENSE)
 [![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -117,7 +117,10 @@ services:
       - ./data:/app/data
       - ./uploads:/app/uploads
     environment:
-      SECRET_KEY: change-me-to-a-long-random-string
+      # Optional — left out or empty, the backend generates a random key on first
+      # start and keeps it in ./data/secret_key. Known example values and keys under
+      # 16 characters are refused at startup.
+      SECRET_KEY: ""
       DATABASE_URL: sqlite:///./data/lanparty.db
       UPLOAD_DIR: /app/uploads
     restart: unless-stopped
@@ -143,8 +146,9 @@ docker compose up -d
 
 ```bash
 git clone https://github.com/ChrisBoardoo/Lan-Party-Manager.git
-cd LANPARTYMANAGER
-echo "SECRET_KEY=change-me-to-a-long-random-string" > .env
+cd Lan-Party-Manager
+# Optional: without a .env, the backend generates its own key in ./data/secret_key
+echo "SECRET_KEY=$(python -c 'import secrets; print(secrets.token_hex(32))')" > .env
 docker compose up --build
 ```
 
@@ -162,7 +166,9 @@ First build takes ~3–5 minutes (installs Python deps + ffmpeg, compiles the Re
 > which caps request sizes and forwards the client IP the login rate limits rely on. Publishing port
 > `8000` on all interfaces would bypass both (and Docker-published ports skip the host firewall).
 
-> **Important:** always set a strong `SECRET_KEY` — it signs all JWT tokens.
+> **Important:** `SECRET_KEY` signs every session token. Leave it empty and the backend generates
+> a random one (kept in `./data/secret_key`), or set your own random 32+ character value. Known
+> example values and keys under 16 characters are refused at startup.
 
 ### Fronting with your own reverse proxy (Nginx, Caddy, Traefik…)
 
@@ -237,7 +243,7 @@ services:
       - ./data:/app/data        # SQLite database (persisted)
       - ./uploads:/app/uploads  # Avatars, media, thumbnails (persisted)
     environment:
-      SECRET_KEY: ${SECRET_KEY:-lanparty-secret-CHANGE-ME}
+      SECRET_KEY: ${SECRET_KEY:-}
       DATABASE_URL: sqlite:///./data/lanparty.db
       UPLOAD_DIR: /app/uploads
 
@@ -255,7 +261,7 @@ services:
 
 | Variable       | Default                        | Description                                  |
 |----------------|--------------------------------|----------------------------------------------|
-| `SECRET_KEY`   | `lanparty-secret-CHANGE-ME`    | JWT signing secret — **change this**         |
+| `SECRET_KEY`   | *(generated)*                  | JWT signing secret — empty = random key generated on first start, kept in `./data/secret_key` |
 | `DATABASE_URL` | `sqlite:///./data/lanparty.db` | SQLAlchemy connection string                 |
 | `UPLOAD_DIR`   | `/app/uploads`                 | Directory for avatars, media, and thumbnails |
 | `LPM_TRUSTED_PROXIES` (frontend) | `172.16.0.0/12` | Where your reverse proxy connects from — see [Fronting with your own reverse proxy](#fronting-with-your-own-reverse-proxy-nginx-caddy-traefik) |
@@ -290,7 +296,6 @@ mkdir -p data uploads
 cd backend
 docker build -t lanparty-backend .
 docker run -p 127.0.0.1:8000:8000 \
-  -e SECRET_KEY=your-secret \
   -v $(pwd)/../data:/app/data \
   -v $(pwd)/../uploads:/app/uploads \
   lanparty-backend
@@ -366,7 +371,8 @@ List endpoints support `?limit=` and `?offset=` pagination.
 | POST   | `/api/auth/reset-password`    | Public   | Set a new password from a valid reset token                           |
 | GET    | `/api/auth/discord/config`    | Public   | Returns `{ enabled: bool }` — is Discord SSO configured?              |
 | GET    | `/api/auth/discord/authorize` | Public   | Begin Discord login/registration (`?code=` optional invite)           |
-| GET    | `/api/auth/discord/link`      | Required | Begin linking Discord to the current account                          |
+| POST   | `/api/auth/discord/link-ticket` | Required | Confirm the account password; returns a 5-minute ticket for `/discord/link` |
+| GET    | `/api/auth/discord/link`      | Required | Begin linking Discord to the current account (`code` = the ticket)    |
 | DELETE | `/api/auth/discord/link`      | Required | Unlink Discord (refused if the account has no password)               |
 | GET    | `/api/auth/discord/callback`  | Public   | OAuth2 redirect target — completes login/link, hands back the JWT     |
 
@@ -441,8 +447,9 @@ List endpoints support `?limit=` and `?offset=` pagination.
 | POST   | `/api/events/`                       | Admin only | Create event (optional capacity)                                    |
 | PUT    | `/api/events/{id}`                   | Admin only | Update event                                                        |
 | DELETE | `/api/events/{id}`                   | Admin only | Delete event                                                        |
-| POST   | `/api/events/{id}/rsvp`              | Any        | RSVP "in" with `{arrival_date, departure_date}` bounded to the event window |
-| DELETE | `/api/events/{id}/rsvp`              | Any        | Set RSVP status = "out"                                             |
+| POST   | `/api/events/{id}/rsvp`              | Any        | RSVP "in" with `{arrival_date, departure_date}` bounded to the event window; 409 from the event's first day |
+| DELETE | `/api/events/{id}/rsvp`              | Any        | Set RSVP status = "out"; 409 from the event's first day             |
+| PUT    | `/api/events/{id}/rsvps/{user_id}`   | Treasurer  | Set a member's attendance `{status, arrival_date, departure_date}` — the only way once the LAN started; logged, member notified |
 | GET    | `/api/events/{id}/invite`            | Admin only | Get this event's invite code (or `null`)                            |
 | POST   | `/api/events/{id}/invite`            | Admin only | Generate/regenerate this event's invite code                        |
 | DELETE | `/api/events/{id}/invite`            | Admin only | Revoke this event's invite code                                     |
@@ -464,7 +471,7 @@ outside that window every endpoint (REST and WebSocket) answers as if the room d
 | GET    | `/api/chat/{event_id}/pinned`                     | Attendee   | The event's currently pinned message, if any                           |
 | POST   | `/api/chat/{event_id}/pin/{message_id}`           | Admin only | Pin a message (replaces any previous pin)                              |
 | DELETE | `/api/chat/{event_id}/pin`                        | Admin only | Unpin                                                                   |
-| WS     | `/api/chat/{event_id}/ws?token=`                  | Attendee   | Live push of changed messages/pinned state, plus a "typing…" relay     |
+| WS     | `/api/chat/{event_id}/ws`                         | Attendee   | Live push of changed messages/pinned state, plus a "typing…" relay. First frame: `{"type": "auth", "token": "<JWT>"}` (never in the URL) |
 
 ### Planning (Calendar View)
 
@@ -707,7 +714,7 @@ npm run dev
 ## Project Structure
 
 ```
-LANPARTYMANAGER/
+Lan-Party-Manager/
 ├── docker-compose.yml
 ├── data/                      # SQLite DB (auto-created, gitignored)
 ├── uploads/                   # Avatars, media, thumbnails (auto-created, gitignored)

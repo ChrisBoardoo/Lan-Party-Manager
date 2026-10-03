@@ -393,7 +393,7 @@ fn set_autostart_enabled(enabled: bool, app: tauri::AppHandle) -> Result<(), Str
 // listener on `127.0.0.1`, the standard "loopback redirect" approach for
 // exactly this case. `backend/router_auth.py`'s `discord_authorize` /
 // `discord_link` / `discord_callback` (and Steam's `steam_link` /
-// `steam_callback` — see md/Steam_Link.md, link-only, no `steam_authorize`)
+// `steam_callback` — see md/2.features/Steam_Link.md, link-only, no `steam_authorize`)
 // all accept an optional `desktop_port` that threads through the existing
 // signed state; when present, the callback redirects the browser straight to
 // our loopback listener (`_complete_redirect` in router_auth.py) instead of

@@ -15,7 +15,7 @@ import EventCountdown from '../components/ui/EventCountdown'
 import AttendeeRoster from '../components/AttendeeRoster'
 import {
   Plus, X, CalendarDays, MapPin, Clock, Trash2, Users, CheckCircle2, Circle, Check,
-  Ticket, QrCode, Copy, ImagePlus, RotateCw, AlertTriangle, Package,
+  Ticket, QrCode, Copy, ImagePlus, RotateCw, AlertTriangle, Package, Lock,
 } from 'lucide-react'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -516,8 +516,18 @@ function EventCard({
         </Link>
 
         <div className="flex items-center gap-2">
+          {/* Locked from the first day: the stay sets everyone's share */}
+          {upcoming && event.attendance_locked && (
+            <span
+              className="flex items-center gap-1 font-mono-label text-muted-foreground text-[10px]"
+              title={t('events.card.lockedHint')}
+            >
+              <Lock size={10} /> {t('events.card.locked')}
+            </span>
+          )}
+
           {/* RSVP toggle */}
-          {upcoming && (
+          {upcoming && !event.attendance_locked && (
             <div className="flex items-center gap-2">
               <button
                 onClick={handlePillClick}

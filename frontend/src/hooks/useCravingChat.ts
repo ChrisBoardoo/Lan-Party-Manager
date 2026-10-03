@@ -56,9 +56,9 @@ export function useCravingChat(eventId: number | null, handlers: Handlers) {
     const connect = () => {
       if (stopped) return
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      socket = new WebSocket(
-        `${protocol}//${window.location.host}/api/chat/${eventId}/ws?token=${encodeURIComponent(token)}`
-      )
+      // Token in the first frame, not the URL — see useActivityFeed.ts.
+      socket = new WebSocket(`${protocol}//${window.location.host}/api/chat/${eventId}/ws`)
+      socket.onopen = () => socket?.send(JSON.stringify({ type: 'auth', token }))
       socketRef.current = socket
 
       socket.onmessage = (event) => {
@@ -76,9 +76,10 @@ export function useCravingChat(eventId: number | null, handlers: Handlers) {
         }
       }
 
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         if (socketRef.current === socket) socketRef.current = null
-        if (!stopped) reconnectTimer = window.setTimeout(connect, RECONNECT_MS)
+        // 4401: token refused, retrying can't help — see useActivityFeed.ts.
+        if (!stopped && event.code !== 4401) reconnectTimer = window.setTimeout(connect, RECONNECT_MS)
       }
       socket.onerror = () => socket?.close()
     }

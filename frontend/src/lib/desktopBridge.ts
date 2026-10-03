@@ -102,7 +102,7 @@ export function requestDiscordAuth(kind: 'login' | 'link', inviteCode?: string) 
 
 /**
  * Same idea as `requestDiscordAuth`, for Steam — link-only (see
- * md/Steam_Link.md), so there's no `kind`/`inviteCode` to pass. The shell
+ * md/2.features/Steam_Link.md), so there's no `kind`/`inviteCode` to pass. The shell
  * forwards this to Rust's `start_steam_auth`, which opens the system browser
  * at Steam's OpenID login page and waits on the same loopback-listener
  * pattern as Discord.

@@ -29,7 +29,11 @@ export function useActivityFeed(enabled: boolean, onNewItems: (items: ActivityLo
     const connect = () => {
       if (stopped) return
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      socket = new WebSocket(`${protocol}//${window.location.host}/api/activity/ws?token=${encodeURIComponent(token)}`)
+      // The token goes in the first frame, not the URL: a query string ends up
+      // in nginx's and uvicorn's access logs, and from there in every
+      // screenshot or paste of those logs.
+      socket = new WebSocket(`${protocol}//${window.location.host}/api/activity/ws`)
+      socket.onopen = () => socket?.send(JSON.stringify({ type: 'auth', token }))
 
       socket.onmessage = (event) => {
         try {
@@ -44,8 +48,10 @@ export function useActivityFeed(enabled: boolean, onNewItems: (items: ActivityLo
         }
       }
 
-      socket.onclose = () => {
-        if (!stopped) reconnectTimer = window.setTimeout(connect, RECONNECT_MS)
+      socket.onclose = (event) => {
+        // 4401 = the server refused the token: retrying with the same one
+        // can't succeed, so stop instead of knocking every 3 seconds.
+        if (!stopped && event.code !== 4401) reconnectTimer = window.setTimeout(connect, RECONNECT_MS)
       }
       socket.onerror = () => socket?.close()
     }

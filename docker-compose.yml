@@ -11,7 +11,10 @@ services:
       - ./data:/app/data        # SQLite database + scheduled backup snapshots (persisted)
       - ./uploads:/app/uploads  # Avatars, media files, video thumbnails (persisted)
     environment:
-      SECRET_KEY: ${SECRET_KEY:-lanparty-secret-CHANGE-ME}
+      # Optional. Left empty, the backend generates a random key on first start
+      # and keeps it in ./data/secret_key. If you set one, make it random and
+      # 32+ characters: python -c "import secrets; print(secrets.token_hex(32))"
+      SECRET_KEY: ${SECRET_KEY:-}
       DATABASE_URL: sqlite:///./data/lanparty.db
       UPLOAD_DIR: /app/uploads
       BACKUP_ENABLED: ${BACKUP_ENABLED:-true}   # daily 03:00 snapshot into ./data/backups

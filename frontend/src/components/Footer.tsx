@@ -29,7 +29,7 @@ export default function Footer() {
 
         <span className="w-px h-3 bg-border hidden sm:block" />
 
-        <span className="font-mono-label text-muted-foreground/50 text-[11px]">1.3.3</span>
+        <span className="font-mono-label text-muted-foreground/50 text-[11px]">1.3.4</span>
 
         <span className="w-px h-3 bg-border hidden sm:block" />
 

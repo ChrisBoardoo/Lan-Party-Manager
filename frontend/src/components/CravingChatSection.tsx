@@ -102,7 +102,7 @@ export function renderMessageContent(text: string, mentions: ChatMention[]) {
       )
     }
     return (
-      // A deliberate, one-off exception to md/uxui.md's orange-accent-only
+      // A deliberate, one-off exception to md/13.uxui/UXUI.md's orange-accent-only
       // palette — explicitly asked for a distinct gold (#DBB844) so an
       // @mention reads as its own kind of highlight, not just "another
       // accent-colored thing" competing visually with the rest of the UI.
@@ -127,7 +127,7 @@ const EDIT_WINDOW_MS = 10 * 60 * 1000
 // (with a quoted blockquote), a 10-minute self-edit window, and a single
 // free-text emoji reaction per person (typed via the OS's own emoji picker —
 // Win+. / Ctrl+Cmd+Space work in any plain text input) round out what crew
-// feedback asked for after the first live test — see md/Craving_chat_v2.md.
+// feedback asked for after the first live test — see md/2.features/Craving_chat_v2.md.
 // Self-contained (own fetch, own error handling) so a closed/disabled room
 // never takes the rest of the Hub down — same convention as
 // GroceriesSection/GearSection.
@@ -186,7 +186,7 @@ export default function CravingChatSection({ eventId, attendees, heightClassName
   const [emoteIndex, setEmoteIndex] = useState(0)
   // Client-side only, over whatever's already loaded (HISTORY_LIMIT = 200
   // messages server-side) — a short-lived, small-history room has no need
-  // for a real backend search engine (see md/craving_chat_suggestions.md).
+  // for a real backend search engine (see md/2.features/craving_chat_suggestions.md).
   const [searchQuery, setSearchQuery] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLInputElement>(null)
@@ -592,7 +592,7 @@ export default function CravingChatSection({ eventId, attendees, heightClassName
                 {!m.is_mine && (
                   <Link to={`/players/${m.user_id}`} className="flex items-center gap-1.5 mb-1 w-fit group/author">
                     {/* Circular avatar is a deliberate, one-off exception to
-                        md/uxui.md's "no rounded corners" rule — a group chat
+                        md/13.uxui/UXUI.md's "no rounded corners" rule — a group chat
                         reads as a WhatsApp-style group specifically because
                         of the round sender photos, and that association is
                         the whole point here. Nowhere else in the app should

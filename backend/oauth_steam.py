@@ -12,7 +12,7 @@ A Steam Web API key (free, steamcommunity.com/dev/apikey) is only needed for
 the calls *after* a successful link — fetching the account's display
 name/avatar and its owned-games list — never for the login/link step itself.
 
-See md/Steam_Link.md for the full design (gitignored, local-only per this
+See md/2.features/Steam_Link.md for the full design (gitignored, local-only per this
 repo's `.gitignore` convention for `md/`).
 """
 

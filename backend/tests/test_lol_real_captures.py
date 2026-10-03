@@ -2,7 +2,7 @@
 
 lol_capture.py's field names come from community documentation; this is the
 test that holds them against the real thing. It reads the JSON files saved by
-md/games_extensions/League_Of_Legends/lol_capture.ps1 — kept in the gitignored
+md/2.features/games_extensions/League_Of_Legends/lol_capture.ps1 — kept in the gitignored
 md/ folder on purpose, since they carry the crew's Riot IDs — and skips when
 there are none (CI, a fresh clone). Run it after capturing a game:
 
@@ -15,7 +15,7 @@ import pytest
 
 from lol_capture import parse_end_of_game
 
-CAPTURES = Path(__file__).resolve().parents[2] / "md" / "games_extensions" / "League_Of_Legends" / "captures"
+CAPTURES = Path(__file__).resolve().parents[2] / "md" / "2.features" / "games_extensions" / "League_Of_Legends" / "captures"
 
 
 def _read(path: Path):

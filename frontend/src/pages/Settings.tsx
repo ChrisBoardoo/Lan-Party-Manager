@@ -24,7 +24,8 @@ const COMPOSE_SNIPPET = `services:
       - ./data:/app/data
       - ./uploads:/app/uploads
     environment:
-      SECRET_KEY: change-me-to-a-long-random-string
+      # Empty: a random key is generated on first start, kept in ./data/secret_key
+      SECRET_KEY: ""
       DATABASE_URL: sqlite:///./data/lanparty.db
       UPLOAD_DIR: /app/uploads
     restart: unless-stopped
@@ -1227,7 +1228,7 @@ export default function Settings() {
               <div>
                 <p className="font-mono-label text-muted-foreground text-[10px] mb-1">{label}</p>
                 <p className="font-mono text-sm text-foreground">{repo}</p>
-                <p className="font-mono-label text-muted-foreground text-[10px] mt-1">:latest · :1.3.3</p>
+                <p className="font-mono-label text-muted-foreground text-[10px] mt-1">:latest · :1.3.4</p>
               </div>
               <ExternalLink size={12} strokeWidth={1.5} className="text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0" />
             </ExternalLinkButton>

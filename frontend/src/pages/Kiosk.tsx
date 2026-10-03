@@ -46,7 +46,8 @@ function useClock() {
 
 export default function Kiosk() {
   const [params] = useSearchParams()
-  const token = params.get('token') || ''
+  // #token= since 1.3.4 (kept out of access logs); ?token= for older links.
+  const token = new URLSearchParams(window.location.hash.slice(1)).get('token') || params.get('token') || ''
   const { t } = useTranslation()
 
   const [summary, setSummary] = useState<KioskSummary | null>(null)
@@ -259,7 +260,7 @@ export default function Kiosk() {
     return (
       <KioskShell>
         <div className="text-center">
-          <div className="font-mono-label text-accent mb-4">{t('kiosk.title')}</div>
+          <div className="font-mono-kiosk text-[1.2vw] text-accent mb-4">{t('kiosk.title')}</div>
           <h1 className="text-4xl font-black tracking-tighter mb-3">{t('kiosk.invalidTitle')}</h1>
           <p className="text-muted-foreground max-w-xl mx-auto">{t('kiosk.invalidBody')}</p>
         </div>
@@ -270,7 +271,7 @@ export default function Kiosk() {
   if (!summary) {
     return (
       <KioskShell>
-        <div className="font-mono-label text-muted-foreground kiosk-pulse">
+        <div className="font-mono-kiosk text-[1.4vw] text-muted-foreground kiosk-pulse">
           {error === 'unreachable' ? t('kiosk.reconnecting') : t('common.loading')}
         </div>
       </KioskShell>
@@ -309,7 +310,7 @@ export default function Kiosk() {
           <ChampionScene champion={summary.champion} celebrating={celebrating} />
         )}
         {activeScene === 'idle' && (
-          <div className="font-mono-label text-muted-foreground kiosk-pulse">{t('kiosk.idle')}</div>
+          <div className="font-mono-kiosk text-[1.6vw] text-muted-foreground kiosk-pulse">{t('kiosk.idle')}</div>
         )}
       </div>
 
@@ -343,10 +344,10 @@ function KioskHeader({ summary, live }: { summary: KioskSummary; live: number })
   const { t } = useTranslation()
   return (
     <div className="flex items-center justify-between px-[4vw] pt-[3vh] shrink-0">
-      <div className="font-mono-label text-accent text-[1.4vw] tracking-widest">
+      <div className="font-mono-kiosk text-accent text-[1.4vw] tracking-widest">
         {summary.event ? summary.event.title : t('kiosk.title')}
       </div>
-      <div className="flex items-center gap-[2vw] font-mono-label text-[1.2vw]">
+      <div className="flex items-center gap-[2vw] font-mono-kiosk text-[1.2vw]">
         <span className="flex items-center gap-2">
           <span className="w-[0.9vw] h-[0.9vw] bg-green-400 rounded-full kiosk-pulse" />
           {t('kiosk.online', { count: live })}
@@ -385,7 +386,7 @@ function Countdown({ ms }: { ms: number }) {
   const sec = s % 60
   const pad = (n: number) => String(n).padStart(2, '0')
   const big = d > 0 ? `${d}d ${pad(h)}:${pad(m)}:${pad(sec)}` : `${pad(h)}:${pad(m)}:${pad(sec)}`
-  return <div className="font-mono-label text-accent text-[8vw] leading-none tracking-tight tabular-nums">{big}</div>
+  return <div className="font-mono-kiosk text-accent text-[8vw] leading-none tracking-tight tabular-nums">{big}</div>
 }
 
 function HeroScene({ summary, countdownMs }: { summary: KioskSummary; countdownMs: number | null }) {
@@ -394,7 +395,7 @@ function HeroScene({ summary, countdownMs }: { summary: KioskSummary; countdownM
     <div className="text-center">
       {summary.countdown ? (
         <>
-          <div className="font-mono-label text-muted-foreground text-[1.6vw] mb-[2vh] tracking-widest">
+          <div className="font-mono-kiosk text-muted-foreground text-[1.6vw] mb-[2vh] tracking-widest">
             {t('kiosk.countingDownTo')}
           </div>
           <h1 className="text-[6vw] font-black tracking-tighter leading-none mb-[4vh]">
@@ -408,7 +409,7 @@ function HeroScene({ summary, countdownMs }: { summary: KioskSummary; countdownM
             {summary.event?.title ?? t('kiosk.title')}
           </h1>
           {summary.event?.location && (
-            <div className="font-mono-label text-muted-foreground text-[1.6vw] mt-[3vh]">
+            <div className="font-mono-kiosk text-muted-foreground text-[1.6vw] mt-[3vh]">
               {summary.event.location}
             </div>
           )}
@@ -437,7 +438,7 @@ function MatchesScene({ matches }: { matches: KioskMatch[] }) {
   const rest = matches.slice(1, 5)
   return (
     <div className="w-full max-w-[80vw]">
-      <div className="font-mono-label text-accent text-[1.4vw] mb-[3vh] tracking-widest">
+      <div className="font-mono-kiosk text-accent text-[1.4vw] mb-[3vh] tracking-widest">
         {feature.status === 'in_progress' ? t('kiosk.nowPlaying') : t('kiosk.upNextMatch')}
         <span className="text-muted-foreground ml-4">
           {feature.tournament} · {t(`roundLabels.${feature.round}`, feature.round)}
@@ -452,7 +453,7 @@ function MatchesScene({ matches }: { matches: KioskMatch[] }) {
         <div className="border-t border-border pt-[2vh] space-y-[1.4vh]">
           {rest.map((m, i) => (
             <div key={i} className="flex items-center justify-between text-[1.4vw]">
-              <span className="font-mono-label text-muted-foreground">
+              <span className="font-mono-kiosk text-muted-foreground">
                 {m.tournament} · {t(`roundLabels.${m.round}`, m.round)}
               </span>
               <span className="font-black">
@@ -470,14 +471,14 @@ function StandingsScene({ standings }: { standings: KioskStanding[] }) {
   const { t } = useTranslation()
   return (
     <div className="w-full max-w-[70vw]">
-      <div className="font-mono-label text-accent text-[1.4vw] mb-[3vh] tracking-widest">{t('kiosk.standings')}</div>
+      <div className="font-mono-kiosk text-accent text-[1.4vw] mb-[3vh] tracking-widest">{t('kiosk.standings')}</div>
       <div className="space-y-[1.2vh]">
         {standings.map((s) => (
           <div key={s.rank} className="flex items-center gap-[2vw] text-[2vw]">
-            <span className="font-mono-label text-muted-foreground w-[3vw] tabular-nums">{s.rank}</span>
+            <span className="font-mono-kiosk text-muted-foreground w-[3vw] tabular-nums">{s.rank}</span>
             <span className="w-[1.6vw] h-[1.6vw] shrink-0" style={{ backgroundColor: s.color || '#262626' }} />
             <span className="flex-1 font-black truncate">{s.team_name}</span>
-            <span className="font-mono-label text-muted-foreground text-[1.3vw] tabular-nums">
+            <span className="font-mono-kiosk text-muted-foreground text-[1.3vw] tabular-nums">
               {s.wins}{t('kiosk.winShort')} · {s.losses}{t('kiosk.lossShort')}{s.draws ? ` · ${s.draws}${t('kiosk.drawShort')}` : ''}
             </span>
             <span className="font-black text-accent w-[5vw] text-right tabular-nums">{s.points}</span>
@@ -492,7 +493,7 @@ function ArrivalsScene({ summary }: { summary: KioskSummary }) {
   const { t } = useTranslation()
   return (
     <div className="w-full max-w-[80vw] text-center">
-      <div className="font-mono-label text-accent text-[1.4vw] mb-[1vh] tracking-widest">{t('kiosk.whosHere')}</div>
+      <div className="font-mono-kiosk text-accent text-[1.4vw] mb-[1vh] tracking-widest">{t('kiosk.whosHere')}</div>
       <div className="text-[2.4vw] font-black mb-[4vh]">
         {t('kiosk.onlineOfExpected', { online: summary.arrivals.online, total: summary.arrivals.expected })}
       </div>
@@ -509,7 +510,7 @@ function ArrivalsScene({ summary }: { summary: KioskSummary }) {
               )}
               {a.online && <span className="absolute -bottom-1 -right-1 w-[1.2vw] h-[1.2vw] bg-green-400 border-2 border-background rounded-full" />}
             </div>
-            <span className="font-mono-label text-[1vw] truncate max-w-[6vw]">{a.username}</span>
+            <span className="font-mono-kiosk text-[1vw] truncate max-w-[6vw]">{a.username}</span>
           </div>
         ))}
       </div>
@@ -521,13 +522,13 @@ function UpNextScene({ summary }: { summary: KioskSummary }) {
   const { t } = useTranslation()
   return (
     <div className="w-full max-w-[70vw]">
-      <div className="font-mono-label text-accent text-[1.4vw] mb-[3vh] tracking-widest">{t('kiosk.scheduled')}</div>
+      <div className="font-mono-kiosk text-accent text-[1.4vw] mb-[3vh] tracking-widest">{t('kiosk.scheduled')}</div>
       <div className="space-y-[2vh]">
         {summary.up_next.map((b, i) => (
           <div key={i} className="flex items-baseline gap-[2vw] border-b border-border pb-[1.6vh]">
-            <span className="font-mono-label text-accent text-[2vw] tabular-nums">{hhmm(b.locked_start)}</span>
+            <span className="font-mono-kiosk text-accent text-[2vw] tabular-nums">{hhmm(b.locked_start)}</span>
             <span className="text-[2.6vw] font-black flex-1 truncate">{b.game}</span>
-            <span className="font-mono-label text-muted-foreground text-[1.3vw] tabular-nums">
+            <span className="font-mono-kiosk text-muted-foreground text-[1.3vw] tabular-nums">
               {hhmm(b.locked_start)}–{hhmm(b.locked_end)}
             </span>
           </div>
@@ -541,18 +542,18 @@ function GearScene({ gear }: { gear: NonNullable<KioskSummary['gear']> }) {
   const { t } = useTranslation()
   return (
     <div className="w-full max-w-[80vw]">
-      <div className="font-mono-label text-accent text-[1.4vw] mb-[3vh] tracking-widest">{t('kiosk.gearHeading')}</div>
+      <div className="font-mono-kiosk text-accent text-[1.4vw] mb-[3vh] tracking-widest">{t('kiosk.gearHeading')}</div>
       <div className="flex flex-wrap gap-[1.2vw] mb-[4vh]">
         {gear.bringing.map((g, i) => (
           <div key={i} className="border border-border px-[1.4vw] py-[1.2vh]">
             <div className="text-[1.8vw] font-black leading-none">{g.name}</div>
-            {g.by && <div className="font-mono-label text-muted-foreground text-[1vw] mt-[0.6vh]">{g.by}</div>}
+            {g.by && <div className="font-mono-kiosk text-muted-foreground text-[1vw] mt-[0.6vh]">{g.by}</div>}
           </div>
         ))}
       </div>
       {gear.needs.length > 0 && (
         <div>
-          <div className="font-mono-label text-accent text-[1.2vw] mb-[1.5vh] tracking-widest kiosk-pulse">{t('kiosk.gearStillNeeded')}</div>
+          <div className="font-mono-kiosk text-accent text-[1.2vw] mb-[1.5vh] tracking-widest kiosk-pulse">{t('kiosk.gearStillNeeded')}</div>
           <div className="text-[2.4vw] font-black leading-tight">{gear.needs.join(' · ')}</div>
         </div>
       )}
@@ -577,8 +578,8 @@ function JoinScene({ summary }: { summary: KioskSummary }) {
           <div className="text-[2.4vw] font-black leading-tight break-all">{summary.wifi.ssid}</div>
           <div className="font-mono text-[1.8vw] text-accent mt-[1vh] break-all">
             {summary.wifi.password
-              ? <><span className="font-mono-label text-muted-foreground text-[1vw] mr-3">{t('kiosk.joinPassword')}</span>{summary.wifi.password}</>
-              : <span className="font-mono-label text-muted-foreground text-[1.2vw]">{t('kiosk.joinOpenNetwork')}</span>}
+              ? <><span className="font-mono-kiosk text-muted-foreground text-[1vw] mr-3">{t('kiosk.joinPassword')}</span>{summary.wifi.password}</>
+              : <span className="font-mono-kiosk text-muted-foreground text-[1.2vw]">{t('kiosk.joinOpenNetwork')}</span>}
           </div>
         </>
       ),
@@ -589,14 +590,14 @@ function JoinScene({ summary }: { summary: KioskSummary }) {
 
   return (
     <div className="w-full">
-      <div className="font-mono-label text-accent text-[1.4vw] mb-[5vh] tracking-widest text-center">{t('kiosk.joinTitle')}</div>
+      <div className="font-mono-kiosk text-accent text-[1.4vw] mb-[5vh] tracking-widest text-center">{t('kiosk.joinTitle')}</div>
       <div className="flex items-start justify-center gap-[5vw]">
         {blocks.map((b) => (
           <div key={b.key} className="flex flex-col items-center text-center max-w-[26vw]">
             <div className="bg-white p-[1.2vh]" style={{ width: 'min(30vh, 22vw)' }}>
               <QRCode value={b.value} size={256} style={{ width: '100%', height: 'auto' }} viewBox="0 0 256 256" />
             </div>
-            <div className="font-mono-label text-[1.4vw] mt-[2.5vh] mb-[1vh]">{b.label}</div>
+            <div className="font-mono-kiosk text-[1.4vw] mt-[2.5vh] mb-[1vh]">{b.label}</div>
             {b.detail}
           </div>
         ))}
@@ -611,15 +612,15 @@ function ChampionScene({ champion, celebrating }: { champion: KioskChampion; cel
     <div className="text-center relative w-full h-full flex flex-col items-center justify-center">
       <Confetti run={celebrating} />
       <div className="text-[8vw] leading-none mb-[2vh]">🏆</div>
-      <div className="font-mono-label text-accent text-[1.6vw] mb-[2vh] tracking-widest">{t('kiosk.champion')}</div>
+      <div className="font-mono-kiosk text-accent text-[1.6vw] mb-[2vh] tracking-widest">{t('kiosk.champion')}</div>
       <div className="flex items-center justify-center gap-[1.5vw] mb-[2vh]">
         <span className="w-[2.6vw] h-[2.6vw]" style={{ backgroundColor: champion.color || '#FF3D00' }} />
         <h1 className="text-[6vw] font-black tracking-tighter leading-none">{champion.team_name}</h1>
       </div>
       {champion.members.length > 0 && (
-        <div className="font-mono-label text-muted-foreground text-[1.6vw]">{champion.members.join(' · ')}</div>
+        <div className="font-mono-kiosk text-muted-foreground text-[1.6vw]">{champion.members.join(' · ')}</div>
       )}
-      <div className="font-mono-label text-muted-foreground text-[1.2vw] mt-[3vh]">{champion.game_name}</div>
+      <div className="font-mono-kiosk text-muted-foreground text-[1.2vw] mt-[3vh]">{champion.game_name}</div>
     </div>
   )
 }
@@ -629,13 +630,13 @@ function TrophiesScene({ trophies }: { trophies: KioskTrophy[] }) {
   const { t } = useTranslation()
   return (
     <div className="w-full max-w-[80vw]">
-      <div className="font-mono-label text-accent text-[1.4vw] mb-[4vh] tracking-widest">{t('kiosk.trophiesHeading')}</div>
+      <div className="font-mono-kiosk text-accent text-[1.4vw] mb-[4vh] tracking-widest">{t('kiosk.trophiesHeading')}</div>
       <div className="grid grid-cols-2 gap-x-[4vw] gap-y-[3vh]">
         {trophies.map((tr) => (
           <div key={tr.edition_id} className="flex items-center gap-[1.5vw]">
             <TrophyIcon trophy={tr} className="w-[5vw] h-[5vw] text-[4vw]" />
             <div className="min-w-0">
-              <div className="font-mono-label text-muted-foreground text-[1.1vw] truncate">{tr.name}</div>
+              <div className="font-mono-kiosk text-muted-foreground text-[1.1vw] truncate">{tr.name}</div>
               <div className="text-[2.4vw] font-black leading-tight truncate">
                 {tr.winners.map((w) => w.username).join(' · ')}
               </div>
@@ -667,7 +668,7 @@ function TrophyCeremony({ trophy }: { trophy: KioskTrophy }) {
     <div className="kiosk-flash fixed inset-0 z-40 bg-background flex flex-col items-center justify-center px-[6vw] text-center">
       <Confetti run={revealed} />
       <TrophyIcon trophy={trophy} className="w-[12vw] h-[12vw] text-[10vw] mb-[3vh]" />
-      <div className="font-mono-label text-accent text-[1.6vw] tracking-widest mb-[1.5vh]">{t('kiosk.trophyAwardedTo')}</div>
+      <div className="font-mono-kiosk text-accent text-[1.6vw] tracking-widest mb-[1.5vh]">{t('kiosk.trophyAwardedTo')}</div>
       <h1 className="text-[5vw] font-black tracking-tighter leading-none mb-[5vh]">{trophy.name}</h1>
       {!revealed ? (
         <div className="text-[6vw] leading-none kiosk-pulse" aria-hidden="true">🥁</div>
@@ -701,7 +702,7 @@ function AnnouncementFlash({ message, level }: { message: string; level: string 
     <div
       className={`kiosk-flash fixed inset-0 z-50 flex flex-col items-center justify-center px-[8vw] ${alert ? 'bg-accent text-accent-foreground' : 'bg-foreground text-background'}`}
     >
-      <div className="font-mono-label text-[1.6vw] mb-[3vh] tracking-widest opacity-70">
+      <div className="font-mono-kiosk text-[1.6vw] mb-[3vh] tracking-widest opacity-70">
         {alert ? t('kiosk.alert') : t('kiosk.announcement')}
       </div>
       <div className="text-[5vw] font-black tracking-tighter text-center leading-tight">{message}</div>

@@ -1,12 +1,17 @@
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
-from jose import JWTError, jwt
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, selectinload
 from typing import Sequence
 
-from auth import ALGORITHM, SECRET_KEY, get_current_user
+from auth import (
+    WS_RECHECK_EVERY,
+    authenticate_websocket,
+    close_unauthorized,
+    get_current_user,
+    session_still_valid,
+)
 from database import SessionLocal, get_db
 from models import ActivityLog, ActivityReaction, MediaItem, MediaReaction, User
 from schemas import ActivityLogOut, MediaReact, MediaReactionCount
@@ -136,8 +141,10 @@ def react_to_activity(
     if data.emoji not in REACTION_EMOJI:
         raise HTTPException(400, "Unsupported reaction.")
 
+    # Same visibility as the feed: someone else's targeted entry (a mention)
+    # is a 404 here too, not a way to learn it exists.
     entry = (
-        db.query(ActivityLog)
+        _visible_to(db.query(ActivityLog), current_user.id)
         .options(selectinload(ActivityLog.user))
         .filter(ActivityLog.id == activity_id)
         .first()
@@ -180,21 +187,8 @@ def react_to_activity(
     return entry
 
 
-def _user_id_from_ws_token(token: str) -> int | None:
-    """WebSocket connections can't carry the Authorization header the way a
-    normal HTTPBearer request does, so the JWT rides as a query param instead
-    — decoded with the exact same secret/algorithm `get_current_user` uses.
-    Returns None on any decode failure rather than raising, since a WS route
-    can't return an HTTPException the way a normal endpoint would."""
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return int(payload["sub"])
-    except (JWTError, KeyError, TypeError, ValueError):
-        return None
-
-
 @router.websocket("/ws")
-async def activity_ws(websocket: WebSocket, token: str = Query(...)):
+async def activity_ws(websocket: WebSocket):
     """Live push for the activity feed, replacing what would otherwise be every
     connected client polling `GET /api/activity` on its own timer. Rather than
     threading a broadcast call through every `add_activity()` call site (10+
@@ -203,28 +197,26 @@ async def activity_ws(websocket: WebSocket, token: str = Query(...)):
     connection per tick and only fans out the new rows when it has — turns N
     clients polling every 30s into ~1 lightweight query every 2s per
     connection, with sub-3s perceived latency instead of up to 30s.
+
+    The client authenticates with its first frame (see auth.authenticate_websocket),
+    and the session is re-checked every WS_RECHECK_EVERY ticks so a deactivation
+    or password change closes an already-open socket too.
     """
-    user_id = _user_id_from_ws_token(token)
-    if user_id is None:
-        await websocket.close(code=4401)
+    session = await authenticate_websocket(websocket)
+    if session is None:
         return
-
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id, User.is_active == True).first()  # noqa: E712
-    finally:
-        db.close()
-    if user is None:
-        await websocket.close(code=4401)
-        return
-
-    await websocket.accept()
+    user_id, token_version = session
 
     last_seen_id: int | None = None
+    tick = 0
     try:
         while True:
             db = SessionLocal()
             try:
+                tick += 1
+                if tick % WS_RECHECK_EVERY == 0 and not session_still_valid(db, user_id, token_version):
+                    await close_unauthorized(websocket)
+                    return
                 newest = db.query(ActivityLog.id).order_by(ActivityLog.id.desc()).first()
                 newest_id = newest[0] if newest else None
                 if newest_id is not None and newest_id != last_seen_id:

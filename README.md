@@ -7,7 +7,7 @@
 **The self-hosted HQ for your LAN party weekends.**
 Invites, brackets, shared costs, photos, big-screen hype — on a box you own.
 
-[![Version](https://img.shields.io/badge/version-1.3.3-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.3.4-FF3D00?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-4C566A?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -55,7 +55,6 @@ You need [Docker](https://docs.docker.com/get-docker/). A laptop, a spare PC or 
 
 ```bash
 mkdir lanpartymanager && cd lanpartymanager
-echo "SECRET_KEY=change-me-to-a-long-random-string" > .env
 ```
 
 Create `docker-compose.yml`:
@@ -69,7 +68,9 @@ services:
       - ./data:/app/data        # SQLite database (persisted)
       - ./uploads:/app/uploads  # Avatars, media, video thumbnails (persisted)
     environment:
-      SECRET_KEY: ${SECRET_KEY}
+      # Optional: left empty, LPM generates its own key on first start
+      # and keeps it in ./data/secret_key.
+      SECRET_KEY: ${SECRET_KEY:-}
       DATABASE_URL: sqlite:///./data/lanparty.db
       UPLOAD_DIR: /app/uploads
     restart: unless-stopped
@@ -97,9 +98,10 @@ Open **http://localhost:3001** — GG, you're live.
 
 ### Option B — Portainer stack
 
-Paste the same YAML as a Portainer stack, with **one crucial change**: replace
-`${SECRET_KEY}` with a literal long random string. Portainer silently resolves
-`${VAR:-default}` to an *empty* value, the backend refuses to start, and the resulting
+Paste the same YAML as a Portainer stack. Portainer silently resolves `${VAR:-default}`
+to an *empty* value — since 1.3.4 that's fine for `SECRET_KEY`: LPM generates its own key
+and keeps it in `./data/secret_key`. What's *not* fine is pasting an example value: the
+backend refuses known example keys and anything under 16 characters, and the resulting
 nginx 502 looks exactly like "login is broken". Ask us how we know.
 
 ### First login

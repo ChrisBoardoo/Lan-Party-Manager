@@ -235,7 +235,8 @@ function ShareControls({ eventId }: { eventId: number }) {
     recapApi.getShare(eventId).then((s) => setToken(s.token)).catch(() => setToken(null))
   }, [eventId])
 
-  const url = token ? `${window.location.origin}/recap/shared?token=${encodeURIComponent(token)}` : null
+  // Token in the fragment, out of access logs and Referer headers.
+  const url = token ? `${window.location.origin}/recap/shared#token=${encodeURIComponent(token)}` : null
 
   const run = async (fn: () => Promise<{ token: string | null }>) => {
     setBusy(true)
@@ -365,11 +366,12 @@ export default function RecapPage() {
   )
 }
 
-/** The public, token-authorized recap at /recap/shared?token=… — no login, and
+/** The public, token-authorized recap at /recap/shared#token=… — no login, and
  *  no Navbar/Layout, exactly like the kiosk. Its payload never carries money. */
 export function SharedRecapPage() {
   const [params] = useSearchParams()
-  const token = params.get('token')
+  // #token= since 1.3.4; ?token= for links shared before.
+  const token = new URLSearchParams(window.location.hash.slice(1)).get('token') ?? params.get('token')
   const [recap, setRecap] = useState<Recap | null>(null)
   const [loading, setLoading] = useState(true)
 

@@ -18,6 +18,7 @@ import models
 from router_settings import get_setting
 from discord_notify import send_event_reminders
 from backup_scheduler import run_scheduled_backup
+from lan_reminders import send_lan_countdown_reminders
 
 logger = logging.getLogger(__name__)
 from router_auth import router as auth_router
@@ -76,6 +77,8 @@ async def lifespan(app: FastAPI):
 
     scheduler = BackgroundScheduler()
     scheduler.add_job(send_event_reminders, CronTrigger(hour=10, minute=0, timezone=tz))
+    # J-10 / J-7 / J-1 before a LAN: check your dates before they lock.
+    scheduler.add_job(send_lan_countdown_reminders, CronTrigger(hour=10, minute=0, timezone=tz))
     if os.getenv("BACKUP_ENABLED", "true").lower() not in ("0", "false", "no"):
         # Off-hours by default (03:00) — the daily reminder job above runs at 10:00,
         # and neither should land during a LAN party's peak activity window.
@@ -88,7 +91,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="LAN Party Manager API", version="1.3.3", lifespan=lifespan)
+app = FastAPI(title="LAN Party Manager API", version="1.3.4", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

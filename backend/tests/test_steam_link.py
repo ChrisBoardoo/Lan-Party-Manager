@@ -1,5 +1,5 @@
 """Steam link: config gate, signed state, and the callback flow (link-only —
-no login/registration via Steam, see md/Steam_Link.md)."""
+no login/registration via Steam, see md/2.features/Steam_Link.md)."""
 
 import pytest
 
@@ -8,6 +8,15 @@ import models
 import oauth_steam
 from auth import create_access_token, get_password_hash
 from conftest import register, auth_header
+
+
+def _token_for(user_id):
+    """A session token for `user_id`, carrying its current token_version."""
+    s = database.SessionLocal()
+    try:
+        return create_access_token(s.get(models.User, user_id))
+    finally:
+        s.close()
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
@@ -47,12 +56,15 @@ def _get_user(steam_id=None, username=None):
         s.close()
 
 
-def _callback_url(state: str, claimed_id: str, mode: str = "id_res") -> str:
+def _callback_url(state: str, claimed_id: str, mode: str = "id_res", return_to: str | None = None) -> str:
     from urllib.parse import quote
+    if return_to is None:  # what Steam echoes back: the callback URL we sent it
+        return_to = f"https://lan.example/api/auth/steam/callback?state={quote(state, safe='')}"
     return (
         "/api/auth/steam/callback"
         f"?openid.mode={mode}&openid.claimed_id={quote(claimed_id, safe='')}"
         f"&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0"
+        f"&openid.return_to={quote(return_to, safe='')}"
         f"&state={quote(state, safe='')}"
     )
 
@@ -70,7 +82,7 @@ def test_config_enabled_when_configured(client):
 
 def test_link_404_when_disabled(client):
     register(client, "founder", "founder@example.com")
-    token = create_access_token({"sub": str(_get_user(username="founder").id)})
+    token = _token_for(_get_user(username="founder").id)
     assert client.get("/api/auth/steam/link", headers=auth_header(token)).status_code == 404
 
 
@@ -82,7 +94,7 @@ def test_link_requires_auth(client):
 def test_link_returns_steam_login_url_when_enabled(client):
     register(client, "founder", "founder@example.com")
     _enable_steam()
-    token = create_access_token({"sub": str(_get_user(username="founder").id)})
+    token = _token_for(_get_user(username="founder").id)
     body = client.get("/api/auth/steam/link", headers=auth_header(token)).json()
     assert body["authorize_url"].startswith("https://steamcommunity.com/openid/login?")
     assert "openid.return_to=https%3A%2F%2Flan.example%2Fapi%2Fauth%2Fsteam%2Fcallback" in body["authorize_url"]
@@ -223,7 +235,7 @@ def test_link_survives_player_summary_failure(client, monkeypatch):
 def test_unlink_requires_existing_link(client):
     register(client, "founder", "founder@example.com")
     admin = _get_user(username="founder")
-    token = create_access_token({"sub": str(admin.id)})
+    token = _token_for(admin.id)
     resp = client.request("DELETE", "/api/auth/steam/link", headers=auth_header(token))
     assert resp.status_code == 400
 
@@ -241,7 +253,7 @@ def test_unlink_succeeds_no_password_guard_needed(client):
         s.commit()
     finally:
         s.close()
-    token = create_access_token({"sub": str(admin.id)})
+    token = _token_for(admin.id)
     resp = client.request("DELETE", "/api/auth/steam/link", headers=auth_header(token))
     assert resp.status_code == 200
     linked = _get_user(username="founder")
@@ -253,7 +265,7 @@ def test_public_config_never_exposes_steam_api_key(client):
     register(client, "founder", "founder@example.com")
     admin = _get_user(username="founder")
     _enable_steam()
-    token = create_access_token({"sub": str(admin.id)})
+    token = _token_for(admin.id)
     cfg = client.get("/api/settings/public-config", headers=auth_header(token)).json()
     assert "steam_link_enabled" not in cfg
     assert "steam_web_api_key" not in cfg
@@ -268,7 +280,7 @@ def test_link_signs_the_desktop_nonce_into_state(client):
     from urllib.parse import parse_qs, urlparse
     register(client, "founder", "founder@example.com")
     _enable_steam()
-    token = create_access_token({"sub": str(_get_user(username="founder").id)})
+    token = _token_for(_get_user(username="founder").id)
     body = client.get(
         "/api/auth/steam/link", params={"desktop_port": 5555, "desktop_nonce": NONCE},
         headers=auth_header(token),

@@ -95,7 +95,7 @@ async def upload_sponsor_banner(
         raise HTTPException(400, "File content does not match its declared type.")
 
     ext, banner_type = _BANNER_MIME_TO_EXT[file.content_type]
-    filename = f"sponsor_{sponsor_id}_{uuid.uuid4().hex[:8]}.{ext}"
+    filename = f"sponsor_{sponsor_id}_{uuid.uuid4().hex}.{ext}"
     sponsor_dir = os.path.join(UPLOAD_DIR, "sponsors")
     os.makedirs(sponsor_dir, exist_ok=True)
     with open(os.path.join(sponsor_dir, filename), "wb") as f:

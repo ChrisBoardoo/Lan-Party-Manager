@@ -7,7 +7,7 @@
 **Le QG auto-hébergé de vos week-ends LAN.**
 Invitations, brackets, frais partagés, photos, hype sur grand écran — sur une machine à vous.
 
-[![Version](https://img.shields.io/badge/version-1.3.3-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.3.4-FF3D00?style=flat-square)](#)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0-4C566A?style=flat-square)](LICENSE)
 [![Plateforme](https://img.shields.io/badge/plateforme-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -55,7 +55,6 @@ ou un **Raspberry Pi 4/5** suffisent largement — les images existent en amd64 
 
 ```bash
 mkdir lanpartymanager && cd lanpartymanager
-echo "SECRET_KEY=une-longue-chaine-aleatoire-a-changer" > .env
 ```
 
 Créez `docker-compose.yml` :
@@ -69,7 +68,9 @@ services:
       - ./data:/app/data        # Base SQLite (persistée)
       - ./uploads:/app/uploads  # Avatars, médias, miniatures vidéo (persistés)
     environment:
-      SECRET_KEY: ${SECRET_KEY}
+      # Facultatif : vide, LPM génère sa propre clé au premier démarrage
+      # et la garde dans ./data/secret_key.
+      SECRET_KEY: ${SECRET_KEY:-}
       DATABASE_URL: sqlite:///./data/lanparty.db
       UPLOAD_DIR: /app/uploads
     restart: unless-stopped
@@ -97,11 +98,12 @@ Ouvrez **http://localhost:3001** — GG, c'est en ligne.
 
 ### Option B — Stack Portainer
 
-Collez le même YAML comme stack Portainer, avec **un changement crucial** : remplacez
-`${SECRET_KEY}` par une vraie longue chaîne aléatoire, en dur. Portainer transforme
-silencieusement `${VAR:-défaut}` en valeur *vide*, le backend refuse de démarrer, et le
-502 nginx qui en résulte ressemble à s'y méprendre à « la connexion est cassée ».
-Demandez-nous comment on le sait.
+Collez le même YAML comme stack Portainer. Portainer transforme silencieusement
+`${VAR:-défaut}` en valeur *vide* — depuis la 1.3.4, c'est sans danger pour `SECRET_KEY` :
+LPM génère sa propre clé et la garde dans `./data/secret_key`. Ce qui reste dangereux,
+c'est de coller une valeur d'exemple : le backend refuse les clés d'exemple connues et
+tout ce qui fait moins de 16 caractères, et le 502 nginx qui en résulte ressemble à s'y
+méprendre à « la connexion est cassée ». Demandez-nous comment on le sait.
 
 ### Première connexion
 

@@ -361,9 +361,9 @@ def test_recap_lists_revealed_trophies(client, crew):
 def test_kiosk_carries_revealed_trophies(client, crew):
     _set(client, crew["tok"]["founder"], "kiosk_enabled", "true")
     token = client.post("/api/kiosk/admin/token", headers=_h(crew, "founder")).json()["token"]
-    assert client.get(f"/api/kiosk/summary?token={token}").json()["trophies"] == []
+    assert client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()["trophies"] == []
     _, e = _awarded(client, crew)
-    [kt] = client.get(f"/api/kiosk/summary?token={token}").json()["trophies"]
+    [kt] = client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()["trophies"]
     assert kt["edition_id"] == e["id"] and kt["name"] == "Golden Rage-Quit"
     assert [w["username"] for w in kt["winners"]] == ["bob"]
 

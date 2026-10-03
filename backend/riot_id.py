@@ -1,7 +1,7 @@
 """Riot ID — the `GameName#TAG` a member types on their profile.
 
 It exists so League of Legends end-of-game captures (not built yet — see
-md/games_extensions/League_Of_Legends/lol_extension.md) can be matched to LPM
+md/2.features/games_extensions/League_Of_Legends/lol_extension.md) can be matched to LPM
 accounts. Declarative, not verified: Riot's own sign-in (RSO) needs an
 approved production key, so unlike Discord/Steam there is no OAuth link.
 

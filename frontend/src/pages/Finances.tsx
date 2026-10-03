@@ -26,7 +26,12 @@ function exportProRataCSV(proRata: ProRataResult, currency: string) {
       formatCsvNumber(s.percentage, 1, fmt) + '%',
       formatCsvNumber(s.amount, 2, fmt),
     ]),
-    [i18n.t('finances.csv.total'), '', '100%', formatCsvNumber(proRata.total_expenses, 2, fmt)],
+    [
+      i18n.t('finances.csv.total'),
+      '',
+      formatCsvNumber(proRata.shares.reduce((sum, s) => sum + s.percentage, 0), 1, fmt) + '%',
+      formatCsvNumber(proRata.total_expenses, 2, fmt),
+    ],
   ]
   downloadCsv(buildCsv(rows, fmt), 'prorata.csv')
 }
@@ -142,12 +147,14 @@ export default function Finances() {
   const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } =
     useForm<ExpenseForm>({ defaultValues: formDefaults() })
 
-  const loadData = async () => {
+  // Reloads keep the event in view; only the first load lets the server
+  // pick (the one in progress, or the one that just ended).
+  const loadData = async (eventId: number | null = selectedEventId) => {
     const [exp, evts, usrs, pr, unassigned] = await Promise.all([
       expensesApi.getAll(),
       eventsApi.getAll(),
       usersApi.getAll(),
-      expensesApi.getProRata(),
+      expensesApi.getProRata(eventId ?? undefined),
       expensesApi.getUnassignedCount(),
     ])
     setExpenses(exp)
@@ -159,7 +166,7 @@ export default function Finances() {
     setLoading(false)
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData(null) }, [])
 
   const handleEventChange = async (eventId: number) => {
     setSelectedEventId(eventId)

@@ -10,6 +10,7 @@ interface AuthContextType {
   register: (username: string, email: string, password: string) => Promise<User>
   logout: () => void
   refreshUser: () => Promise<void>
+  adoptToken: (token: string) => void
   isTreasurer: boolean
   isAdmin: boolean
 }
@@ -67,6 +68,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(fresh)
   }
 
+  // A password change revokes every token of the account, this session's
+  // included, and the server hands back a fresh one — keep the session going
+  // with it (and tell the desktop app, which polls with its own copy).
+  const adoptToken = (token: string) => {
+    localStorage.setItem('token', token)
+    notifyDesktopLogin(token)
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -76,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         refreshUser,
+        adoptToken,
         isTreasurer: user?.role === 'treasurer' || user?.role === 'admin',
         isAdmin: user?.role === 'admin',
       }}

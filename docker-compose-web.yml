@@ -1,11 +1,12 @@
 # Pour un déploiement en ligne de commande (docker compose up -d).
 #
 # ⚠️ Déploiement via Portainer : ne colle PAS ce fichier tel quel. La substitution
-# ${VAR:-défaut} y résout à vide, et un SECRET_KEY vide fait sortir le backend au
-# démarrage (auth.py lève un RuntimeError à l'import). Le conteneur est créé puis
-# meurt, son enregistrement DNS disparaît, et nginx renvoie 502 sur tout /api — ce
-# qui se présente comme un « login failed » alors que la base n'y est pour rien.
-# Utilise md/portainerStack1.0.0-rc7.md, qui met les valeurs en littéral.
+# ${VAR:-défaut} y résout à vide. Depuis 1.3.4, un SECRET_KEY vide ne fait plus
+# sortir le backend : il génère une clé et la garde dans ./data/secret_key. Mais
+# une clé d'exemple ou trop courte (< 16 caractères) le fait toujours sortir au
+# démarrage : le conteneur meurt, nginx renvoie 502 sur tout /api, et ça se
+# présente comme un « login failed » alors que la base n'y est pour rien.
+# Utilise md/9.Prod_Pi/portainerStack1.0.0-rc7.md, qui met les valeurs en littéral.
 services:
   backend:
     # https://hub.docker.com/r/crosswax/lanpartymanager-backend
@@ -20,7 +21,10 @@ services:
       - ./data:/app/data        # SQLite database + scheduled backup snapshots (persisted)
       - ./uploads:/app/uploads  # Avatars, media files, video thumbnails (persisted)
     environment:
-      SECRET_KEY: ${SECRET_KEY:-lanparty-secret-CHANGE-ME}
+      # Facultatif : vide, le backend génère une clé aléatoire au premier démarrage
+      # et la garde dans ./data/secret_key. Si tu en fournis une : aléatoire, 32+
+      # caractères (python -c "import secrets; print(secrets.token_hex(32))").
+      SECRET_KEY: ${SECRET_KEY:-}
       DATABASE_URL: sqlite:///./data/lanparty.db
       UPLOAD_DIR: /app/uploads
       BACKUP_ENABLED: ${BACKUP_ENABLED:-true}   # daily 03:00 snapshot into ./data/backups

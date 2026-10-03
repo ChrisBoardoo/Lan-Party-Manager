@@ -1,22 +1,124 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ProRataResult } from '../types'
+import { ProRataResult, User } from '../types'
 import { useAppConfig } from '../contexts/AppConfigContext'
 import { useAuth } from '../contexts/AuthContext'
-import { expensesApi } from '../lib/api'
-import { Check, ArrowRight, Wallet, Phone } from 'lucide-react'
+import { eventsApi, expensesApi, usersApi } from '../lib/api'
+import { Check, ArrowRight, Wallet, Phone, Pencil, UserPlus } from 'lucide-react'
 
 interface ProRataTableProps {
   data: ProRataResult
   onSettlementChange?: () => void
 }
 
+/**
+ * Treasurer/admin correction of one member's stay: the only way to change it
+ * once the LAN has started (the server locks members out of their own dates
+ * from the first day, since they set everyone's share). Logged server-side,
+ * and the member gets a notification.
+ */
+function StayEditor({
+  data,
+  userId,
+  initialArrival,
+  initialDeparture,
+  onDone,
+  onCancel,
+}: {
+  data: ProRataResult
+  userId: number
+  initialArrival: string
+  initialDeparture: string
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const { t } = useTranslation()
+  const [arrival, setArrival] = useState(initialArrival)
+  const [departure, setDeparture] = useState(initialDeparture)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const save = async (status: 'in' | 'out') => {
+    if (data.event_id == null) return
+    setBusy(true)
+    setError('')
+    try {
+      await eventsApi.adjustRsvp(
+        data.event_id,
+        userId,
+        status === 'in' ? { status, arrival_date: arrival, departure_date: departure } : { status }
+      )
+      onDone()
+    } catch (e: any) {
+      setError(t('finances.adjust.failed', { detail: e.response?.data?.detail ?? '' }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const dateInput = 'bg-background border border-border px-2 py-1 font-mono text-xs text-foreground'
+  return (
+    <div className="col-span-12 flex flex-wrap items-end gap-3 pt-2">
+      <label className="flex flex-col gap-1 font-mono-label text-muted-foreground text-[10px]">
+        {t('finances.adjust.arrival')}
+        <input
+          type="date"
+          className={dateInput}
+          value={arrival}
+          min={data.event_start ?? undefined}
+          max={departure || (data.event_end ?? undefined)}
+          onChange={(e) => setArrival(e.target.value)}
+        />
+      </label>
+      <label className="flex flex-col gap-1 font-mono-label text-muted-foreground text-[10px]">
+        {t('finances.adjust.departure')}
+        <input
+          type="date"
+          className={dateInput}
+          value={departure}
+          min={arrival || (data.event_start ?? undefined)}
+          max={data.event_end ?? undefined}
+          onChange={(e) => setDeparture(e.target.value)}
+        />
+      </label>
+      <button
+        onClick={() => save('in')}
+        disabled={busy || !arrival || !departure}
+        className="font-mono-label text-[11px] px-3 py-1.5 border border-accent text-accent hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50"
+      >
+        {t('finances.adjust.save')}
+      </button>
+      <button
+        onClick={() => save('out')}
+        disabled={busy}
+        className="font-mono-label text-[11px] px-3 py-1.5 border border-border text-muted-foreground hover:border-red-400 hover:text-red-400 transition-colors disabled:opacity-50"
+      >
+        {t('finances.adjust.remove')}
+      </button>
+      <button
+        onClick={onCancel}
+        disabled={busy}
+        className="font-mono-label text-[11px] text-muted-foreground hover:text-foreground underline"
+      >
+        {t('finances.adjust.cancel')}
+      </button>
+      <p className="w-full text-[10px] text-muted-foreground">{t('finances.adjust.hint')}</p>
+      {error && <p className="w-full font-mono-label text-[10px] text-red-400">{error}</p>}
+    </div>
+  )
+}
+
 export default function ProRataTable({ data, onSettlementChange }: ProRataTableProps) {
   const { t } = useTranslation()
   const { currency } = useAppConfig()
-  const { user } = useAuth()
+  const { user, isTreasurer } = useAuth()
   const [busyKey, setBusyKey] = useState<string | null>(null)
+  // user id whose stay is being edited; 'new' = adding a member not in the split yet
+  const [editing, setEditing] = useState<number | 'new' | null>(null)
+  const [members, setMembers] = useState<User[]>([])
+  const [newMember, setNewMember] = useState<number | null>(null)
   const maxAmount = Math.max(...data.shares.map((s) => s.amount), 1)
+  const canAdjust = isTreasurer && data.event_id != null
 
   const togglePaid = async (toUserId: number, paid: boolean) => {
     if (data.event_id == null) return
@@ -33,6 +135,25 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
       setBusyKey(null)
     }
   }
+
+  const startAdding = async () => {
+    setEditing('new')
+    setNewMember(null)
+    if (!members.length) {
+      try {
+        setMembers(await usersApi.getAll())
+      } catch {
+        // the picker just stays empty
+      }
+    }
+  }
+
+  const doneEditing = () => {
+    setEditing(null)
+    onSettlementChange?.()
+  }
+
+  const inSplit = new Set(data.shares.map((s) => s.user_id))
 
   return (
     <div className="space-y-6">
@@ -80,7 +201,7 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
             </div>
           </div>
 
-          {data.shares.map((share, idx) => (
+          {data.shares.map((share) => (
             <div
               key={share.user_id}
               className="grid grid-cols-12 gap-4 px-4 py-4 items-center border-b border-border last:border-0 hover:bg-muted/50 transition-colors duration-150"
@@ -109,6 +230,15 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
               <div className="col-span-2 text-center">
                 <span className="font-mono text-foreground font-bold">{share.nights}</span>
                 <span className="font-mono-label text-muted-foreground ml-1">n</span>
+                {canAdjust && editing !== share.user_id && (
+                  <button
+                    onClick={() => setEditing(share.user_id)}
+                    title={t('finances.adjust.edit')}
+                    className="ml-2 text-muted-foreground hover:text-accent align-middle"
+                  >
+                    <Pencil size={11} strokeWidth={1.5} />
+                  </button>
+                )}
               </div>
 
               {/* Percentage bar */}
@@ -132,6 +262,17 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
                   <span className="text-sm text-muted-foreground ml-1">{currency}</span>
                 </span>
               </div>
+
+              {editing === share.user_id && (
+                <StayEditor
+                  data={data}
+                  userId={share.user_id}
+                  initialArrival={share.arrival_date ?? data.event_start ?? ''}
+                  initialDeparture={share.departure_date ?? data.event_end ?? ''}
+                  onDone={doneEditing}
+                  onCancel={() => setEditing(null)}
+                />
+              )}
             </div>
           ))}
 
@@ -143,6 +284,53 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
               <span className="text-sm ml-1">{currency}</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Treasurer: add a member who isn't in the split yet (a latecomer) */}
+      {canAdjust && (
+        <div className="space-y-2">
+          {editing === 'new' ? (
+            <div className="border border-border p-4 grid grid-cols-12 gap-2">
+              <select
+                className="col-span-12 sm:col-span-6 bg-background border border-border px-2 py-1 text-sm text-foreground"
+                value={newMember ?? ''}
+                onChange={(e) => setNewMember(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value="">{t('finances.adjust.pickMember')}</option>
+                {members
+                  .filter((m) => !inSplit.has(m.id) && m.is_active)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>{m.username}</option>
+                  ))}
+              </select>
+              {newMember != null ? (
+                <StayEditor
+                  key={newMember}
+                  data={data}
+                  userId={newMember}
+                  initialArrival={data.event_start ?? ''}
+                  initialDeparture={data.event_end ?? ''}
+                  onDone={doneEditing}
+                  onCancel={() => setEditing(null)}
+                />
+              ) : (
+                <button
+                  onClick={() => setEditing(null)}
+                  className="col-span-12 text-left font-mono-label text-[11px] text-muted-foreground hover:text-foreground underline"
+                >
+                  {t('finances.adjust.cancel')}
+                </button>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={startAdding}
+              className="font-mono-label text-[11px] text-muted-foreground hover:text-accent flex items-center gap-1.5"
+            >
+              <UserPlus size={12} strokeWidth={1.5} /> {t('finances.adjust.add')}
+            </button>
+          )}
         </div>
       )}
 
@@ -163,7 +351,9 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
                 const busy = busyKey === `${line.to_user_id}`
                 return (
                   <div
-                    key={`${line.from_user_id}-${line.to_user_id}`}
+                    // A pair can have a recorded payment *and* a line still owed
+                    // (e.g. a receipt added after the payment).
+                    key={`${line.from_user_id}-${line.to_user_id}-${line.paid ? `paid-${line.payment_id ?? ''}` : 'owed'}`}
                     className="flex flex-wrap items-center gap-3 px-4 py-3"
                   >
                     <div className="flex items-center gap-2 text-sm min-w-0">

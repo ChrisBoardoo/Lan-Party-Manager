@@ -30,21 +30,21 @@ def _mint(client, admin):
 def test_summary_404_when_disabled(client, admin):
     # Even with a token, a disabled kiosk is invisible.
     token = _mint(client, admin)
-    assert client.get(f"/api/kiosk/summary?token={token}").status_code == 404
+    assert client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).status_code == 404
 
 
 def test_summary_401_without_or_wrong_token(client, admin):
     _enable_kiosk(client, admin)
     _mint(client, admin)
     assert client.get("/api/kiosk/summary").status_code == 401
-    assert client.get("/api/kiosk/summary?token=nope").status_code == 401
+    assert client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": "nope"}).status_code == 401
 
 
 def test_summary_200_with_valid_token_no_session(client, admin):
     _enable_kiosk(client, admin)
     token = _mint(client, admin)
     # No Authorization header at all — the projector has no user session.
-    resp = client.get(f"/api/kiosk/summary?token={token}")
+    resp = client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"})
     assert resp.status_code == 200
     body = resp.json()
     assert "server_time" in body and "matches" in body and "arrivals" in body
@@ -63,16 +63,16 @@ def test_non_ascii_token_is_401_not_500(client, admin):
     # arrive via the query param (HTTP header values are ASCII-only) — %C3%A9 = é.
     _enable_kiosk(client, admin)
     _mint(client, admin)
-    resp = client.get("/api/kiosk/summary?token=caf%C3%A9-not-the-token")
+    resp = client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": "café-not-the-token".encode("utf-8")})
     assert resp.status_code == 401
 
 
 def test_revoke_invalidates_old_token(client, admin):
     _enable_kiosk(client, admin)
     token = _mint(client, admin)
-    assert client.get(f"/api/kiosk/summary?token={token}").status_code == 200
+    assert client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).status_code == 200
     client.delete("/api/kiosk/admin/token", headers=auth_header(admin)).raise_for_status()
-    assert client.get(f"/api/kiosk/summary?token={token}").status_code == 401
+    assert client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).status_code == 401
 
 
 def test_rotate_invalidates_old_token(client, admin):
@@ -80,8 +80,8 @@ def test_rotate_invalidates_old_token(client, admin):
     old = _mint(client, admin)
     new = _mint(client, admin)
     assert old != new
-    assert client.get(f"/api/kiosk/summary?token={old}").status_code == 401
-    assert client.get(f"/api/kiosk/summary?token={new}").status_code == 200
+    assert client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{old}"}).status_code == 401
+    assert client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{new}"}).status_code == 200
 
 
 def test_admin_endpoints_are_admin_only(client, admin):
@@ -111,7 +111,7 @@ def test_summary_reflects_event_and_announcement(client, admin, db):
         headers=auth_header(admin),
     ).raise_for_status()
 
-    body = client.get(f"/api/kiosk/summary?token={token}").json()
+    body = client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()
     assert body["event"]["title"] == "Summer LAN"
     assert body["countdown"]["label"] == "Summer LAN"
     assert [a["message"] for a in body["announcements"]] == ["Pizza's here"]
@@ -189,7 +189,7 @@ def test_photo_wall_excludes_another_events_photos(client, admin):
     _seed_photo("from-this-lan", current_id, founder_id)
     _seed_photo("from-last-year", old_id, founder_id)
 
-    captions = [m["caption"] for m in client.get(f"/api/kiosk/summary?token={token}").json()["media"]]
+    captions = [m["caption"] for m in client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()["media"]]
     assert "from-this-lan" in captions
     assert "from-last-year" not in captions
 
@@ -204,7 +204,7 @@ def test_photo_wall_still_shows_untagged_photos(client, admin):
 
     _seed_photo("untagged", None, founder_id)
 
-    captions = [m["caption"] for m in client.get(f"/api/kiosk/summary?token={token}").json()["media"]]
+    captions = [m["caption"] for m in client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()["media"]]
     assert "untagged" in captions
 
 
@@ -221,7 +221,7 @@ def test_photo_wall_shows_everything_when_there_is_no_event(client, admin):
         session.close()
 
     _seed_photo("orphan", None, founder_id)
-    captions = [m["caption"] for m in client.get(f"/api/kiosk/summary?token={token}").json()["media"]]
+    captions = [m["caption"] for m in client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()["media"]]
     assert captions == ["orphan"]
 
 
@@ -237,7 +237,7 @@ def test_wall_shows_playable_videos_but_not_avi(client, admin):
     _seed_photo("an-avi", current_id, founder_id, file_type="video", mime_type="video/x-msvideo",
                 url="/uploads/media/clip.avi")
 
-    media = client.get(f"/api/kiosk/summary?token={token}").json()["media"]
+    media = client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()["media"]
     by_caption = {m["caption"]: m for m in media}
     assert by_caption["an-mp4"]["file_type"] == "video"
     assert by_caption["an-mp4"]["thumbnail_url"] == "/uploads/thumbnails/clip.jpg"
@@ -257,7 +257,7 @@ def test_wall_item_carries_uploader_and_reaction_counts_only(client, admin):
     _react(photo, member_id, "🔥")
     _react(photo, member_id, "😂")
 
-    body = client.get(f"/api/kiosk/summary?token={token}").json()
+    body = client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()
     item = body["media"][0]
     assert item["id"] == photo
     assert item["uploader"] == "founder"
@@ -282,7 +282,7 @@ def test_love_pick_is_the_most_reacted_even_when_older_than_the_wall(client, adm
     for i in range(WALL_SIZE):
         _seed_photo(f"new-{i}", current_id, founder_id)
 
-    body = client.get(f"/api/kiosk/summary?token={token}").json()
+    body = client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()
     media = body["media"]
     # The WALL_SIZE newest, plus the coup de cœur riding along at the end.
     assert len(media) == WALL_SIZE + 1
@@ -297,7 +297,7 @@ def test_no_love_pick_until_someone_reacts(client, admin):
     founder_id, _old_id, current_id = _two_events(client, admin)
     _seed_photo("quiet", current_id, founder_id)
 
-    media = client.get(f"/api/kiosk/summary?token={token}").json()["media"]
+    media = client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()["media"]
     assert [m["love_pick"] for m in media] == [False]
 
 
@@ -310,7 +310,7 @@ def test_love_pick_ignores_another_events_photos(client, admin):
     _react(last_year, founder_id, "🔥")
     _seed_photo("this-lan", current_id, founder_id)
 
-    media = client.get(f"/api/kiosk/summary?token={token}").json()["media"]
+    media = client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()["media"]
     assert [m["caption"] for m in media] == ["this-lan"]
     assert not any(m["love_pick"] for m in media)
 
@@ -318,9 +318,17 @@ def test_love_pick_ignores_another_events_photos(client, admin):
 def test_live_drop_defaults_on_and_is_admin_switchable(client, admin):
     _enable_kiosk(client, admin)
     token = _mint(client, admin)
-    assert client.get(f"/api/kiosk/summary?token={token}").json()["live_drop"] is True
+    assert client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()["live_drop"] is True
 
     client.put(
         "/api/settings/kiosk_live_drop_enabled", json={"value": "false"}, headers=auth_header(admin),
     ).raise_for_status()
-    assert client.get(f"/api/kiosk/summary?token={token}").json()["live_drop"] is False
+    assert client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": f"{token}"}).json()["live_drop"] is False
+
+
+def test_token_in_query_string_is_no_longer_accepted(client, admin):
+    """Query strings land in access logs: the token is header-only now."""
+    _enable_kiosk(client, admin)
+    token = _mint(client, admin)
+    assert client.get(f"/api/kiosk/summary?token={token}").status_code == 401
+    assert client.get("/api/kiosk/summary", headers={"X-Kiosk-Token": token}).status_code == 200

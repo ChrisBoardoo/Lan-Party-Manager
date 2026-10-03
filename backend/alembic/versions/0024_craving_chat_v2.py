@@ -1,7 +1,7 @@
 """craving chat v2 — replies, edits, reactions
 
 Adds what the v1 Craving Chat table didn't have yet, per crew feedback after
-the first live test (md/Craving_chat_v2.md):
+the first live test (md/2.features/Craving_chat_v2.md):
   * chat_messages.reply_to_id — self-referential FK, for quoting/replying to
     another message in the same room (blockquote preview in the UI).
   * chat_messages.updated_at  — a poll watermark bumped by BOTH a content

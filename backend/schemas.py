@@ -5,6 +5,10 @@ from datetime import date, datetime
 from riot_id import parse_riot_id
 
 
+# NIST SP 800-63B's floor for user-chosen passwords (was 6 before 1.3.4).
+PASSWORD_MIN_LENGTH = 8
+
+
 def _check_password_byte_limit(v: str) -> str:
     # bcrypt hard-caps input at 72 bytes; check bytes (not chars) since
     # accented characters can exceed 72 bytes at fewer than 72 characters.
@@ -21,12 +25,19 @@ def _normalize_email(v: str) -> str:
     return v.strip().lower()
 
 
+RESERVED_USERNAME_PREFIX = "deleted_user_"
+
+
 def _check_username(v: str) -> str:
     # '@' is reserved so login can tell a username apart from an email address
     # (an identifier containing '@' is always treated as an email). Whitespace
     # is rejected for the same disambiguation/robustness reason.
     if "@" in v or any(c.isspace() for c in v):
         raise ValueError("Username cannot contain '@' or spaces")
+    # The name given to deleted accounts: a member taking "deleted_user_7"
+    # would make deleting account 7 fail on the unique constraint.
+    if v.lower().startswith(RESERVED_USERNAME_PREFIX):
+        raise ValueError("This username is reserved")
     return v
 
 
@@ -35,7 +46,7 @@ def _check_username(v: str) -> str:
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=PASSWORD_MIN_LENGTH)
     invite_code: Optional[str] = None
     arrival_date: Optional[date] = None
     departure_date: Optional[date] = None
@@ -56,7 +67,7 @@ class UserLogin(BaseModel):
 
 class UserPasswordChange(BaseModel):
     current_password: str
-    new_password: str = Field(..., min_length=6)
+    new_password: str = Field(..., min_length=PASSWORD_MIN_LENGTH)
 
     _validate_new_password = field_validator("new_password")(_check_password_byte_limit)
 
@@ -69,9 +80,13 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordConfirm(BaseModel):
     token: str
-    new_password: str = Field(..., min_length=6)
+    new_password: str = Field(..., min_length=PASSWORD_MIN_LENGTH)
 
     _validate_new_password = field_validator("new_password")(_check_password_byte_limit)
+
+
+class DiscordLinkTicketRequest(BaseModel):
+    password: str = Field(..., max_length=200)
 
 
 class Token(BaseModel):
@@ -164,12 +179,26 @@ class UserUpdate(BaseModel):
 # ── Expenses ──────────────────────────────────────────────────────────────────
 
 class ExpenseCreate(BaseModel):
-    description: str = Field(..., min_length=1)
-    amount: float = Field(..., gt=0)
-    category: str = "general"
+    description: str = Field(..., min_length=1, max_length=300)
+    # Finite, at least one cent, at most 100 000 €. `inf` or `1e308` used to be
+    # stored as is and break every treasury view (JSON can't carry them back).
+    amount: float = Field(..., ge=0.01, le=100_000, allow_inf_nan=False)
+    category: str = Field("general", max_length=40)
     date: date
     event_id: Optional[int] = None
     paid_by: Optional[int] = None
+
+    @field_validator("amount", mode="before")
+    @classmethod
+    def _amount_is_a_number(cls, v):
+        if isinstance(v, bool):  # JSON `true` would otherwise become 1.0
+            raise ValueError("amount must be a number")
+        return v
+
+    @field_validator("amount")
+    @classmethod
+    def _amount_to_cents(cls, v: float) -> float:
+        return round(v, 2)
 
 
 class ExpenseOut(BaseModel):
@@ -582,6 +611,9 @@ class EventOut(BaseModel):
     my_rsvp: Optional[str] = None
     my_arrival_date: Optional[date] = None
     my_departure_date: Optional[date] = None
+    # True from the event's first day (instance timezone): members can no
+    # longer change their own attendance, only a treasurer or an admin can.
+    attendance_locked: bool = False
     attendees: List[EventAttendeeOut] = []
     created_by: int
     created_at: datetime
@@ -591,6 +623,13 @@ class EventOut(BaseModel):
 class EventRSVPIn(BaseModel):
     arrival_date: date
     departure_date: date
+
+
+class EventRSVPAdjust(BaseModel):
+    """A treasurer's or admin's correction of a member's attendance."""
+    status: Literal["in", "out"]
+    arrival_date: Optional[date] = None
+    departure_date: Optional[date] = None
 
 
 class EventRSVPOut(BaseModel):

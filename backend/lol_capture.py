@@ -10,7 +10,7 @@ every member has to install.
 
 The field names below were first taken from community documentation, then
 checked against a real capture on 2026-09-24 (an ARAM game, via
-md/games_extensions/League_Of_Legends/lol_capture.ps1 — see
+md/2.features/games_extensions/League_Of_Legends/lol_capture.ps1 — see
 tests/test_lol_real_captures.py): every one of them is there. Lookups still go
 through a list of candidate names, so a future rename is handled by adding a
 name, not by rewriting the parser. Note the real block also carries lowercase

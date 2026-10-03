@@ -17,7 +17,10 @@ export default function ResetPassword() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const token = searchParams.get('token') ?? ''
+  // Links carry the token in the fragment (never sent to the server, so it
+  // stays out of access logs); links sent before 1.3.4 used ?token=.
+  const token =
+    new URLSearchParams(window.location.hash.slice(1)).get('token') ?? searchParams.get('token') ?? ''
   const [error, setError] = useState('')
   const {
     register,
@@ -65,7 +68,7 @@ export default function ResetPassword() {
                 autoComplete="new-password"
                 {...register('new_password', {
                   required: t('resetPassword.newPasswordRequired'),
-                  minLength: { value: 6, message: t('register.passwordMinLength') },
+                  minLength: { value: 8, message: t('register.passwordMinLength') },
                   validate: (v) =>
                     new TextEncoder().encode(v).length <= 72 || t('register.passwordMaxLength'),
                 })}

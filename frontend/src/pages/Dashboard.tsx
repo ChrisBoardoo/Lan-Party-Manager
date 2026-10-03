@@ -26,6 +26,8 @@ const ACTION_ICONS: Record<string, string> = {
   media_upload: '📸',
   match_completed: '⚔️',
   expense_created: '💸',
+  lan_countdown: '⏳',
+  rsvp_adjusted: '🗓️',
 }
 
 export default function Dashboard() {
@@ -323,7 +325,7 @@ export default function Dashboard() {
           {/* Craving Chat — right under the roster on purpose (crew feedback:
               buried inside LAN PARTY > event > scroll was "not practical").
               Clearly tied to the upcoming event, but reachable in one glance
-              from the Hub instead of several clicks — see md/Craving_chat_v2.md.
+              from the Hub instead of several clicks — see md/2.features/Craving_chat_v2.md.
               The title itself links to the full-page version (CravingChatPage,
               also reachable from the Navbar's temporary chat icon). */}
           {chatEvent && (
