@@ -13,8 +13,9 @@ class MockWebSocket {
   static instances: MockWebSocket[] = []
 
   readyState = MockWebSocket.CONNECTING
+  onopen: (() => void) | null = null
   onmessage: ((e: { data: string }) => void) | null = null
-  onclose: (() => void) | null = null
+  onclose: ((e: { code: number }) => void) | null = null
   onerror: (() => void) | null = null
   sent: string[] = []
 
@@ -26,12 +27,19 @@ class MockWebSocket {
     this.sent.push(data)
   }
 
-  close() {
+  // A real close always carries a CloseEvent with a code (1000 = normal);
+  // 4401 is the server refusing the token.
+  close(code = 1000) {
     this.readyState = MockWebSocket.CLOSED
-    this.onclose?.()
+    this.onclose?.({ code })
   }
 
-  // Test helper — not part of the real WebSocket API.
+  // Test helpers — not part of the real WebSocket API.
+  open() {
+    this.readyState = MockWebSocket.OPEN
+    this.onopen?.()
+  }
+
   emitMessage(data: unknown) {
     this.onmessage?.({ data: typeof data === 'string' ? data : JSON.stringify(data) })
   }
@@ -78,12 +86,20 @@ describe('useCravingChat connection', () => {
     expect(MockWebSocket.instances).toHaveLength(0)
   })
 
-  it('opens exactly one socket, scoped to the event, carrying the token', () => {
+  it('opens exactly one socket, scoped to the event, with no token in the URL', () => {
     renderHook(() => useCravingChat(42, handlers()))
     expect(MockWebSocket.instances).toHaveLength(1)
     const url = lastSocket().url
     expect(url).toContain('/api/chat/42/ws')
-    expect(url).toContain('token=test-token')
+    // A query string ends up in nginx's and uvicorn's access logs.
+    expect(url).not.toContain('token')
+  })
+
+  it('authenticates with its first frame once the socket opens', () => {
+    renderHook(() => useCravingChat(42, handlers()))
+    expect(lastSocket().sent).toEqual([]) // nothing before the socket is open
+    act(() => lastSocket().open())
+    expect(lastSocket().sent[0]).toBe(JSON.stringify({ type: 'auth', token: 'test-token' }))
   })
 })
 
@@ -137,6 +153,13 @@ describe('useCravingChat reconnection', () => {
 
     act(() => vi.advanceTimersByTime(RECONNECT_MS))
     expect(MockWebSocket.instances).toHaveLength(2)
+  })
+
+  it('does not reconnect when the server refused the token (4401)', () => {
+    renderHook(() => useCravingChat(1, handlers()))
+    act(() => lastSocket().close(4401))
+    act(() => vi.advanceTimersByTime(RECONNECT_MS * 2))
+    expect(MockWebSocket.instances).toHaveLength(1) // retrying the same token can't succeed
   })
 
   it('stops reconnecting once the component unmounts', () => {
