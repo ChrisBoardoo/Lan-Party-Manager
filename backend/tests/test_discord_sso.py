@@ -314,3 +314,70 @@ def test_desktop_callback_from_an_older_app_has_no_nonce(client, monkeypatch):
 
     resp = client.get(f"/api/auth/discord/callback?code=abc&state={state}", follow_redirects=False)
     assert resp.headers["location"] == "http://127.0.0.1:5555/callback?target=%2Fprofile%3Fdiscord%3Dlinked"
+
+
+def test_desktop_relink_after_unlink_end_to_end(client, monkeypatch):
+    """The whole chain the desktop app runs, as it runs it: password login,
+    unlink, password ticket, `/discord/link` called by Rust with the ticket in
+    `code` plus desktop_port/desktop_nonce and the bearer token, then
+    Discord's redirect to the callback carrying the state from the authorize
+    URL. Every other test signs the state by hand."""
+    from conftest import login
+
+    register(client, "founder", "founder@example.com")
+    admin = _get_user(username="founder")
+    s = database.SessionLocal()
+    try:
+        s.get(models.User, admin.id).discord_id = "777"
+        s.commit()
+    finally:
+        s.close()
+    _enable_discord()
+    _patch_discord(monkeypatch, {"id": "777", "username": "founderDiscord", "verified": True})
+
+    headers = auth_header(login(client, "founder"))
+    assert client.request("DELETE", "/api/auth/discord/link", headers=headers).status_code == 200
+
+    ticket = client.post(
+        "/api/auth/discord/link-ticket", json={"password": "password123"}, headers=headers
+    ).json()["ticket"]
+    # Rust's start_oauth_auth: no browser, so no bind cookie either.
+    client.cookies.clear()
+    resp = client.get(
+        "/api/auth/discord/link",
+        params={"desktop_port": 5555, "desktop_nonce": NONCE, "code": ticket},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    from urllib.parse import parse_qs, urlparse
+    state = parse_qs(urlparse(resp.json()["authorize_url"]).query)["state"][0]
+
+    # The system browser, which never saw any LPM cookie.
+    client.cookies.clear()
+    cb = client.get(
+        "/api/auth/discord/callback", params={"code": "abc", "state": state}, follow_redirects=False
+    )
+    assert cb.headers["location"] == (
+        f"http://127.0.0.1:5555/callback?target=%2Fprofile%3Fdiscord%3Dlinked&nonce={NONCE}"
+    )
+    assert _get_user(username="founder").discord_id == "777"
+
+
+def test_callback_logs_why_discord_failed(client, monkeypatch, caplog):
+    """The player only sees "sign-in failed"; the reason has to reach the log."""
+    register(client, "founder", "founder@example.com")
+    admin = _get_user(username="founder")
+    _enable_discord()
+
+    def refuse(*a, **k):
+        raise oauth_discord.DiscordOAuthError("Discord token exchange failed (401)")
+
+    monkeypatch.setattr(oauth_discord, "exchange_code", refuse)
+    state = oauth_discord.sign_state(
+        {"flow": "link", "user_id": admin.id, "desktop_port": 5555, "desktop_nonce": NONCE}
+    )
+    with caplog.at_level("WARNING", logger="router_auth"):
+        resp = client.get(f"/api/auth/discord/callback?code=abc&state={state}", follow_redirects=False)
+    assert "target=%2Fprofile%3Fdiscord%3Derror" in resp.headers["location"]
+    assert "Discord link callback failed: Discord token exchange failed (401)" in caplog.text
+    assert "abc" not in caplog.text  # the authorization code never lands in the log

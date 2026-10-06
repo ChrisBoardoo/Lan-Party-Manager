@@ -129,6 +129,9 @@ export default function Profile() {
     discordBusyRef.current = true
     setDiscordBusy(true)
     setDiscordPwError('')
+    // A notice left from an earlier attempt (or a failed unlink) would read
+    // as this attempt's outcome.
+    setDiscordNotice('')
     try {
       let ticket: string
       try {

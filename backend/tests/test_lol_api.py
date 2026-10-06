@@ -142,6 +142,15 @@ def test_sender_must_have_played_the_game(client, crew):
     assert _post(client, crew.tokens["cross"], body).status_code == 403
 
 
+def test_the_riot_id_matches_whatever_the_casing(client, crew):
+    """The profile says `Cross#EUW`; the client may write the same account
+    `CROSS#euw` — still the sender's game, filed under the sender's account."""
+    body = capture(2, [player("CROSS", tag="euw")], [player("Someone")])
+    assert _post(client, crew.tokens["cross"], body).status_code == 201
+    stats = _stats(client, crew.tokens["cross"])
+    assert [p["username"] for p in stats["players"]] == ["cross"]
+
+
 def _matches(client, crew):
     return client.get("/api/lol/matches", headers=auth_header(crew.admin)).json()
 

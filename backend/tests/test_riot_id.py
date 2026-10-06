@@ -76,6 +76,18 @@ def test_member_sets_own_riot_id(client, bob):
     assert _me(client, token)["riot_id"] == "Bob The Builder#EUW"
 
 
+def test_saving_a_riot_id_ignores_a_legacy_username_clash(client, bob):
+    """Usernames are unique case-insensitively since 1.3.4, but older
+    instances can hold both `Max` and `max`. The Riot ID card sends only
+    `riot_id`, so that clash must not stop either of them from saving it."""
+    make_user("Max")
+    max_id = make_user("max")
+    token = login(client, "max")
+    r = _set(client, token, max_id, "Liandryl#EUW")
+    assert r.status_code == 200, r.text
+    assert _me(client, token)["riot_id"] == "Liandryl#EUW"
+
+
 @pytest.mark.parametrize("empty", [None, "", "   "])
 def test_null_or_blank_clears_it(client, bob, empty):
     bob_id, token = bob

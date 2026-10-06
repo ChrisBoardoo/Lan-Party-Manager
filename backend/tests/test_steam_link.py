@@ -304,3 +304,45 @@ def test_desktop_callback_carries_the_nonce_back(client, monkeypatch):
     assert resp.headers["location"] == (
         f"http://127.0.0.1:5555/callback?target=%2Fprofile%3Fsteam%3Dlinked&nonce={NONCE}"
     )
+
+
+def test_desktop_relink_after_unlink_end_to_end(client, monkeypatch):
+    """The chain the desktop app runs, as it runs it: unlink, `/steam/link`
+    called by Rust (bearer token, desktop_port/desktop_nonce, no cookie), then
+    Steam sending the system browser back to the exact return_to we gave it,
+    with its openid.* params added. The other tests sign the state by hand."""
+    from urllib.parse import parse_qs, urlparse
+    from conftest import login
+
+    register(client, "founder", "founder@example.com")
+    admin = _get_user(username="founder")
+    s = database.SessionLocal()
+    try:
+        s.get(models.User, admin.id).steam_id = "76561198000000001"
+        s.commit()
+    finally:
+        s.close()
+    _enable_steam()
+    monkeypatch.setattr(oauth_steam, "verify_openid_response", lambda params: True)
+    monkeypatch.setattr(oauth_steam, "fetch_player_summary", lambda steam_id, api_key: {})
+
+    headers = auth_header(login(client, "founder"))
+    assert client.request("DELETE", "/api/auth/steam/link", headers=headers).status_code == 200
+
+    client.cookies.clear()
+    resp = client.get(
+        "/api/auth/steam/link", params={"desktop_port": 5555, "desktop_nonce": NONCE}, headers=headers
+    )
+    assert resp.status_code == 200, resp.text
+    return_to = parse_qs(urlparse(resp.json()["authorize_url"]).query)["openid.return_to"][0]
+    state = parse_qs(urlparse(return_to).query)["state"][0]
+
+    client.cookies.clear()
+    cb = client.get(
+        _callback_url(state, "https://steamcommunity.com/openid/id/76561198000000001", return_to=return_to),
+        follow_redirects=False,
+    )
+    assert cb.headers["location"] == (
+        f"http://127.0.0.1:5555/callback?target=%2Fprofile%3Fsteam%3Dlinked&nonce={NONCE}"
+    )
+    assert _get_user(username="founder").steam_id == "76561198000000001"

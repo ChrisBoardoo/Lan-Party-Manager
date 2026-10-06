@@ -7,6 +7,7 @@ import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 import LanguageToggle from '../components/ui/LanguageToggle'
 import DiscordButton from '../components/ui/DiscordButton'
+import { normalizeInviteCode } from '../lib/inviteCode'
 import { ArrowRight, Wifi, Ticket } from 'lucide-react'
 
 interface FormData {
@@ -188,10 +189,9 @@ export default function Login() {
               <div className="flex gap-2">
                 <input
                   value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  onChange={(e) => setInviteCode(normalizeInviteCode(e.target.value))}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleInviteCode() } }}
-                  placeholder="ABC123"
-                  maxLength={8}
+                  placeholder="ABCD234XYZ"
                   className="flex-1 h-10 px-3 bg-input border border-border text-foreground text-sm font-mono tracking-widest uppercase focus:border-accent outline-none"
                 />
                 <Button type="button" variant="outline" size="sm" onClick={handleInviteCode} disabled={!inviteCode.trim()}>

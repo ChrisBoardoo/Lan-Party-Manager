@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { authApi, eventInvitesApi } from '../lib/api'
 import { EventInviteValidation } from '../types'
 import { formatDate } from '../lib/formatDate'
+import { normalizeInviteCode } from '../lib/inviteCode'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 import LanguageToggle from '../components/ui/LanguageToggle'
@@ -26,7 +27,7 @@ export default function Register() {
   const [searchParams] = useSearchParams()
   const [error, setError] = useState('')
   const discordError = searchParams.get('discord')
-  const [code, setCode] = useState(searchParams.get('code')?.toUpperCase() ?? '')
+  const [code, setCode] = useState(normalizeInviteCode(searchParams.get('code') ?? ''))
   const [validation, setValidation] = useState<EventInviteValidation | null>(null)
   const [validating, setValidating] = useState(false)
   const [inviteRequired, setInviteRequired] = useState<boolean | null>(null)
@@ -131,9 +132,8 @@ export default function Register() {
               </label>
               <input
                 value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="ABC123"
-                maxLength={8}
+                onChange={(e) => setCode(normalizeInviteCode(e.target.value))}
+                placeholder="ABCD234XYZ"
                 className="w-full h-12 px-4 bg-input border border-border text-foreground text-base font-mono tracking-widest uppercase placeholder:text-muted-foreground focus:border-accent outline-none transition-colors duration-150"
               />
             </div>

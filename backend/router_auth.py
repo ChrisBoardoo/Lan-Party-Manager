@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import re
 import secrets
 from datetime import datetime, timedelta
@@ -38,6 +39,7 @@ import oauth_state
 import oauth_steam
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 RESET_TOKEN_TTL = timedelta(hours=1)
 DEFAULT_RESET_SUBJECT = "Reset your LAN Party Manager password"
@@ -520,11 +522,18 @@ def discord_callback(
             _discord_redirect_uri(db),
         )
         profile = oauth_discord.fetch_user(token["access_token"])
-    except oauth_discord.DiscordOAuthError:
+    except oauth_discord.DiscordOAuthError as exc:
+        # The player only ever sees "Discord sign-in failed": the reason (a
+        # status code from Discord, or why it couldn't be reached) has to
+        # land in the server log or the failure can't be told apart from the
+        # others. No secret in it — the code and tokens are never formatted in.
+        cause = f" ({type(exc.__cause__).__name__}: {exc.__cause__})" if exc.__cause__ else ""
+        logger.warning("Discord %s callback failed: %s%s", flow, exc, cause)
         return _complete_redirect(base, f"{link_target}?discord=error", st)
 
     discord_id = str(profile.get("id") or "")
     if not discord_id:
+        logger.warning("Discord %s callback failed: profile has no id", flow)
         return _complete_redirect(base, f"{link_target}?discord=error", st)
     discord_username = profile.get("global_name") or profile.get("username")
     discord_avatar = profile.get("avatar")
@@ -546,6 +555,7 @@ def discord_callback(
         # Never swap one Discord for another in place: replacing a link has to
         # go through an explicit unlink (which needs a usable password).
         if user.discord_id and user.discord_id != discord_id:
+            logger.warning("Discord link refused: user %s already has another Discord linked", user.id)
             return _complete_redirect(base, "/profile?discord=error", st)
         user.discord_id = discord_id
         user.discord_username = discord_username
@@ -738,9 +748,13 @@ def steam_callback(request: Request, db: Session = Depends(get_db)):
 
     try:
         verified = oauth_steam.verify_openid_response(params)
-    except oauth_steam.SteamOAuthError:
+    except oauth_steam.SteamOAuthError as exc:
+        # Same reason as the Discord callback: the player only sees "failed".
+        cause = f" ({type(exc.__cause__).__name__}: {exc.__cause__})" if exc.__cause__ else ""
+        logger.warning("Steam link callback failed: %s%s", exc, cause)
         return _complete_redirect(base, "/profile?steam=error", st)
     if not verified:
+        logger.warning("Steam link callback failed: Steam did not confirm the sign-in")
         return _complete_redirect(base, "/profile?steam=error", st)
 
     steam_id = oauth_steam.extract_steam_id(params.get("openid.claimed_id", ""))

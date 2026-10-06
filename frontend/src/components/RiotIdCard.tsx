@@ -4,6 +4,7 @@ import { Check, Link2, Pencil, Trash2, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { usersApi } from '../lib/api'
 import { normalizeRiotId } from '../lib/riotId'
+import Button from './ui/Button'
 import Input from './ui/Input'
 
 // The profile "Riot ID" card — the GameName#TAG League of Legends end-of-game
@@ -65,8 +66,10 @@ export default function RiotIdCard() {
       <p className="text-xs text-muted-foreground">{t('profile.riotIdHint')}</p>
 
       {editing ? (
-        <div>
-          <div className="flex items-center gap-1.5">
+        // Labelled buttons, not bare ✓/✗ icons: a member typed their Riot ID,
+        // clicked elsewhere and never saved it — nothing told them it was lost.
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-full max-w-xs">
             <Input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -77,27 +80,17 @@ export default function RiotIdCard() {
                 if (e.key === 'Enter') { e.preventDefault(); save(draft) }
                 if (e.key === 'Escape') setEditing(false)
               }}
-              className="h-9 max-w-xs"
+              className="h-9"
             />
-            <button
-              type="button"
-              onClick={() => save(draft)}
-              disabled={saving}
-              className="p-2 text-accent hover:text-foreground transition-colors disabled:opacity-50"
-              title={t('common.save')}
-            >
-              <Check size={14} strokeWidth={2} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              disabled={saving}
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              title={t('common.cancel')}
-            >
-              <X size={14} strokeWidth={2} />
-            </button>
           </div>
+          <Button type="button" size="sm" onClick={() => save(draft)} disabled={saving}>
+            <Check size={14} strokeWidth={2} />
+            {saving ? t('common.saving') : t('common.save')}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={saving}>
+            <X size={14} strokeWidth={2} />
+            {t('common.cancel')}
+          </Button>
         </div>
       ) : (
         <div className="flex items-center gap-2">
