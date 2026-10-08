@@ -4,15 +4,17 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppConfig } from '../contexts/AppConfigContext'
 import { useUpcomingEvent } from '../contexts/UpcomingEventContext'
-import { usersApi, expensesApi, tournamentsApi, activityApi, mediaApi, miniGamesApi } from '../lib/api'
+import { usersApi, expensesApi, tournamentsApi, activityApi, mediaApi, miniGamesApi, xpApi } from '../lib/api'
 import { useActivityFeed } from '../hooks/useActivityFeed'
-import { User, Tournament, ActivityLogEntry, HallOfFameEntry, MediaItem, MiniGameInfo, MiniGameScore } from '../types'
+import { User, Tournament, ActivityLogEntry, HallOfFameEntry, MediaItem, MiniGameInfo, MiniGameScore, XpCrewEntry } from '../types'
 import { timeAgo, formatDate } from '../lib/formatDate'
 import Badge from '../components/ui/Badge'
 import Lightbox from '../components/ui/Lightbox'
 import EventCountdown from '../components/ui/EventCountdown'
 import CravingChatSection from '../components/CravingChatSection'
 import TrophyVoteBanner from '../components/trophies/TrophyVoteBanner'
+import XpCoin from '../components/xp/XpCoin'
+import XpLeaderboard from '../components/xp/XpLeaderboard'
 import { ReactionBar } from '../components/MediaReactions'
 import { ChefHat, Trophy, DollarSign, User as UserIcon, ArrowRight, Medal, Activity, ImageIcon, Play, UserX, UserCheck, Gamepad2, Download, CalendarDays, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatMiniGameScore } from '../components/MiniGames'
@@ -32,7 +34,7 @@ const ACTION_ICONS: Record<string, string> = {
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const { currency, treasuryEnabled, minigamesEnabled, trophiesEnabled } = useAppConfig()
+  const { currency, treasuryEnabled, minigamesEnabled, trophiesEnabled, xpEnabled } = useAppConfig()
   const { nextEvent, chatEvent } = useUpcomingEvent()
   const { t, i18n } = useTranslation()
   const [users, setUsers] = useState<User[]>([])
@@ -50,6 +52,7 @@ export default function Dashboard() {
   const [featuredGame, setFeaturedGame] = useState<MiniGameInfo | null>(null)
   const [featuredTop, setFeaturedTop] = useState<MiniGameScore | null>(null)
   const [featuredMine, setFeaturedMine] = useState<MiniGameScore | null>(null)
+  const [crewXp, setCrewXp] = useState<XpCrewEntry[]>([])
 
   useEffect(() => {
     Promise.all([
@@ -94,6 +97,14 @@ export default function Dashboard() {
       })
     return () => { cancelled = true }
   }, [minigamesEnabled])
+
+  // XP is opt-in and require_feature-gated: own effect, own catch, same reason as
+  // the mini-games card above.
+  useEffect(() => {
+    if (!xpEnabled) { setCrewXp([]); return }
+    xpApi.crew().then(setCrewXp).catch(() => setCrewXp([]))
+  }, [xpEnabled])
+  const xpByUser = new Map(crewXp.map((e) => [e.user_id, e]))
 
   useActivityFeed(!loading, (newItems) => {
     setActivity((prev) => {
@@ -306,7 +317,18 @@ export default function Dashboard() {
                     )}
                   </div>
                   <p className="font-bold text-sm text-foreground truncate mb-1">{u.username}</p>
-                  <p className="font-mono-label text-muted-foreground mb-3">{t(`nav.role.${u.role}`)}</p>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <p className="font-mono-label text-muted-foreground truncate">{t(`nav.role.${u.role}`)}</p>
+                    {xpByUser.has(u.id) && (
+                      <span
+                        className="flex items-center gap-1 font-mono-label text-muted-foreground text-[10px] flex-shrink-0"
+                        title={t('xp.total', { total: xpByUser.get(u.id)!.total.toLocaleString() })}
+                      >
+                        <XpCoin level={xpByUser.get(u.id)!.level} size={14} />
+                        {t('xp.levelShort', { level: xpByUser.get(u.id)!.level })}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-1">
                     {u.profile_complete ? (
                       <Badge variant="success">{t('dashboard.ready')}</Badge>
@@ -430,6 +452,9 @@ export default function Dashboard() {
               )}
             </div>
           </div>
+
+          {/* Crew XP */}
+          <XpLeaderboard entries={crewXp} currentUserId={user?.id} />
 
           {/* Mini-games */}
           {minigamesEnabled && featuredGame && (

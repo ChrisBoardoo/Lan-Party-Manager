@@ -53,6 +53,7 @@ ALLOWED_KEYS = {
     "craving_chat_enabled",
     "trophies_enabled",
     "lol_stats_enabled",
+    "xp_enabled",
     # Guest WiFi (the spare network for phones/laptops — PCs are wired). Shown
     # only when wifi_ssid is set; the password never goes through /public-config,
     # only through GET /wifi (admins + current-event attendees) and the kiosk.
@@ -99,6 +100,7 @@ def is_feature_enabled(db: Session, feature: str) -> bool:
       by vote or by an admin — see router_trophies.py)
     - lol_stats: opt-in, default OFF (League of Legends games captured by the
       desktop app during a LAN — see router_lol.py)
+    - xp:       opt-in, default OFF (crew XP and levels, derived on read — see xp.py)
     - treasury: default ON, but auto-hidden when prizes is enabled
     - streams:  default ON, opt-out (not every LAN has a streamer in their ranks)
     - merch_size: default ON, opt-out (not every crew does event merch/t-shirts)
@@ -136,6 +138,8 @@ def is_feature_enabled(db: Session, feature: str) -> bool:
         return get_setting(db, "trophies_enabled") == "true"
     if feature == "lol_stats":
         return get_setting(db, "lol_stats_enabled") == "true"
+    if feature == "xp":
+        return get_setting(db, "xp_enabled") == "true"
     return True
 
 
@@ -231,6 +235,7 @@ def get_public_config(db: Session = Depends(get_db), _: User = Depends(get_curre
         "craving_chat_enabled": is_feature_enabled(db, "craving_chat"),
         "trophies_enabled": is_feature_enabled(db, "trophies"),
         "lol_stats_enabled": is_feature_enabled(db, "lol_stats"),
+        "xp_enabled": is_feature_enabled(db, "xp"),
     }
 
 

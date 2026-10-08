@@ -804,6 +804,14 @@ export default function Settings() {
                 onToggle={handleSave}
                 defaultOff
               />
+              <FeatureToggleRow
+                settingKey="xp_enabled"
+                label={t('settings.xpToggleLabel')}
+                description={t('settings.xpToggleDesc')}
+                value={settings.find((s) => s.key === 'xp_enabled')?.value ?? null}
+                onToggle={handleSave}
+                defaultOff
+              />
               {/* The two planning behaviour toggles only matter once planning is on. */}
               {planningEnabled && (
                 <>
@@ -1228,7 +1236,7 @@ export default function Settings() {
               <div>
                 <p className="font-mono-label text-muted-foreground text-[10px] mb-1">{label}</p>
                 <p className="font-mono text-sm text-foreground">{repo}</p>
-                <p className="font-mono-label text-muted-foreground text-[10px] mt-1">:latest · :1.3.4</p>
+                <p className="font-mono-label text-muted-foreground text-[10px] mt-1">:latest · :1.3.5</p>
               </div>
               <ExternalLink size={12} strokeWidth={1.5} className="text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0" />
             </ExternalLinkButton>

@@ -7,7 +7,7 @@
 **The self-hosted HQ for your LAN party weekends.**
 Invites, brackets, shared costs, photos, big-screen hype — on a box you own.
 
-[![Version](https://img.shields.io/badge/version-1.3.4-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.3.5-FF3D00?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-4C566A?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)

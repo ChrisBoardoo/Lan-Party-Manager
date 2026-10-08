@@ -16,6 +16,7 @@ import type {
   ChatMessage, PinnedMessage, WifiConfig,
   Trophy, TrophyEdition, TrophyMode, TrophyStatus, UserTrophy,
   LolCategory, LolMatch, LolStats,
+  XpSummary, XpCrewEntry,
 } from '../types'
 
 const client = axios.create({ baseURL: '/api' })
@@ -524,6 +525,7 @@ export const settingsApi = {
         craving_chat_enabled: boolean
         trophies_enabled: boolean
         lol_stats_enabled: boolean
+        xp_enabled: boolean
       }>('/settings/public-config')
       .then((r) => r.data),
 
@@ -563,6 +565,16 @@ export const sponsorsApi = {
     client.put<Sponsor>(`/sponsors/${id}`, data).then((r) => r.data),
 
   delete: (id: number) => client.delete(`/sponsors/${id}`).then((r) => r.data),
+}
+
+// ── XP ────────────────────────────────────────────────────────────────────────
+
+// Gated by the xp feature: a member gets 404 while it's off, so load these in
+// their own effect with their own .catch, like the badges.
+export const xpApi = {
+  crew: () => client.get<XpCrewEntry[]>('/xp/crew').then((r) => r.data),
+
+  user: (id: number) => client.get<XpSummary>(`/xp/users/${id}`).then((r) => r.data),
 }
 
 // ── Trophies ──────────────────────────────────────────────────────────────────

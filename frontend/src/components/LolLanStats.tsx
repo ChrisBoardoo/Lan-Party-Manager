@@ -14,7 +14,7 @@ import { todayIso } from '../lib/eventDates'
 import { formatWinRate } from './GameStatsTab'
 import type { LolCategory, LolMatch, LolStats } from '../types'
 
-const CATEGORIES: LolCategory[] = ['custom', 'aram', 'matchmade']
+const CATEGORIES: LolCategory[] = ['custom', 'aram', 'aram_chaos', 'matchmade']
 
 // Games > League of Legends tracker: every game the members' desktop apps
 // sent — fun customs, ARAM, ranked, tournament matches alike — overall, or

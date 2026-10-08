@@ -959,6 +959,33 @@ class BadgeOut(BaseModel):
     value: Optional[int] = None
 
 
+class XpLineOut(BaseModel):
+    """One source of XP. `code` is an i18n key on the frontend (`xp.source.<code>`);
+    `count` is what was counted (matches won, photos, chat messages...)."""
+    code: str
+    count: int
+    xp: int
+
+
+class XpOut(BaseModel):
+    user_id: int
+    total: int
+    level: int
+    level_floor: int
+    next_level_at: int
+    title: str
+    breakdown: list[XpLineOut]
+
+
+class XpCrewEntry(BaseModel):
+    user_id: int
+    username: str
+    avatar_url: Optional[str] = None
+    total: int
+    level: int
+    title: str
+
+
 class RecapEvent(BaseModel):
     id: int
     title: str
@@ -1574,7 +1601,7 @@ class LolCaptureStatusOut(BaseModel):
     lan_in_progress: bool  # a LAN this member RSVP'd "in" to runs today
 
 
-LolCategory = Literal["custom", "aram", "matchmade"]
+LolCategory = Literal["custom", "aram", "aram_chaos", "matchmade"]
 
 
 class LolPlayerLine(BaseModel):

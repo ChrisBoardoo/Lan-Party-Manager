@@ -11,6 +11,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Input from '../components/ui/Input'
 import BadgeList from '../components/BadgeList'
+import XpCard from '../components/xp/XpCard'
 import MySetupCard from '../components/MySetupCard'
 import GamesLibraryCard from '../components/GamesLibraryCard'
 import RiotIdCard from '../components/RiotIdCard'
@@ -339,6 +340,9 @@ export default function Profile() {
           nest, so Save Profile below triggers handleSubmit(onSubmit)
           directly on click instead. */}
       <div className="space-y-6">
+        {/* 00 — XP (renders nothing while the feature is off) */}
+        {user && <XpCard userId={user.id} isSelf />}
+
         {/* 01 — Upcoming events */}
         {upcomingEvents.length > 0 && (
           <div className="border border-border bg-card p-6 space-y-3">

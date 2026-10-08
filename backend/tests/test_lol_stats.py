@@ -77,4 +77,6 @@ def test_categories():
     assert category_of(SimpleNamespace(is_custom=True, game_mode="ARAM")) == "custom"
     assert category_of(SimpleNamespace(is_custom=False, game_mode="ARAM")) == "aram"
     assert category_of(SimpleNamespace(is_custom=False, game_mode="CLASSIC")) == "matchmade"
+    assert category_of(SimpleNamespace(is_custom=False, game_mode="KIWI")) == "aram_chaos"
+    assert category_of(SimpleNamespace(is_custom=True, game_mode="KIWI")) == "custom"
     assert category_of(SimpleNamespace(is_custom=False, game_mode=None)) == "matchmade"

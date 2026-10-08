@@ -927,6 +927,8 @@
     "trophiesToggleDesc": "Des trophées inventés par la crew, décernés à chaque LAN — par le vote des participants ou par un admin — et gardés pour toujours sur le profil des lauréats, le récap et le grand écran.",
     "lolStatsToggleLabel": "Suivi League of Legends",
     "lolStatsToggleDesc": "Enregistre chaque partie de League of Legends terminée par les membres, envoyée par leur app desktop (parties perso, ARAM, classées, matchs de tournoi), et affiche K/D/A, dégâts et records par joueur dans Jeux › Suivi League of Legends, en global ou par LAN. Chaque membre peut, dans son app, n'envoyer que ses parties de LAN. Les joueurs sont reconnus grâce au Riot ID de leur profil. Désactivé par défaut.",
+    "xpToggleLabel": "XP et niveaux",
+    "xpToggleDesc": "Les membres gagnent de l'XP avec ce qu'ils font déjà sur LPM (victoires en tournoi selon le tour, titres, trophées révélés, photos dans Médias, Craving Chat, photo de profil) et montent de niveau avec un jeton LPM. Affiché sur les profils et en classement de la crew dans le Hub. Calculé à partir des données existantes : les LAN passées comptent aussi. Désactivé par défaut.",
     "trophiesSectionTitle": "Armoire à trophées",
     "trophiesSectionDesc": "Les trophées de votre crew, avec vos mots. Définissez-les ici une fois ; mettez-les en jeu et décernez-les depuis la page de chaque LAN. Un trophée déjà gagné s'archive, il ne se supprime pas."
   },
@@ -1195,6 +1197,7 @@
         "all": "Tout",
         "custom": "Perso",
         "aram": "ARAM",
+        "aram_chaos": "ARAM : Chaos",
         "matchmade": "Autres files"
       },
       "summaryLine_one": "{{count}} partie capturée",
@@ -1347,6 +1350,50 @@
     "arcade_champion": {
       "label": "Champion d'arcade",
       "desc": "En tête du classement d'un mini-jeu"
+    }
+  },
+  "xp": {
+    "crewTitle": "XP de la crew",
+    "level": "Niveau {{level}}",
+    "levelShort": "Niv. {{level}}",
+    "total": "{{total}} XP",
+    "toNext_one": "Encore {{count}} XP avant le niveau {{level}}",
+    "toNext_other": "Encore {{count}} XP avant le niveau {{level}}",
+    "showDetails": "Le détail",
+    "hideDetails": "Masquer le détail",
+    "showAll": "Tout voir ({{count}})",
+    "showLess": "Réduire",
+    "empty": "Pas encore d'XP.",
+    "emptySelf": "Pas encore d'XP : gagne un match de tournoi, poste des photos dans Médias, parle dans le Craving Chat ou ajoute une photo de profil.",
+    "howTo": "Match de tournoi gagné : 15 XP en poule, 25 en huitième, 40 en quart, 60 en demie, 100 en finale, +50 pour le titre. Trophée remporté : 50. Photo dans Médias : 2 (50 au plus par LAN). Craving Chat : 5 tous les 30 messages (60 comptés au plus par jour). Photo de profil : 10. Tout ce qui a été joué avant l'activation de l'XP compte aussi.",
+    "title": {
+      "recruit": "Recrue",
+      "regular": "Habitué",
+      "pillar": "Pilier",
+      "veteran": "Vétéran",
+      "legend": "Légende de la crew"
+    },
+    "source": {
+      "match_final_one": "Finale gagnée",
+      "match_final_other": "Finales gagnées ×{{count}}",
+      "match_semifinal_one": "Demi-finale gagnée",
+      "match_semifinal_other": "Demi-finales gagnées ×{{count}}",
+      "match_quarterfinal_one": "Quart de finale gagné",
+      "match_quarterfinal_other": "Quarts de finale gagnés ×{{count}}",
+      "match_round_of_16_one": "Huitième de finale gagné",
+      "match_round_of_16_other": "Huitièmes de finale gagnés ×{{count}}",
+      "match_other_one": "Match de poule gagné",
+      "match_other_other": "Matchs de poule gagnés ×{{count}}",
+      "tournament_win_one": "Tournoi remporté",
+      "tournament_win_other": "Tournois remportés ×{{count}}",
+      "trophy_one": "Trophée remporté",
+      "trophy_other": "Trophées remportés ×{{count}}",
+      "photo_one": "Photo dans Médias",
+      "photo_other": "Photos dans Médias ×{{count}}",
+      "chat_one": "Craving Chat · {{count}} message compté",
+      "chat_other": "Craving Chat · {{count}} messages comptés",
+      "avatar_one": "Photo de profil",
+      "avatar_other": "Photo de profil"
     }
   },
   "setup": {

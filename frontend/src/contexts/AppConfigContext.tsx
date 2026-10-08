@@ -25,6 +25,7 @@ interface AppConfigContextType {
   cravingChatEnabled: boolean
   trophiesEnabled: boolean
   lolStatsEnabled: boolean
+  xpEnabled: boolean
   /** False until the first /public-config response lands. Route guards for opt-in
    *  features must wait for this: their flags start false, so deciding before the
    *  config arrives bounces a legitimate deep link straight back to the hub. */
@@ -54,6 +55,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   const [cravingChatEnabled, setCravingChatEnabled] = useState(true)
   const [trophiesEnabled, setTrophiesEnabled] = useState(false)
   const [lolStatsEnabled, setLolStatsEnabled] = useState(false)
+  const [xpEnabled, setXpEnabled] = useState(false)
   const [configLoaded, setConfigLoaded] = useState(false)
 
   const refreshConfig = useCallback(async () => {
@@ -76,6 +78,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       setCravingChatEnabled(data.craving_chat_enabled)
       setTrophiesEnabled(data.trophies_enabled)
       setLolStatsEnabled(data.lol_stats_enabled)
+      setXpEnabled(data.xp_enabled)
     } catch {
       setCurrency(DEFAULT_CURRENCY)
       setTreasuryEnabled(true)
@@ -94,6 +97,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       setCravingChatEnabled(true)
       setTrophiesEnabled(false)
       setLolStatsEnabled(false)
+      setXpEnabled(false)
     } finally {
       // Set even on failure: a guard that waits forever is worse than one that
       // falls back to defaults and lets the user move.
@@ -108,7 +112,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   }, [user, refreshConfig])
 
   return (
-    <AppConfigContext.Provider value={{ currency, treasuryEnabled, sponsorsEnabled, prizesEnabled, planningEnabled, gearEnabled, groceriesEnabled, recapEnabled, setupEnabled, streamsEnabled, checklistEnabled, merchSizeEnabled, minigamesEnabled, gamesEnabled, cravingChatEnabled, trophiesEnabled, lolStatsEnabled, configLoaded, refreshConfig }}>
+    <AppConfigContext.Provider value={{ currency, treasuryEnabled, sponsorsEnabled, prizesEnabled, planningEnabled, gearEnabled, groceriesEnabled, recapEnabled, setupEnabled, streamsEnabled, checklistEnabled, merchSizeEnabled, minigamesEnabled, gamesEnabled, cravingChatEnabled, trophiesEnabled, lolStatsEnabled, xpEnabled, configLoaded, refreshConfig }}>
       {children}
     </AppConfigContext.Provider>
   )

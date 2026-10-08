@@ -324,6 +324,33 @@ export interface BadgeAward {
   value: number | null
 }
 
+// Crew XP — derived on read server-side (backend/xp.py). Codes, not labels:
+// sources are i18n `xp.source.<code>`, titles `xp.title.<title>`.
+export interface XpLine {
+  code: string
+  count: number
+  xp: number
+}
+
+export interface XpSummary {
+  user_id: number
+  total: number
+  level: number
+  level_floor: number
+  next_level_at: number
+  title: string
+  breakdown: XpLine[]
+}
+
+export interface XpCrewEntry {
+  user_id: number
+  username: string
+  avatar_url: string | null
+  total: number
+  level: number
+  title: string
+}
+
 export interface RecapChampion {
   team_name: string
   color: string | null
@@ -910,7 +937,7 @@ export interface GameImportResult {
 // ── League of Legends stats (/api/lol — see backend/router_lol.py) ──────────
 // Games captured by the members' desktop apps, during a LAN or not.
 
-export type LolCategory = 'custom' | 'aram' | 'matchmade'
+export type LolCategory = 'custom' | 'aram' | 'aram_chaos' | 'matchmade'
 
 export interface LolPlayerLine {
   user_id: number

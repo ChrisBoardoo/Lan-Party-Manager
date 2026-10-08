@@ -19,16 +19,25 @@ LOL_CATALOG_NAME = "League of Legends"
 
 # How a captured game is filed for the stats filter. Riot's own game_mode is
 # too fine-grained to show (CLASSIC, ARAM, CHERRY, URF...): a crew mostly wants
-# "our customs" vs "the rest", with ARAM apart as the other common LAN mode.
-CATEGORIES = ("custom", "aram", "matchmade")
+# "our customs" vs "the rest", with the ARAM modes apart as the other common LAN
+# games. Derived on read, so a change here re-files past games too.
+CATEGORIES = ("custom", "aram", "aram_chaos", "matchmade")
 RECORD_KINDS = ("kills", "assists", "damage")
+
+# ARAM: Chaos (EN client: ARAM: Mayhem) reports its own gameMode, not "ARAM",
+# so until 1.3.5 it fell into "matchmade". "KIWI" is Riot's internal name for
+# the mode.
+ARAM_CHAOS_GAME_MODES = {"KIWI"}
 
 
 def category_of(match: Any) -> str:
     if match.is_custom:
         return "custom"
-    if (match.game_mode or "").upper() == "ARAM":
+    mode = (match.game_mode or "").upper()
+    if mode == "ARAM":
         return "aram"
+    if mode in ARAM_CHAOS_GAME_MODES:
+        return "aram_chaos"
     return "matchmade"
 
 

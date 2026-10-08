@@ -927,6 +927,8 @@
     "trophiesToggleDesc": "Crew-defined trophies awarded at each LAN — by the attendees' vote or by an admin — and kept for good on the winners' profiles, the recap and the big screen.",
     "lolStatsToggleLabel": "League of Legends tracker",
     "lolStatsToggleDesc": "Records every League of Legends game the members finish, sent by their desktop app (customs, ARAM, ranked, tournament matches), and shows K/D/A, damage and records per player in Games > League of Legends tracker, overall or per LAN. Each member can choose, in their app, to only send LAN games. Players are matched by the Riot ID on their profile. Off by default.",
+    "xpToggleLabel": "XP & levels",
+    "xpToggleDesc": "Members earn XP from what they already do on LPM (tournament wins by stage, titles, revealed trophies, photos in Media, the Craving Chat, a profile picture) and level up with an LPM token. Shown on profiles and as a crew ranking on the Hub. Computed from existing data, so past LANs count too. Off by default.",
     "trophiesSectionTitle": "Trophy cabinet",
     "trophiesSectionDesc": "Your crew's own trophies, in your own words. Define them here once; put them in play and award them from each event's page. A trophy that has been won is archived, never deleted."
   },
@@ -1195,6 +1197,7 @@
         "all": "All",
         "custom": "Customs",
         "aram": "ARAM",
+        "aram_chaos": "ARAM: Mayhem",
         "matchmade": "Other queues"
       },
       "summaryLine_one": "{{count}} captured game",
@@ -1347,6 +1350,50 @@
     "arcade_champion": {
       "label": "Arcade Champion",
       "desc": "Tops the leaderboard on a mini-game"
+    }
+  },
+  "xp": {
+    "crewTitle": "Crew XP",
+    "level": "Level {{level}}",
+    "levelShort": "Lv {{level}}",
+    "total": "{{total}} XP",
+    "toNext_one": "{{count}} XP to level {{level}}",
+    "toNext_other": "{{count}} XP to level {{level}}",
+    "showDetails": "How it adds up",
+    "hideDetails": "Hide details",
+    "showAll": "Show all ({{count}})",
+    "showLess": "Show less",
+    "empty": "No XP yet.",
+    "emptySelf": "No XP yet: win a tournament match, post photos in Media, talk in the Craving Chat or add a profile picture.",
+    "howTo": "Tournament match won: 15 XP in the group stage, 25 in the round of 16, 40 in a quarter-final, 60 in a semi-final, 100 in the final, +50 for the title. Trophy won: 50. Photo in Media: 2 (up to 50 per LAN). Craving Chat: 5 per 30 messages (up to 60 counted a day). Profile picture: 10. Everything played before XP was switched on counts too.",
+    "title": {
+      "recruit": "Recruit",
+      "regular": "Regular",
+      "pillar": "Pillar",
+      "veteran": "Veteran",
+      "legend": "Crew legend"
+    },
+    "source": {
+      "match_final_one": "Final won",
+      "match_final_other": "Finals won ×{{count}}",
+      "match_semifinal_one": "Semi-final won",
+      "match_semifinal_other": "Semi-finals won ×{{count}}",
+      "match_quarterfinal_one": "Quarter-final won",
+      "match_quarterfinal_other": "Quarter-finals won ×{{count}}",
+      "match_round_of_16_one": "Round-of-16 match won",
+      "match_round_of_16_other": "Round-of-16 matches won ×{{count}}",
+      "match_other_one": "Group-stage match won",
+      "match_other_other": "Group-stage matches won ×{{count}}",
+      "tournament_win_one": "Tournament won",
+      "tournament_win_other": "Tournaments won ×{{count}}",
+      "trophy_one": "Trophy won",
+      "trophy_other": "Trophies won ×{{count}}",
+      "photo_one": "Photo in Media",
+      "photo_other": "Photos in Media ×{{count}}",
+      "chat_one": "Craving Chat · {{count}} message counted",
+      "chat_other": "Craving Chat · {{count}} messages counted",
+      "avatar_one": "Profile picture",
+      "avatar_other": "Profile picture"
     }
   },
   "setup": {

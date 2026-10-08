@@ -8,6 +8,7 @@ import { formatDate } from '../lib/formatDate'
 import { User, LanEvent, BadgeAward, Setup, UserGameStatsLine, UserTrophy } from '../types'
 import Badge from '../components/ui/Badge'
 import BadgeList from '../components/BadgeList'
+import XpCard from '../components/xp/XpCard'
 import SetupView from '../components/SetupView'
 import { ReactionBar } from '../components/MediaReactions'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
@@ -303,6 +304,10 @@ export default function PlayerProfile() {
             {!player.is_active && <Badge variant="danger">{t('dashboard.inactiveBadge')}</Badge>}
           </div>
         </div>
+      </div>
+
+      <div className="mb-6 empty:hidden">
+        <XpCard userId={id} />
       </div>
 
       {trophies.length > 0 && (
