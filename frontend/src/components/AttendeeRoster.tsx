@@ -1,24 +1,44 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDate } from '../lib/formatDate'
+import { eventsApi } from '../lib/api'
 import { LanEvent } from '../types'
-import { ChevronDown, ChevronUp, UserX } from 'lucide-react'
+import { ChevronDown, ChevronUp, UserMinus } from 'lucide-react'
 
 export default function AttendeeRoster({
   event,
   isAdmin,
   currentUserId,
-  onDeactivate,
+  onAttendanceChanged,
   defaultExpanded,
 }: {
   event: LanEvent
   isAdmin: boolean
   currentUserId?: number
-  onDeactivate: (userId: number, username: string) => Promise<void>
+  onAttendanceChanged: () => void
   defaultExpanded?: boolean
 }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(!!defaultExpanded)
+  const [busyId, setBusyId] = useState<number | null>(null)
+  const [error, setError] = useState('')
+
+  // Takes the member off this event only — their account stays active
+  // (deactivating is on their profile). Same endpoint as the treasury's stay
+  // editor: works before and after the attendance lock, logged, member notified.
+  const removeAttendance = async (userId: number, username: string) => {
+    if (!confirm(t('events.roster.removeConfirm', { username, title: event.title }))) return
+    setBusyId(userId)
+    setError('')
+    try {
+      await eventsApi.adjustRsvp(event.id, userId, { status: 'out' })
+      onAttendanceChanged()
+    } catch (e: any) {
+      setError(t('events.roster.removeFailed', { detail: e.response?.data?.detail ?? '' }))
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   if (event.attendees.length === 0) return null
 
@@ -54,15 +74,17 @@ export default function AttendeeRoster({
               )}
               {isAdmin && a.user_id !== currentUserId && (
                 <button
-                  onClick={() => onDeactivate(a.user_id, a.username)}
-                  title={t('players.deactivateAccount')}
-                  className="flex-shrink-0 p-1 opacity-0 group-hover/attendee:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity"
+                  onClick={() => removeAttendance(a.user_id, a.username)}
+                  disabled={busyId !== null}
+                  title={t('events.roster.removeAttendance')}
+                  className="flex-shrink-0 p-1 opacity-0 group-hover/attendee:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity disabled:opacity-50"
                 >
-                  <UserX size={12} strokeWidth={1.5} />
+                  <UserMinus size={12} strokeWidth={1.5} />
                 </button>
               )}
             </div>
           ))}
+          {error && <p className="font-mono-label text-[10px] text-red-400">{error}</p>}
         </div>
       )}
     </div>

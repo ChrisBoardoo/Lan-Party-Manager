@@ -212,6 +212,31 @@ def test_treasurer_adjusts_a_member_after_the_start_and_it_is_traced(client):
         s.close()
 
 
+def test_admin_removes_a_member_from_an_upcoming_lan_and_keeps_their_account(client):
+    # The roster's "remove attendance": the member drops out of this event
+    # only, instead of losing their account.
+    eid, _, bob, _ = _seed(start_offset=4)
+    admin_t = login(client, "admin")
+
+    resp = client.put(f"/api/events/{eid}/rsvps/{bob}", json={"status": "out"}, headers=auth_header(admin_t))
+    assert resp.status_code == 200 and resp.json()["changed"] is True
+
+    event = client.get(f"/api/events/{eid}", headers=auth_header(admin_t)).json()
+    assert bob not in {a["user_id"] for a in event["attendees"]}
+    assert event["rsvp_count"] == 2
+    assert bob not in {s["user_id"] for s in _prorata(client, admin_t, eid)["shares"]}
+
+    s = database.SessionLocal()
+    try:
+        assert s.get(models.User, bob).is_active is True
+        assert s.query(models.AuditLog).filter_by(action="rsvp_adjusted").count() == 1
+        assert s.query(models.ActivityLog).filter_by(action="rsvp_adjusted").one().recipient_user_id == bob
+    finally:
+        s.close()
+    # Their account still works.
+    assert login(client, "bob")
+
+
 def test_deactivated_member_counts_once_the_lan_started_and_not_before(client):
     upcoming, _, _, cara = _seed(start_offset=5)
     running, _, dan, _ = _seed_started()

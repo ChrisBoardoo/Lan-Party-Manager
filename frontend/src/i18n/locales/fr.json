@@ -361,7 +361,10 @@
       "showAttendees_one": "Afficher le participant ({{count}})",
       "showAttendees_other": "Afficher les participants ({{count}})",
       "hideAttendees_one": "Masquer le participant ({{count}})",
-      "hideAttendees_other": "Masquer les participants ({{count}})"
+      "hideAttendees_other": "Masquer les participants ({{count}})",
+      "removeAttendance": "Retirer la participation",
+      "removeConfirm": "Retirer {{username}} de « {{title}} » ? Son compte reste actif. La personne est prévenue, le retrait est journalisé et les parts en trésorerie sont recalculées.",
+      "removeFailed": "Échec du retrait : {{detail}}"
     },
     "card": {
       "upcoming": "À venir",

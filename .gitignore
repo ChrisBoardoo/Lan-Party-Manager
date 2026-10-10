@@ -36,6 +36,10 @@ frontend/.vite/
 Thumbs.db
 desktop.ini
 
+# Personal LAN pictures: the whole folder, whatever the extension or its case
+Websites/Website_v4/images/
+
+
 # ── Desktop app (Tauri) ─────────────────────────────────────────────────────
 desktopapp/node_modules/
 desktopapp/ui/dist/

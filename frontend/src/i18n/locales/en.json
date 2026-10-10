@@ -361,7 +361,10 @@
       "showAttendees_one": "Show attendee ({{count}})",
       "showAttendees_other": "Show attendees ({{count}})",
       "hideAttendees_one": "Hide attendee ({{count}})",
-      "hideAttendees_other": "Hide attendees ({{count}})"
+      "hideAttendees_other": "Hide attendees ({{count}})",
+      "removeAttendance": "Remove attendance",
+      "removeConfirm": "Remove {{username}} from {{title}}? Their account stays active. They're notified, the change is logged, and the treasury shares are recalculated.",
+      "removeFailed": "Couldn't remove: {{detail}}"
     },
     "card": {
       "upcoming": "Upcoming",

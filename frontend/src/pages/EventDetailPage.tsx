@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppConfig } from '../contexts/AppConfigContext'
-import { eventsApi, mediaApi, tournamentsApi, expensesApi, settingsApi, usersApi, prizesApi } from '../lib/api'
+import { eventsApi, mediaApi, tournamentsApi, expensesApi, settingsApi, prizesApi } from '../lib/api'
 import { LanEvent, MediaItem, Tournament, Expense, Prize } from '../types'
 import { formatDate } from '../lib/formatDate'
 import Badge from '../components/ui/Badge'
@@ -112,12 +112,6 @@ export default function EventDetailPage() {
     setViewer((v) => (v ? { ...v, items: v.items.map(swap) } : v))
   }
 
-  const handleDeactivateAttendee = async (userId: number, username: string) => {
-    if (!confirm(t('players.deactivateConfirm', { username }))) return
-    await usersApi.deactivate(userId)
-    load()
-  }
-
   const totalExpenses = expenses.reduce((sum, ex) => sum + ex.amount, 0)
 
   if (loading) {
@@ -203,7 +197,7 @@ export default function EventDetailPage() {
           event={event}
           isAdmin={isAdmin}
           currentUserId={user?.id}
-          onDeactivate={handleDeactivateAttendee}
+          onAttendanceChanged={load}
           defaultExpanded
         />
       </div>

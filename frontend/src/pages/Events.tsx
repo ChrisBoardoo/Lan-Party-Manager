@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppConfig } from '../contexts/AppConfigContext'
-import { eventsApi, eventInvitesApi, usersApi, gearApi } from '../lib/api'
+import { eventsApi, eventInvitesApi, gearApi } from '../lib/api'
 import { LanEvent, EventInvite } from '../types'
 import { formatDate } from '../lib/formatDate'
 import Button from '../components/ui/Button'
@@ -383,7 +383,7 @@ function EventCard({
   onRsvpLeave,
   onCoverUpload,
   onCoverRotate,
-  onDeactivateAttendee,
+  onAttendanceChanged,
 }: {
   event: LanEvent
   isAdmin: boolean
@@ -394,7 +394,7 @@ function EventCard({
   onRsvpLeave: () => Promise<void>
   onCoverUpload: (file: File) => Promise<void>
   onCoverRotate: () => Promise<void>
-  onDeactivateAttendee: (userId: number, username: string) => Promise<void>
+  onAttendanceChanged: () => void
 }) {
   const { t } = useTranslation()
   const { gearEnabled } = useAppConfig()
@@ -646,7 +646,7 @@ function EventCard({
         event={event}
         isAdmin={isAdmin}
         currentUserId={currentUserId}
-        onDeactivate={onDeactivateAttendee}
+        onAttendanceChanged={onAttendanceChanged}
       />
 
       {isAdmin && <InviteCodePanel event={event} />}
@@ -715,12 +715,6 @@ export default function Events() {
     await load()
   }
 
-  const handleDeactivateAttendee = async (userId: number, username: string) => {
-    if (!confirm(t('players.deactivateConfirm', { username }))) return
-    await usersApi.deactivate(userId)
-    await load()
-  }
-
   const upcoming = events.filter((e) => isUpcoming(e.end_date))
   const past = events.filter((e) => !isUpcoming(e.end_date)).reverse()
 
@@ -784,7 +778,7 @@ export default function Events() {
                     onRsvpLeave={() => handleRsvpLeave(e)}
                     onCoverUpload={(file) => handleCoverUpload(e, file)}
                     onCoverRotate={() => handleCoverRotate(e)}
-                    onDeactivateAttendee={handleDeactivateAttendee}
+                    onAttendanceChanged={load}
                   />
                 ))}
               </div>
@@ -809,7 +803,7 @@ export default function Events() {
                     onRsvpLeave={() => handleRsvpLeave(e)}
                     onCoverUpload={(file) => handleCoverUpload(e, file)}
                     onCoverRotate={() => handleCoverRotate(e)}
-                    onDeactivateAttendee={handleDeactivateAttendee}
+                    onAttendanceChanged={load}
                   />
                 ))}
               </div>
