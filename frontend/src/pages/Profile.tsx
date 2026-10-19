@@ -12,6 +12,7 @@ import Badge from '../components/ui/Badge'
 import Input from '../components/ui/Input'
 import BadgeList from '../components/BadgeList'
 import XpCard from '../components/xp/XpCard'
+import { CollectionLink } from '../components/cards/CardsEntry'
 import MySetupCard from '../components/MySetupCard'
 import GamesLibraryCard from '../components/GamesLibraryCard'
 import RiotIdCard from '../components/RiotIdCard'
@@ -342,6 +343,7 @@ export default function Profile() {
       <div className="space-y-6">
         {/* 00 — XP (renders nothing while the feature is off) */}
         {user && <XpCard userId={user.id} isSelf />}
+        {user && <CollectionLink userId={user.id} isSelf />}
 
         {/* 01 — Upcoming events */}
         {upcomingEvents.length > 0 && (

@@ -32,7 +32,7 @@ from router_settings import get_setting, is_feature_enabled, wifi_config
 from router_presence import is_user_online
 from event_utils import current_event
 from tournament_stats import decided_at, team_records, winning_team_id
-from router_trophies import revealed_editions
+from router_trophies import revealed_editions, vote_turnout
 from router_media import best_media_query, hydrate_reactions
 
 router = APIRouter()
@@ -245,6 +245,21 @@ class KioskTrophy(BaseModel):
     revealed_at: Optional[datetime]
 
 
+class KioskTrophyVoteLine(BaseModel):
+    edition_id: int
+    name: str
+    emoji: Optional[str]
+    image_url: Optional[str]
+    voters: int
+
+
+class KioskTrophyVote(BaseModel):
+    """Trophy night in progress: turnout only, never who voted for whom."""
+    eligible: int
+    done: int
+    trophies: list[KioskTrophyVoteLine]
+
+
 class KioskWifi(BaseModel):
     ssid: str
     password: Optional[str]
@@ -273,6 +288,9 @@ class KioskSummary(BaseModel):
     # celebrates any edition id it hasn't seen before — that's the ceremony:
     # an admin reveals from their phone, the projector plays it.
     trophies: list[KioskTrophy] = []
+    # Open trophy votes of the current event (turnout only) — the room follows
+    # the vote filling up before the ceremony.
+    trophy_vote: Optional[KioskTrophyVote] = None
     # #LoveWall counters (the whole scope, not just the WALL_SIZE shown) and
     # whether a new post interrupts the rotation with a full-screen drop.
     media_total: int = 0
@@ -533,6 +551,7 @@ def kiosk_summary(
     wifi = wifi_config(db)
 
     trophies: list[KioskTrophy] = []
+    trophy_vote = None
     if event and is_feature_enabled(db, "trophies"):
         trophies = [
             KioskTrophy(
@@ -548,6 +567,20 @@ def kiosk_summary(
             )
             for e in revealed_editions(db, event.id)
         ]
+        turnout = vote_turnout(db, event.id)
+        if turnout:
+            eligible, done, lines = turnout
+            trophy_vote = KioskTrophyVote(
+                eligible=eligible,
+                done=done,
+                trophies=[
+                    KioskTrophyVoteLine(
+                        edition_id=e.id, name=e.trophy.name, emoji=e.trophy.emoji,
+                        image_url=e.trophy.image_url, voters=n,
+                    )
+                    for e, n in lines
+                ],
+            )
 
     return KioskSummary(
         server_time=now,
@@ -564,6 +597,7 @@ def kiosk_summary(
         wifi=KioskWifi(**wifi) if wifi else None,
         join_url=(get_setting(db, "app_base_url") or "").rstrip("/") or None,
         trophies=trophies,
+        trophy_vote=trophy_vote,
         media_total=media_total,
         media_reactions_total=media_reactions_total,
         live_drop=get_setting(db, KIOSK_LIVE_DROP_KEY) != "false",

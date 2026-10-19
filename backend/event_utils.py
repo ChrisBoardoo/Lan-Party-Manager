@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
@@ -10,17 +10,29 @@ from models import AppSetting, Expense, EventRSVP, LanEvent, SettlementPayment, 
 logger = logging.getLogger(__name__)
 
 
+def _instance_tz(db: Session) -> ZoneInfo:
+    tz_name = db.query(AppSetting.value).filter(AppSetting.key == "app_timezone").scalar() or "UTC"
+    try:
+        return ZoneInfo(tz_name)
+    except Exception:
+        logger.warning("Invalid app_timezone %r, falling back to UTC", tz_name)
+        return ZoneInfo("UTC")
+
+
 def local_today(db: Session) -> date:
     """Today in the instance's own timezone (Settings → app_timezone), not the
     server's: Docker runs in UTC, so date.today() turns over at 02:00 in
     Paris. Reads the setting directly — router_settings imports this module."""
-    tz_name = db.query(AppSetting.value).filter(AppSetting.key == "app_timezone").scalar() or "UTC"
-    try:
-        tz = ZoneInfo(tz_name)
-    except Exception:
-        logger.warning("Invalid app_timezone %r, falling back to UTC", tz_name)
-        tz = ZoneInfo("UTC")
-    return datetime.now(tz).date()
+    return datetime.now(_instance_tz(db)).date()
+
+
+def local_day_start_utc(db: Session, day: date) -> datetime:
+    """The instant a local day starts, as the naive UTC datetime the app stores
+    (`datetime.utcnow()`). Comparing a stored timestamp with a bare
+    `datetime.combine(day, time.min)` is off by the UTC offset: in Paris, an
+    event at 00:30 local is stored on the previous UTC day."""
+    start = datetime.combine(day, time.min, tzinfo=_instance_tz(db))
+    return start.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 # How long after a LAN the treasury keeps showing it by default: the week or

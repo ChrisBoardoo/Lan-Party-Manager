@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { isUpcoming, daysUntil, isChatWindowOpen, eventInProgress } from './eventDates'
+import { isUpcoming, daysUntil, isChatWindowOpen, eventInProgress, DEFAULT_CHAT_RULES } from './eventDates'
 
 // A fixed "now" so every test is independent of the machine's real clock and
 // timezone. Local noon keeps every date comparison well clear of a UTC
@@ -97,5 +97,26 @@ describe('eventInProgress', () => {
 
   it('prefers the latest-starting LAN when two overlap', () => {
     expect(eventInProgress([lan(1, '2026-09-10', '2026-09-20'), lan(2, '2026-09-13', '2026-09-15')])?.id).toBe(2)
+  })
+})
+
+
+describe('isChatWindowOpen with the window an admin set', () => {
+  // NOW is 2026-09-14. Mirrors backend tests/test_chat_window.py.
+  it('follows the days an admin set', () => {
+    const rules = { daysBefore: 5, daysAfter: 30, alwaysOpen: false }
+    expect(isChatWindowOpen('2026-09-24', '2026-09-26', rules)).toBe(false) // 10 days out, opens at 5
+    expect(isChatWindowOpen('2026-09-17', '2026-09-19', rules)).toBe(true) // 3 days out
+    expect(isChatWindowOpen('2026-08-25', '2026-08-27', rules)).toBe(true) // ended 18 days ago, closes at 30
+    expect(isChatWindowOpen('2026-08-25', '2026-08-27', DEFAULT_CHAT_RULES)).toBe(false) // default closes at 15
+  })
+
+  it('always open: from creation, and until a later LAN exists', () => {
+    const always = { ...DEFAULT_CHAT_RULES, alwaysOpen: true }
+    expect(isChatWindowOpen('2027-03-01', '2027-03-03', always)).toBe(true) // months away
+    expect(isChatWindowOpen('2026-06-01', '2026-06-03', always, false)).toBe(true) // the last LAN, long over
+    expect(isChatWindowOpen('2026-06-01', '2026-06-03', always, true)).toBe(false) // a later LAN took over
+    // Never sooner than the days after, even when the next LAN already exists.
+    expect(isChatWindowOpen('2026-09-08', '2026-09-10', always, true)).toBe(true)
   })
 })

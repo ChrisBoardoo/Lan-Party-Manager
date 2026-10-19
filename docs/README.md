@@ -7,7 +7,7 @@
 **Self-hosted event management for LAN parties** — crew invites, tournaments, treasury,
 media, and live streams, all running on hardware you own. From a Raspberry Pi to a NUC.
 
-[![Version](https://img.shields.io/badge/version-1.3.5-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.4.0-FF3D00?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-4C566A?style=flat-square)](../LICENSE)
 [![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -63,7 +63,7 @@ no telemetry, no subscription. Your crew's data stays on your box.
 | **Treasury** | Expense tracking by category, automatic **pro-rata cost splitting** based on attendance nights, P2P settlement, and one-click CSV export. |
 | **Prizes** | Showcase per-event prizes (photo + description) for tournament winners. Enabling Prizes hides Treasury — crews giving out prizes don't usually split expenses. Opt-in. |
 | **Sponsors** | Sponsor banners (image or video) with a click-through link, shown on the event, tournaments, and player profile pages. Opt-in. |
-| **Arena / Tournaments** | Team or solo/individual events; **single-elimination brackets and round-robin** (W/L/D/Pts standings); per-team seeding; live score tracking; **self-service phone score reporting** (players report, organizer confirms); full-screen bracket view for projecting. |
+| **Arena / Tournaments** | Team or solo/individual events; **single-elimination brackets and round-robin** (W/L/D/Pts standings); per-team seeding; **random team draw** (fixed size, redraw at will, leftovers placed by hand); live score tracking; **self-service phone score reporting** (players report, organizer confirms); full-screen bracket view for projecting. |
 | **Live Streams** | Twitch channel **and clip** embeds; live status + viewer count via the Twitch Helix API; optional chat iframe. |
 | **Media Gallery** | Shared photo/video vault; event-tagged uploads; **emoji reactions**; admin bulk delete; ffmpeg-generated video thumbnails; inline lightbox. |
 | **My Setup** | A member's gaming PC showcase on their profile — components, custom fields, up to 5 photos, emoji reactions from crewmates — with an optional public share link they mint and revoke themselves. Opt-in. |
@@ -430,12 +430,13 @@ List endpoints support `?limit=` and `?offset=` pagination.
 | GET    | `/api/tournaments/{id}`                      | Any               | Tournament detail                        |
 | GET    | `/api/tournaments/{id}/standings`            | Any               | Round-robin standings (W/L/D/Pts)        |
 | POST   | `/api/tournaments/`                          | Organizer+        | Create tournament                        |
-| PUT    | `/api/tournaments/{id}`                      | Organizer / Admin | Update name or status                    |
+| PUT    | `/api/tournaments/{id}`                      | Organizer / Admin | Update name or status; format and team size while pending |
 | DELETE | `/api/tournaments/{id}`                      | Organizer / Admin | Delete tournament                        |
-| POST   | `/api/tournaments/{id}/teams`                | Any               | Add team                                 |
-| PUT    | `/api/tournaments/{id}/teams/{team_id}`      | Any               | Update team                              |
+| POST   | `/api/tournaments/{id}/teams`                | Organizer / Admin | Add team                                 |
+| PUT    | `/api/tournaments/{id}/teams`                | Organizer / Admin | Replace every team at once (random draw), while pending |
+| PUT    | `/api/tournaments/{id}/teams/{team_id}`      | Organizer / Admin | Update team                              |
 | PATCH  | `/api/tournaments/{id}/teams/{team_id}/seed` | Organizer / Admin | Set team seed                            |
-| DELETE | `/api/tournaments/{id}/teams/{team_id}`      | Any               | Remove team                              |
+| DELETE | `/api/tournaments/{id}/teams/{team_id}`      | Organizer / Admin | Remove team                              |
 | POST   | `/api/tournaments/{id}/generate-brackets`    | Organizer / Admin | Generate brackets / round-robin schedule |
 | PUT    | `/api/tournaments/{id}/matches/{match_id}`   | Organizer / Admin | Update score / advance                   |
 

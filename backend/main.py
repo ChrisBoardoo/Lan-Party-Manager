@@ -19,6 +19,7 @@ from router_settings import get_setting
 from discord_notify import send_event_reminders
 from backup_scheduler import run_scheduled_backup
 from lan_reminders import send_lan_countdown_reminders
+from quests import announce_monthly_contract
 
 logger = logging.getLogger(__name__)
 from router_auth import router as auth_router
@@ -49,6 +50,8 @@ from router_chat import router as chat_router
 from router_trophies import router as trophies_router
 from router_lol import router as lol_router
 from router_xp import router as xp_router
+from router_cards import router as cards_router
+from router_quests import router as quests_router
 
 # Ensure required directories exist
 os.makedirs("data", exist_ok=True)
@@ -80,6 +83,8 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(send_event_reminders, CronTrigger(hour=10, minute=0, timezone=tz))
     # J-10 / J-7 / J-1 before a LAN: check your dates before they lock.
     scheduler.add_job(send_lan_countdown_reminders, CronTrigger(hour=10, minute=0, timezone=tz))
+    # The 1st of the month: the month's contract, on Discord.
+    scheduler.add_job(announce_monthly_contract, CronTrigger(day=1, hour=10, minute=0, timezone=tz))
     if os.getenv("BACKUP_ENABLED", "true").lower() not in ("0", "false", "no"):
         # Off-hours by default (03:00) — the daily reminder job above runs at 10:00,
         # and neither should land during a LAN party's peak activity window.
@@ -92,7 +97,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="LAN Party Manager API", version="1.3.5", lifespan=lifespan)
+app = FastAPI(title="LAN Party Manager API", version="1.4.0", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -134,6 +139,8 @@ app.include_router(chat_router,        prefix="/api/chat",        tags=["Chat"])
 app.include_router(trophies_router,    prefix="/api/trophies",    tags=["Trophies"])
 app.include_router(lol_router,         prefix="/api/lol",         tags=["LoL"])
 app.include_router(xp_router,          prefix="/api/xp",          tags=["XP"])
+app.include_router(cards_router,       prefix="/api/cards",       tags=["Cards"])
+app.include_router(quests_router,      prefix="/api/quests",      tags=["Quests"])
 app.include_router(audit_router,       prefix="/api/audit",       tags=["Audit"])
 app.include_router(backup_router,      prefix="/api/backup",      tags=["Backup"])
 

@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from datetime import date
 from typing import Optional, List
 
 from database import get_db
 from models import AppSetting, EventRSVP, User
-from event_utils import current_event
+from event_utils import current_event, local_today
 from schemas import AppSettingOut, AppSettingUpdate
 from auth import require_admin, get_current_user
 
@@ -54,6 +55,18 @@ ALLOWED_KEYS = {
     "trophies_enabled",
     "lol_stats_enabled",
     "xp_enabled",
+    "quests_enabled",
+    "cards_enabled",
+    # Craving Chat window (see router_chat.chat_window): days before a LAN its
+    # room opens, days after it closes, and "always open" (rooms chain from one
+    # LAN to the next).
+    "craving_chat_open_days_before",
+    "craving_chat_close_days_after",
+    "craving_chat_always_open",
+    # The day cards started counting (ISO date): boosters are earned from it,
+    # nothing before (no backfill). Set when cards are first switched on; an
+    # admin may move it back to pay out a past LAN.
+    "cards_since",
     # Guest WiFi (the spare network for phones/laptops — PCs are wired). Shown
     # only when wifi_ssid is set; the password never goes through /public-config,
     # only through GET /wifi (admins + current-event attendees) and the kiosk.
@@ -101,6 +114,9 @@ def is_feature_enabled(db: Session, feature: str) -> bool:
     - lol_stats: opt-in, default OFF (League of Legends games captured by the
       desktop app during a LAN — see router_lol.py)
     - xp:       opt-in, default OFF (crew XP and levels, derived on read — see xp.py)
+    - cards:    opt-in, default OFF (collectible crew cards and boosters — see cards.py)
+    - quests:   opt-in, default OFF, and only with XP on (the monthly contract,
+                worth XP — see quests.py)
     - treasury: default ON, but auto-hidden when prizes is enabled
     - streams:  default ON, opt-out (not every LAN has a streamer in their ranks)
     - merch_size: default ON, opt-out (not every crew does event merch/t-shirts)
@@ -140,7 +156,36 @@ def is_feature_enabled(db: Session, feature: str) -> bool:
         return get_setting(db, "lol_stats_enabled") == "true"
     if feature == "xp":
         return get_setting(db, "xp_enabled") == "true"
+    if feature == "cards":
+        return get_setting(db, "cards_enabled") == "true"
+    if feature == "quests":
+        return get_setting(db, "quests_enabled") == "true" and get_setting(db, "xp_enabled") == "true"
     return True
+
+
+# Craving Chat window defaults: a room opens 30 days before its LAN and closes
+# 15 days after. Admins tune both, or set "always open" (router_chat.chat_window).
+CHAT_DEFAULT_DAYS_BEFORE = 30
+CHAT_DEFAULT_DAYS_AFTER = 15
+CHAT_WINDOW_MAX_DAYS = 365
+CHAT_WINDOW_DAY_KEYS = ("craving_chat_open_days_before", "craving_chat_close_days_after")
+
+
+def _days_setting(db: Session, key: str, default: int) -> int:
+    raw = get_setting(db, key)
+    if raw is None or not raw.isdigit():
+        return default
+    return min(int(raw), CHAT_WINDOW_MAX_DAYS)
+
+
+def chat_window_config(db: Session) -> dict:
+    """The Craving Chat window as /public-config exposes it (the frontend
+    mirrors the rule to decide which room to show; the backend enforces it)."""
+    return {
+        "craving_chat_open_days_before": _days_setting(db, "craving_chat_open_days_before", CHAT_DEFAULT_DAYS_BEFORE),
+        "craving_chat_close_days_after": _days_setting(db, "craving_chat_close_days_after", CHAT_DEFAULT_DAYS_AFTER),
+        "craving_chat_always_open": get_setting(db, "craving_chat_always_open") == "true",
+    }
 
 
 def wifi_config(db: Session) -> Optional[dict]:
@@ -236,6 +281,9 @@ def get_public_config(db: Session = Depends(get_db), _: User = Depends(get_curre
         "trophies_enabled": is_feature_enabled(db, "trophies"),
         "lol_stats_enabled": is_feature_enabled(db, "lol_stats"),
         "xp_enabled": is_feature_enabled(db, "xp"),
+        "quests_enabled": is_feature_enabled(db, "quests"),
+        "cards_enabled": is_feature_enabled(db, "cards"),
+        **chat_window_config(db),
     }
 
 
@@ -326,6 +374,17 @@ def upsert_setting(
         raise HTTPException(400, f"Unsupported currency: {data.value}")
     if key == "wifi_security" and data.value and data.value not in ALLOWED_WIFI_SECURITY:
         raise HTTPException(400, f"Unsupported WiFi security: {data.value}")
+    if key in CHAT_WINDOW_DAY_KEYS and data.value not in (None, ""):
+        if not data.value.isdigit() or int(data.value) > CHAT_WINDOW_MAX_DAYS:
+            raise HTTPException(400, f"{key} must be a number of days from 0 to {CHAT_WINDOW_MAX_DAYS}")
+    if key == "cards_since" and data.value:
+        try:
+            date.fromisoformat(data.value)
+        except ValueError:
+            raise HTTPException(400, "cards_since must be a date (YYYY-MM-DD)")
+    if key == "cards_enabled" and data.value == "true" and not get_setting(db, "cards_since"):
+        # The first switch-on starts the count: boosters are earned from today.
+        db.add(AppSetting(key="cards_since", value=local_today(db).isoformat()))
     s = db.query(AppSetting).filter(AppSetting.key == key).first()
     if s:
         s.value = data.value

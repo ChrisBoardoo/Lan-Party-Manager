@@ -42,14 +42,13 @@ from schemas import (
     ChatLinkPreviewOut, ChatMentionOut, ChatMessageCreate, ChatMessageOut, ChatMessageReplyPreview,
     ChatMessageUpdate, ChatReactionIn, ChatReactionOut, PinnedMessageOut,
 )
-from router_settings import is_feature_enabled
+from event_utils import local_today
+from router_settings import chat_window_config, is_feature_enabled
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-CHAT_OPENS_DAYS_BEFORE = 30
-CHAT_CLOSES_DAYS_AFTER = 15
 HISTORY_LIMIT = 200  # no pagination for v1 — "très léger"
 EDIT_WINDOW = timedelta(minutes=10)
 REPLY_PREVIEW_LEN = 140
@@ -83,11 +82,26 @@ def _message_or_404(db: Session, event_id: int, message_id: int) -> ChatMessage:
     return msg
 
 
-def _window_open(event: LanEvent, today: date | None = None) -> bool:
-    today = today or date.today()
-    opens = event.start_date - timedelta(days=CHAT_OPENS_DAYS_BEFORE)
-    closes = event.end_date + timedelta(days=CHAT_CLOSES_DAYS_AFTER)
-    return opens <= today <= closes
+def _window_open(db: Session, event: LanEvent, today: date | None = None) -> bool:
+    """Whether this LAN's room is open today (Settings → Craving Chat;
+    frontend/src/lib/eventDates.ts mirrors it).
+
+    - Default: from N days before the LAN starts to N days after it ends.
+    - Always open: rooms chain from one LAN to the next. A LAN's room opens as
+      soon as the LAN exists, and once it's over it stays open until a later
+      LAN exists to take over — but never closes sooner than N days after the
+      end, since a crew often creates the next LAN the day the last one ends.
+    """
+    today = today or local_today(db)
+    window = chat_window_config(db)
+    after = timedelta(days=window["craving_chat_close_days_after"])
+    if window["craving_chat_always_open"]:
+        if today <= event.end_date + after:
+            return True
+        later = db.query(LanEvent.id).filter(LanEvent.start_date > event.start_date).first()
+        return later is None
+    opens = event.start_date - timedelta(days=window["craving_chat_open_days_before"])
+    return opens <= today <= event.end_date + after
 
 
 def _is_attendee(db: Session, event_id: int, user_id: int) -> bool:
@@ -134,7 +148,7 @@ def _require_room_access(db: Session, event: LanEvent, user: User) -> None:
     visibility toggle, they're what the room *is*."""
     if user.role != "admin" and not is_feature_enabled(db, "craving_chat"):
         raise HTTPException(404, "This feature is not enabled")
-    if not _window_open(event):
+    if not _window_open(db, event):
         raise HTTPException(403, "The Craving Chat is closed for this event")
     if not _is_attendee(db, event.id, user.id):
         raise HTTPException(403, "Only confirmed attendees can use the Craving Chat")
@@ -516,7 +530,7 @@ def _may_stay_connected(db: Session, event_id: int, user_id: int, token_version:
         return False
     if user.role != "admin" and not is_feature_enabled(db, "craving_chat"):
         return False
-    return _window_open(event) and _is_attendee(db, event_id, user_id)
+    return _window_open(db, event) and _is_attendee(db, event_id, user_id)
 
 
 async def _push_loop(websocket: WebSocket, event_id: int, user_id: int, token_version: int) -> None:
@@ -612,7 +626,7 @@ async def chat_ws(websocket: WebSocket, event_id: int):
         if user.role != "admin" and not is_feature_enabled(db, "craving_chat"):
             await websocket.close(code=4404)
             return
-        if not _window_open(event) or not _is_attendee(db, event_id, user_id):
+        if not _window_open(db, event) or not _is_attendee(db, event_id, user_id):
             await websocket.close(code=4403)
             return
         username = user.username

@@ -22,6 +22,7 @@ function StayEditor({
   userId,
   initialArrival,
   initialDeparture,
+  deleted = false,
   onDone,
   onCancel,
 }: {
@@ -29,6 +30,8 @@ function StayEditor({
   userId: number
   initialArrival: string
   initialDeparture: string
+  // A deleted account can only be taken out of the split.
+  deleted?: boolean
   onDone: () => void
   onCancel: () => void
 }) {
@@ -59,6 +62,7 @@ function StayEditor({
   const dateInput = 'bg-background border border-border px-2 py-1 font-mono text-xs text-foreground'
   return (
     <div className="col-span-12 flex flex-wrap items-end gap-3 pt-2">
+      {!deleted && (<>
       <label className="flex flex-col gap-1 font-mono-label text-muted-foreground text-[10px]">
         {t('finances.adjust.arrival')}
         <input
@@ -88,6 +92,7 @@ function StayEditor({
       >
         {t('finances.adjust.save')}
       </button>
+      </>)}
       <button
         onClick={() => save('out')}
         disabled={busy}
@@ -102,7 +107,9 @@ function StayEditor({
       >
         {t('finances.adjust.cancel')}
       </button>
-      <p className="w-full text-[10px] text-muted-foreground">{t('finances.adjust.hint')}</p>
+      <p className="w-full text-[10px] text-muted-foreground">
+        {t(deleted ? 'finances.adjust.hintDeleted' : 'finances.adjust.hint')}
+      </p>
       {error && <p className="w-full font-mono-label text-[10px] text-red-400">{error}</p>}
     </div>
   )
@@ -120,15 +127,16 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
   const maxAmount = Math.max(...data.shares.map((s) => s.amount), 1)
   const canAdjust = isTreasurer && data.event_id != null
 
-  const togglePaid = async (toUserId: number, paid: boolean) => {
+  // fromUserId: the treasurer acting for a debtor who can't log in any more.
+  const togglePaid = async (toUserId: number, paid: boolean, fromUserId?: number) => {
     if (data.event_id == null) return
-    const key = `${toUserId}`
+    const key = `${fromUserId ?? ''}-${toUserId}`
     setBusyKey(key)
     try {
       if (paid) {
-        await expensesApi.unmarkSettlement(data.event_id, toUserId)
+        await expensesApi.unmarkSettlement(data.event_id, toUserId, fromUserId)
       } else {
-        await expensesApi.markSettlement(data.event_id, toUserId)
+        await expensesApi.markSettlement(data.event_id, toUserId, fromUserId)
       }
       onSettlementChange?.()
     } finally {
@@ -269,6 +277,7 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
                   userId={share.user_id}
                   initialArrival={share.arrival_date ?? data.event_start ?? ''}
                   initialDeparture={share.departure_date ?? data.event_end ?? ''}
+                  deleted={share.deleted}
                   onDone={doneEditing}
                   onCancel={() => setEditing(null)}
                 />
@@ -348,7 +357,8 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
             <div className="border border-border divide-y divide-border">
               {data.settlements.map((line) => {
                 const isDebtor = user?.id === line.from_user_id
-                const busy = busyKey === `${line.to_user_id}`
+                const onBehalf = !isDebtor && isTreasurer && !!line.from_inactive
+                const busy = busyKey === `${onBehalf ? line.from_user_id : ''}-${line.to_user_id}`
                 return (
                   <div
                     // A pair can have a recorded payment *and* a line still owed
@@ -378,9 +388,12 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
                     )}
 
                     <div className="ml-auto">
-                      {isDebtor ? (
+                      {isDebtor || onBehalf ? (
                         <button
-                          onClick={() => togglePaid(line.to_user_id, line.paid)}
+                          onClick={() =>
+                            togglePaid(line.to_user_id, line.paid, onBehalf ? line.from_user_id : undefined)
+                          }
+                          title={onBehalf ? t('finances.markPaidOnBehalf') : undefined}
                           disabled={busy}
                           className={`font-mono-label text-[11px] px-3 py-1.5 border transition-colors disabled:opacity-50 ${
                             line.paid

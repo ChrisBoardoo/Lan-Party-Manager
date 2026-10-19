@@ -9,6 +9,7 @@ import { User, LanEvent, BadgeAward, Setup, UserGameStatsLine, UserTrophy } from
 import Badge from '../components/ui/Badge'
 import BadgeList from '../components/BadgeList'
 import XpCard from '../components/xp/XpCard'
+import { CollectionLink } from '../components/cards/CardsEntry'
 import SetupView from '../components/SetupView'
 import { ReactionBar } from '../components/MediaReactions'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
@@ -306,8 +307,9 @@ export default function PlayerProfile() {
         </div>
       </div>
 
-      <div className="mb-6 empty:hidden">
+      <div className="mb-6 space-y-4 empty:hidden">
         <XpCard userId={id} />
+        <CollectionLink userId={id} />
       </div>
 
       {trophies.length > 0 && (

@@ -13,6 +13,9 @@ import Lightbox from '../components/ui/Lightbox'
 import EventCountdown from '../components/ui/EventCountdown'
 import CravingChatSection from '../components/CravingChatSection'
 import TrophyVoteBanner from '../components/trophies/TrophyVoteBanner'
+import { BoosterBanner } from '../components/cards/CardsEntry'
+import MonthlyContract from '../components/quests/MonthlyContract'
+import { openTrophyBallot } from '../components/trophies/TrophyVoteModal'
 import XpCoin from '../components/xp/XpCoin'
 import XpLeaderboard from '../components/xp/XpLeaderboard'
 import { ReactionBar } from '../components/MediaReactions'
@@ -30,7 +33,15 @@ const ACTION_ICONS: Record<string, string> = {
   expense_created: '💸',
   lan_countdown: '⏳',
   rsvp_adjusted: '🗓️',
+  trophy_awarded: '🏆',
+  trophy_vote_open: '🗳️',
+  trophy_vote_nudge: '⏳',
 }
+
+// Trophy-night notifications are addressed to the viewer: shown in their
+// language (the stored line is English, for the desktop toast) and they
+// open the vote modal.
+const TROPHY_VOTE_ACTIONS = new Set(['trophy_vote_open', 'trophy_vote_nudge'])
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -213,6 +224,8 @@ export default function Dashboard() {
         </Link>
       )}
       {nextEvent && trophiesEnabled && nextEvent.my_rsvp === 'in' && <TrophyVoteBanner eventId={nextEvent.id} />}
+      <BoosterBanner />
+      <MonthlyContract className="mb-12" />
 
       {/* Stats bar */}
       <div className={`grid grid-cols-2 ${treasuryEnabled ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-px bg-border mb-12`}>
@@ -419,9 +432,19 @@ export default function Dashboard() {
                         </span>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-foreground leading-snug truncate">
-                          {entry.description}
-                        </p>
+                        {TROPHY_VOTE_ACTIONS.has(entry.action) ? (
+                          <button
+                            type="button"
+                            onClick={openTrophyBallot}
+                            className="block w-full text-left text-xs text-accent hover:underline leading-snug truncate"
+                          >
+                            {t(entry.action === 'trophy_vote_open' ? 'trophies.feed.voteOpen' : 'trophies.feed.voteNudge')}
+                          </button>
+                        ) : (
+                          <p className="text-xs text-foreground leading-snug truncate">
+                            {entry.description}
+                          </p>
+                        )}
                         <p className="font-mono-label text-muted-foreground text-[10px] mt-0.5">
                           {entry.user.username} · {timeAgo(entry.created_at)}
                         </p>

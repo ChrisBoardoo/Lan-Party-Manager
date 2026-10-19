@@ -51,6 +51,9 @@ def _line(users: Dict[int, Any], from_id: int, to_id: int, cents: int, viewer_id
         "to_username": getattr(creditor, "username", "?"),
         # Reveal the creditor's contact phone only to the debtor who owes them.
         "to_phone": getattr(creditor, "phone", None) if viewer_id == from_id and not paid else None,
+        # A debtor who can't log in any more can't record their own payment;
+        # the treasurer records it for them (router_expenses.mark_settlement).
+        "from_inactive": not getattr(debtor, "is_active", True),
         "amount": cents / 100,
         "paid": paid,
         "payment_id": payment_id,
@@ -137,6 +140,9 @@ def calculate_prorata(
             "departure_date": stay_by_user[uid][1],
             "percentage": tenths[uid] / 10,
             "amount": share_cents[uid] / 100,
+            # A deleted member can only be taken out of the split, not given
+            # new dates (router_events.adjust_rsvp).
+            "deleted": getattr(users[uid], "deleted_at", None) is not None,
         }
         for uid in nights_by_user
     ]

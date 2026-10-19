@@ -7,7 +7,7 @@
 **Gestion d'événements auto-hébergée pour LAN parties** — invitations, tournois, trésorerie,
 médias et streams en direct, le tout sur votre propre matériel. D'un Raspberry Pi à un NUC.
 
-[![Version](https://img.shields.io/badge/version-1.3.5-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.4.0-FF3D00?style=flat-square)](#)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0-4C566A?style=flat-square)](../LICENSE)
 [![Plateforme](https://img.shields.io/badge/plateforme-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -66,7 +66,7 @@ compte cloud, aucune télémétrie, aucun abonnement. Les données de votre équ
 | **Trésorerie** | Suivi des dépenses par catégorie, **répartition automatique au prorata** selon les nuits de présence, règlement entre pairs (P2P) et export CSV en un clic. |
 | **Lots** | Présentez les lots (photo + description) par événement pour récompenser les vainqueurs des tournois. Activer les Lots masque la Trésorerie — les équipes qui offrent des lots ne partagent généralement pas les dépenses. Optionnel. |
 | **Sponsors** | Bannières de sponsors (image ou vidéo) avec lien cliquable, affichées sur les pages événement, tournois et profil joueur. Optionnel. |
-| **Arène / Tournois** | Événements par équipe ou solo/individuel ; **arbres à élimination directe et toutes rondes** (classement V/D/N/Pts) ; têtes de série par équipe ; suivi des scores en direct ; **signalement des scores depuis le téléphone** (les joueurs signalent, l'organisateur confirme) ; vue plein écran de l'arbre pour la projection. |
+| **Arène / Tournois** | Événements par équipe ou solo/individuel ; **arbres à élimination directe et toutes rondes** (classement V/D/N/Pts) ; têtes de série par équipe ; **tirage aléatoire des équipes** (taille fixe, relance à volonté, restants placés à la main) ; suivi des scores en direct ; **signalement des scores depuis le téléphone** (les joueurs signalent, l'organisateur confirme) ; vue plein écran de l'arbre pour la projection. |
 | **Streams en direct** | Intégration des chaînes **et clips** Twitch ; statut en direct + nombre de spectateurs via l'API Twitch Helix ; iframe de chat optionnelle. |
 | **Galerie média** | Espace photo/vidéo partagé ; envois taggés par événement ; **réactions en emoji** ; suppression groupée (admin) ; miniatures vidéo générées par ffmpeg ; lightbox intégrée. |
 | **Ma configuration** | Une vitrine du PC gaming d'un membre sur son profil — composants, champs personnalisés, jusqu'à 5 photos, réactions en emoji des coéquipiers — avec un lien public optionnel qu'il crée et révoque lui-même. Optionnel. |
@@ -443,12 +443,13 @@ Les endpoints de liste acceptent la pagination `?limit=` et `?offset=`.
 | GET     | `/api/tournaments/{id}`                      | Tous                | Détail d'un tournoi                          |
 | GET     | `/api/tournaments/{id}/standings`            | Tous                | Classement toutes rondes (V/D/N/Pts)         |
 | POST    | `/api/tournaments/`                          | Organisateur+       | Créer un tournoi                             |
-| PUT     | `/api/tournaments/{id}`                      | Organisateur / Admin | Modifier le nom ou le statut                |
+| PUT     | `/api/tournaments/{id}`                      | Organisateur / Admin | Modifier le nom ou le statut ; format et taille d'équipe tant qu'il est en attente |
 | DELETE  | `/api/tournaments/{id}`                      | Organisateur / Admin | Supprimer un tournoi                        |
-| POST    | `/api/tournaments/{id}/teams`                | Tous                | Ajouter une équipe                           |
-| PUT     | `/api/tournaments/{id}/teams/{team_id}`      | Tous                | Modifier une équipe                          |
+| POST    | `/api/tournaments/{id}/teams`                | Organisateur / Admin | Ajouter une équipe                          |
+| PUT     | `/api/tournaments/{id}/teams`                | Organisateur / Admin | Remplacer toutes les équipes (tirage aléatoire), tant qu'il est en attente |
+| PUT     | `/api/tournaments/{id}/teams/{team_id}`      | Organisateur / Admin | Modifier une équipe                         |
 | PATCH   | `/api/tournaments/{id}/teams/{team_id}/seed` | Organisateur / Admin | Définir la tête de série                    |
-| DELETE  | `/api/tournaments/{id}/teams/{team_id}`      | Tous                | Retirer une équipe                           |
+| DELETE  | `/api/tournaments/{id}/teams/{team_id}`      | Organisateur / Admin | Retirer une équipe                          |
 | POST    | `/api/tournaments/{id}/generate-brackets`    | Organisateur / Admin | Générer l'arbre / le calendrier toutes rondes |
 | PUT     | `/api/tournaments/{id}/matches/{match_id}`   | Organisateur / Admin | Mettre à jour le score / faire avancer      |
 

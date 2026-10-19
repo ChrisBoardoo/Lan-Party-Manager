@@ -111,7 +111,11 @@ def list_activity(
     entries = (
         _visible_to(db.query(ActivityLog), current_user.id)
         .options(selectinload(ActivityLog.user))
-        .order_by(ActivityLog.created_at.desc())
+        # created_at has one-second resolution: rows written together (a reveal
+        # with co-winners) tie, and the id keeps the newest first. The desktop
+        # app takes the first item as its "last seen" id — with the lower id of
+        # a tie there, the other row re-notified on every poll.
+        .order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc())
         .offset(offset)
         .limit(limit)
         .all()

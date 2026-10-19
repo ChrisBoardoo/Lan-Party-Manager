@@ -240,6 +240,8 @@ export interface ProRataShare {
   departure_date?: string
   percentage: number
   amount: number
+  // Deleted account: can only be taken out of the split, not given new dates.
+  deleted?: boolean
 }
 
 export interface SettlementLine {
@@ -253,6 +255,8 @@ export interface SettlementLine {
   // still owed. A paid line no longer counts as debt.
   paid: boolean
   payment_id?: number | null
+  // The debtor can't log in any more: the treasurer records their payment.
+  from_inactive?: boolean
 }
 
 export interface ProRataResult {
@@ -340,6 +344,29 @@ export interface XpSummary {
   next_level_at: number
   title: string
   breakdown: XpLine[]
+}
+
+/** One objective of the month's contract; `code` is an i18n key
+ *  (`quests.objective.<code>`), `progress` is capped at `target`. */
+export interface QuestObjective {
+  code: string
+  target: number
+  progress: number
+  done: boolean
+  /** rsvp_next: the LAN to answer. */
+  event_title?: string | null
+}
+
+export interface QuestContract {
+  /** "YYYY-MM" */
+  month: string
+  ends_on: string
+  /** Today included. */
+  days_left: number
+  required: number
+  xp: number
+  done: boolean
+  objectives: QuestObjective[]
 }
 
 export interface XpCrewEntry {
@@ -452,6 +479,29 @@ export interface TrophyEdition {
   eligible_count: number
   my_vote: number | null
   tally: { user_id: number; username: string; avatar_url: string | null; votes: number }[] | null
+}
+
+export interface TrophyNominee {
+  user_id: number
+  username: string
+  avatar_url: string | null
+}
+
+/** The viewer's open trophy votes (GET /trophies/ballot) — the vote modal's
+ *  data. `nudge_id` changes when an admin sends a reminder. */
+export interface TrophyBallot {
+  event_id: number
+  event_title: string
+  editions: TrophyEdition[]
+  nominees: TrophyNominee[]
+  nudge_id: number | null
+}
+
+/** What a trophy-night action (open/close every vote, nudge) did. */
+export interface TrophyBulkResult {
+  changed: number
+  notified: number
+  editions: TrophyEdition[]
 }
 
 export interface UserTrophy {
@@ -728,6 +778,14 @@ export interface KioskSummary {
   wifi: WifiConfig | null
   join_url: string | null
   trophies: KioskTrophy[]
+  /** Open trophy votes of the current event: turnout only, never names. */
+  trophy_vote: KioskTrophyVote | null
+}
+
+export interface KioskTrophyVote {
+  eligible: number
+  done: number
+  trophies: { edition_id: number; name: string; emoji: string | null; image_url: string | null; voters: number }[]
 }
 
 /** Guest WiFi. `security` is the WIFI: QR payload's T: value. */
@@ -1065,3 +1123,82 @@ export const EXPENSE_CATEGORIES = [
   'prizes',
 ]
 
+
+// ── Cards & boosters (backend/cards.py) ──────────────────────────────────────
+
+export type CardRarity = 'common' | 'epic'
+export type BoosterSource = 'attendance' | 'trophy' | 'xp_level' | 'purchase'
+
+/** A member as printed on a card of one edition (LAN). `image_url` is null when
+ *  they had no photo, or their account was deleted (`departed`). */
+export interface CardFace {
+  user_id: number
+  username: string
+  image_url: string | null
+  xp_level: number | null
+  event_id: number
+  event_title: string
+  year: number | null
+  number: number | null
+  edition_size: number
+  trophies: string[]
+  departed: boolean
+}
+
+export interface CardItem {
+  id: number
+  rarity: CardRarity
+  kind: 'pulled' | 'signature'
+  slot: number
+  source_type: BoosterSource | 'signature'
+  obtained_at: string | null
+  face: CardFace
+}
+
+/** A booster before it's opened: never its content. */
+export interface Booster {
+  id: number
+  source_type: BoosterSource
+  event_id: number
+  event_title: string
+  size: number
+  epic_rate: number
+  granted_at: string | null
+  opened_at: string | null
+}
+
+export interface CardsMe {
+  boosters: Booster[]
+  xp_balance: number | null
+  booster_price: number
+  purchases_per_week: number
+  /** Purchases left this rolling week; null when XP is off. */
+  purchases_left: number | null
+  /** When the next purchase frees up, once the weekly limit is reached. */
+  next_purchase_at: string | null
+}
+
+export interface BoosterOpening {
+  booster: Booster
+  cards: CardItem[] // slot order: an Epic is always last
+  new_member_ids: number[]
+}
+
+export interface CollectionMember {
+  user_id: number
+  username: string
+  image_url: string | null
+  departed: boolean
+  count: number
+  epic_count: number
+  cards: CardItem[]
+}
+
+export interface CardCollection {
+  owner_id: number
+  members: CollectionMember[]
+  collected: number
+  crew_size: number
+  total_cards: number
+  epic_cards: number
+}

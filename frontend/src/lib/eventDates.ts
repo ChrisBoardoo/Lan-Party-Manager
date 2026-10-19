@@ -15,18 +15,34 @@ export function daysUntil(startDate: string): number {
   return Math.round((start.getTime() - today.getTime()) / DAY_MS)
 }
 
-// Mirrors backend/router_chat.py's `_window_open`: the Craving Chat is open
-// from 30 days before an event's start to 15 days after its end. Duplicated
-// (not fetched) because it only gates which UI to render — the backend is the
-// real enforcement point for every actual read/write.
-const CHAT_OPENS_DAYS_BEFORE = 30
-const CHAT_CLOSES_DAYS_AFTER = 15
+/** The Craving Chat window, as an admin set it (Settings → Craving Chat;
+ *  served by /public-config). */
+export interface ChatWindowRules {
+  daysBefore: number
+  daysAfter: number
+  alwaysOpen: boolean
+}
 
-export function isChatWindowOpen(startDate: string, endDate: string): boolean {
-  const today = new Date(new Date().toDateString())
-  const opens = new Date(`${startDate}T00:00:00`).getTime() - CHAT_OPENS_DAYS_BEFORE * DAY_MS
-  const closes = new Date(`${endDate}T00:00:00`).getTime() + CHAT_CLOSES_DAYS_AFTER * DAY_MS
-  return today.getTime() >= opens && today.getTime() <= closes
+export const DEFAULT_CHAT_RULES: ChatWindowRules = { daysBefore: 30, daysAfter: 15, alwaysOpen: false }
+
+// Mirrors backend/router_chat.py's `_window_open`. Duplicated (not fetched)
+// because it only picks which room the UI shows — the backend is the real
+// enforcement point for every actual read/write.
+// - Default: from `daysBefore` before the event's start to `daysAfter` after its end.
+// - Always open: the room is open as soon as the LAN exists; once it's over it
+//   stays open until a later LAN exists (`hasLaterEvent`) — never closing sooner
+//   than `daysAfter` after the end.
+export function isChatWindowOpen(
+  startDate: string,
+  endDate: string,
+  rules: ChatWindowRules = DEFAULT_CHAT_RULES,
+  hasLaterEvent = false,
+): boolean {
+  const today = new Date(new Date().toDateString()).getTime()
+  const closes = new Date(`${endDate}T00:00:00`).getTime() + rules.daysAfter * DAY_MS
+  if (rules.alwaysOpen) return today <= closes || !hasLaterEvent
+  const opens = new Date(`${startDate}T00:00:00`).getTime() - rules.daysBefore * DAY_MS
+  return today >= opens && today <= closes
 }
 
 // Today as YYYY-MM-DD in the browser's timezone — the same shape as an

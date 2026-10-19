@@ -336,7 +336,9 @@ def adjust_rsvp(
     if not event:
         raise HTTPException(404, "Event not found")
     member = db.query(models.User).filter(models.User.id == user_id).first()
-    if not member or member.deleted_at is not None:
+    # A deleted member can still be taken out of an event (their RSVP is kept
+    # on purpose and freezes them into a started event's split), never put in.
+    if not member or (member.deleted_at is not None and data.status == "in"):
         raise HTTPException(404, "User not found")
 
     rsvp = db.query(EventRSVP).filter(EventRSVP.event_id == event_id, EventRSVP.user_id == user_id).first()
@@ -355,7 +357,7 @@ def adjust_rsvp(
         db, current_user.id, "rsvp_adjusted",
         f"{member.username} @ {event.title}: {before} became {after}",
     )
-    if member.id != current_user.id:
+    if member.id != current_user.id and member.deleted_at is None:
         add_activity(
             db, user_id=current_user.id, action="rsvp_adjusted",
             description=(

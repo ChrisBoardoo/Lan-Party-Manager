@@ -11,7 +11,7 @@ from models import (
 )
 from schemas import (
     TournamentCreate, TournamentOut, TournamentUpdate,
-    TeamCreate, TeamOut, MatchUpdate, MatchOut, ReportScore,
+    TeamCreate, TeamOut, TeamsReplace, MatchUpdate, MatchOut, ReportScore,
     RoundRobinStanding, HallOfFameEntry,
     TournamentGameOut, GameStatsSummary, GameStatsLeader, GameStatsDetail,
     PlayerGameStatsLine, UnlinkedTournamentOut,
@@ -65,6 +65,11 @@ def _finalize_match(db: Session, tid: int, t: Tournament, match: Match, actor_id
     resolve the winner, advance the bracket (or close the round robin), and log
     the activity. Shared by the organizer's direct update and the confirm-a-
     reported-score flow so both behave identically."""
+    # When it was decided: XP only counts matches decided at a LAN (xp.py), the
+    # kiosk's latest champion and the first_blood badge sort on it. Kept on a
+    # later score fix, so correcting a result after the LAN doesn't move it.
+    if match.played_at is None:
+        match.played_at = datetime.utcnow()
     if t.bracket_type == "round_robin":
         if match.score_a > match.score_b:
             match.winner_id = match.team_a_id
@@ -395,6 +400,11 @@ def update_tournament(
     if t.organizer_id != current_user.id and current_user.role != "admin":
         raise HTTPException(403, "Forbidden")
     fields = data.model_dump(exclude_unset=True)
+    for locked in ("bracket_type", "max_team_size"):
+        if locked in fields and fields[locked] is None:
+            del fields[locked]
+    if ("bracket_type" in fields or "max_team_size" in fields) and t.status != "pending":
+        raise HTTPException(409, "Format and team size are locked once the brackets are generated")
     game_id = fields.pop("game_id", None)
     game_name = fields.pop("game_name", None)
     if game_id is not None or (game_name and game_name.strip()):
@@ -474,6 +484,25 @@ def _editable_teams_tournament(db: Session, tid: int, user: User) -> Tournament:
     return t
 
 
+def _one_team_per_player(db: Session, tid: int, members, team_id: Optional[int] = None) -> None:
+    """A member account plays for one team of a tournament, never two (it would
+    win whichever side wins). Guests (no account) are free-text names: no check."""
+    ids = [m.user_id for m in members if m.user_id is not None]
+    if len(ids) != len(set(ids)):
+        raise HTTPException(400, "A player can only be on one team")
+    if not ids:
+        return
+    q = (
+        db.query(TeamMember.id)
+        .join(Team, Team.id == TeamMember.team_id)
+        .filter(Team.tournament_id == tid, TeamMember.user_id.in_(ids))
+    )
+    if team_id is not None:
+        q = q.filter(Team.id != team_id)
+    if q.first():
+        raise HTTPException(400, "A player can only be on one team")
+
+
 @router.post("/{tid}/teams", response_model=TeamOut, status_code=201)
 def add_team(
     tid: int,
@@ -482,6 +511,7 @@ def add_team(
     current_user: User = Depends(get_current_user),
 ):
     _editable_teams_tournament(db, tid, current_user)
+    _one_team_per_player(db, tid, data.members)
 
     team = Team(tournament_id=tid, team_name=data.team_name, color=data.color, seed=data.seed)
     db.add(team)
@@ -493,6 +523,40 @@ def add_team(
     db.commit()
     db.refresh(team)
     return team
+
+
+@router.put("/{tid}/teams", response_model=list[TeamOut])
+def replace_teams(
+    tid: int,
+    data: TeamsReplace,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The random team draw: every team replaced in one transaction, so a redraw
+    never leaves the tournament half old, half new. Same rule as the routes below:
+    organizer or admin, and only while the tournament is pending."""
+    _editable_teams_tournament(db, tid, current_user)
+    picked = [m.user_id for spec in data.teams for m in spec.members if m.user_id is not None]
+    if len(picked) != len(set(picked)):
+        raise HTTPException(400, "A player can only be on one team")
+
+    for team in db.query(Team).filter(Team.tournament_id == tid).all():
+        db.delete(team)
+    db.flush()
+
+    created = []
+    for spec in data.teams:
+        team = Team(tournament_id=tid, team_name=spec.team_name, color=spec.color, seed=spec.seed)
+        db.add(team)
+        db.flush()
+        for m in spec.members:
+            db.add(TeamMember(team_id=team.id, **m.model_dump()))
+        created.append(team)
+
+    db.commit()
+    for team in created:
+        db.refresh(team)
+    return created
 
 
 @router.put("/{tid}/teams/{team_id}", response_model=TeamOut)
@@ -507,6 +571,7 @@ def update_team(
     team = db.query(Team).filter(Team.id == team_id, Team.tournament_id == tid).first()
     if not team:
         raise HTTPException(404, "Team not found")
+    _one_team_per_player(db, tid, data.members, team_id=team.id)
 
     team.team_name = data.team_name
     if data.color is not None:
@@ -670,6 +735,8 @@ def update_match(
 
     if match.status == "completed":
         _finalize_match(db, tid, t, match, current_user.id)
+    else:
+        match.played_at = None  # reopened: it will be decided again
 
     db.commit()
     db.refresh(match)

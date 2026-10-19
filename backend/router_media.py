@@ -165,6 +165,10 @@ async def upload_media(
 ):
     if file.content_type not in ALLOWED_MIME:
         raise HTTPException(400, "Unsupported file type. Allowed: JPEG, PNG, GIF, WebP, MP4, WebM, MOV, AVI.")
+    # Same check as re-tagging (update_media): a made-up event id used to open a
+    # fresh photo-XP cap of its own.
+    if event_id is not None and not db.query(LanEvent.id).filter(LanEvent.id == event_id).first():
+        raise HTTPException(400, "Event not found")
 
     content = await read_capped(file, MAX_SIZE)
 

@@ -4,7 +4,7 @@ Like the badges, every source is asserted both ways: it pays when the fact is
 there, and it doesn't when the fact is missing (a bye, a draw, a closed trophy,
 a video, an unlinked player). XP that fires on nothing is noise.
 """
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace as NS
 
 import database
@@ -45,10 +45,17 @@ def _team(tid, *user_ids):
     return NS(id=tid, team_name=f"T{tid}", color=None, seed=None, members=[NS(user_id=u) for u in user_ids])
 
 
-def _match(rnd, a, b, winner=None, score=(0, 0), status="completed", rn=1):
+# The LAN these tournaments belong to, and a moment during it: since the
+# anti-farming rules (2026-10-18) only matches decided at a LAN count — that rule
+# has its own tests in test_anti_farming.py.
+LAN = {1: (datetime(2026, 10, 14), datetime(2026, 10, 20))}
+DURING = datetime(2026, 10, 15, 20, 0)
+
+
+def _match(rnd, a, b, winner=None, score=(0, 0), status="completed", rn=1, played_at=DURING):
     return NS(
         round=rnd, round_number=rn, team_a_id=a, team_b_id=b, winner_id=winner,
-        score_a=score[0], score_b=score[1], status=status, played_at=None,
+        score_a=score[0], score_b=score[1], status=status, played_at=played_at,
     )
 
 
@@ -59,7 +66,7 @@ def _lines(ledger, uid):
 def test_bracket_pays_by_stage_plus_champion_bonus():
     # 4 teams; team 1 (users 1+2) wins semi + final, team 3 (user 3) wins the other semi.
     t = NS(
-        bracket_type="single_elimination", status="completed",
+        event_id=1, bracket_type="single_elimination", status="completed",
         teams=[_team(1, 1, 2), _team(2, 4), _team(3, 3), _team(4, None)],
         matches=[
             _match("semifinal", 1, 2, winner=1),
@@ -68,7 +75,7 @@ def test_bracket_pays_by_stage_plus_champion_bonus():
         ],
     )
     ledger = _Ledger()
-    add_tournament_xp(ledger, [t])
+    add_tournament_xp(ledger, [t], LAN)
 
     assert _lines(ledger, 1) == {"match_semifinal": (1, 60), "match_final": (1, 100), "tournament_win": (1, 50)}
     assert _lines(ledger, 2) == _lines(ledger, 1)
@@ -79,7 +86,7 @@ def test_bracket_pays_by_stage_plus_champion_bonus():
 
 def test_bye_draw_pending_and_unlinked_pay_nothing():
     t = NS(
-        bracket_type="round_robin", status="round_robin",
+        event_id=1, bracket_type="round_robin", status="round_robin",
         teams=[_team(1, 1), _team(2, 2), _team(3, None)],
         matches=[
             _match("quarterfinal", 1, None, winner=1),               # bye: no opponent
@@ -89,23 +96,23 @@ def test_bye_draw_pending_and_unlinked_pay_nothing():
         ],
     )
     ledger = _Ledger()
-    add_tournament_xp(ledger, [t])
+    add_tournament_xp(ledger, [t], LAN)
     assert ledger.rows == {}
 
 
 def test_round_robin_win_pays_the_flat_rate_and_no_bonus_until_completed():
     t = NS(
-        bracket_type="round_robin", status="round_robin",
+        event_id=1, bracket_type="round_robin", status="round_robin",
         teams=[_team(1, 1), _team(2, 2)],
         matches=[_match("round_1", 1, 2, score=(2, 0))],
     )
     ledger = _Ledger()
-    add_tournament_xp(ledger, [t])
+    add_tournament_xp(ledger, [t], LAN)
     assert _lines(ledger, 1) == {"match_other": (1, 15)}
 
     t.status = "completed"
     ledger = _Ledger()
-    add_tournament_xp(ledger, [t])
+    add_tournament_xp(ledger, [t], LAN)
     assert _lines(ledger, 1) == {"match_other": (1, 15), "tournament_win": (1, 50)}
 
 
@@ -139,9 +146,10 @@ def _event(created_by):
 
 
 def _media(uid, event_id, file_type="image"):
+    # Uploaded during the LAN of _event(): photos count from then to a week after.
     return models.MediaItem(
         filename="f", original_name="f", file_type=file_type, mime_type="image/jpeg",
-        file_size=1, url="/u/f", event_id=event_id, uploaded_by=uid,
+        file_size=1, url="/u/f", event_id=event_id, uploaded_by=uid, created_at=datetime(2026, 10, 15, 12, 0),
     )
 
 
@@ -169,9 +177,14 @@ def test_chat_pays_per_step_with_a_daily_cap():
     uid = make_user("talker")
     eid = _event(uid)
 
+    sent = iter(range(10_000))
+
     def msgs(n, day):
+        # Distinct and long enough: short or repeated messages don't count
+        # (test_anti_farming.py has those).
         return [
-            models.ChatMessage(event_id=eid, user_id=uid, content="gg", created_at=datetime(2026, 10, day, 20, 0))
+            models.ChatMessage(event_id=eid, user_id=uid, content=f"message {next(sent)}",
+                               created_at=datetime(2026, 10, day, 20, 0))
             for _ in range(n)
         ]
 
@@ -194,6 +207,29 @@ def test_avatar_pays_once():
     finally:
         session.close()
     assert [(l.code, l.xp) for l in _summary(uid).breakdown] == [("avatar", 10)]
+
+
+def test_attendance_pays_once_per_lan_from_the_day_after_it_ends():
+    from event_utils import local_today
+
+    there, away = make_user("there"), make_user("away")
+    session = database.SessionLocal()
+    try:
+        today = local_today(session)
+    finally:
+        session.close()
+
+    def lan(start_ago, end_ago):
+        (eid,) = _add(models.LanEvent(title="LAN", start_date=today - timedelta(days=start_ago),
+                                      end_date=today - timedelta(days=end_ago), created_by=there))
+        return eid
+
+    # Two LANs over, however long ago (retroactive), and one ending today: not yet.
+    long_ago, last_week, running = lan(400, 396), lan(5, 1), lan(1, 0)
+    _add(*[models.EventRSVP(event_id=e, user_id=there, status="in") for e in (long_ago, last_week, running)],
+         models.EventRSVP(event_id=last_week, user_id=away, status="out"))
+    assert [(l.code, l.count, l.xp) for l in _summary(there).breakdown] == [("attendance", 2, 200)]
+    assert _summary(away).total == 0
 
 
 def test_trophies_count_when_revealed_and_the_feature_is_on():

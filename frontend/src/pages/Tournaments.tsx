@@ -12,12 +12,13 @@ import Input from '../components/ui/Input'
 import Badge from '../components/ui/Badge'
 import TournamentBracket from '../components/TournamentBracket'
 import CreateTournamentModal from '../components/CreateTournamentModal'
+import RandomTeamsModal from '../components/RandomTeamsModal'
 import SponsorStrip from '../components/SponsorStrip'
 import MiniGames from '../components/MiniGames'
 import GameStatsTab from '../components/GameStatsTab'
 import {
   Plus, Trophy, Users, User as UserIcon, ChevronRight, X, ArrowRight,
-  Zap, Trash2, RefreshCw, Table2, Check, Pencil, ExternalLink, Gamepad2, BarChart3,
+  Zap, Trash2, RefreshCw, Table2, Check, Pencil, ExternalLink, Gamepad2, BarChart3, Dices,
 } from 'lucide-react'
 
 // ── Add Team Modal ────────────────────────────────────────────────────────────
@@ -149,7 +150,7 @@ function AddTeamModal({
 
   const onSubmit = async (data: TeamForm) => {
     const byId = new Map(allUsers.map((u) => [u.id, u]))
-    const members = data.members.flatMap((m) => {
+    const members: { player_name: string; user_id?: number }[] = data.members.flatMap((m) => {
       if (m.pick === GUEST) return m.player_name.trim() ? [{ player_name: m.player_name.trim() }] : []
       const u = m.pick ? byId.get(Number(m.pick)) : undefined
       return u ? [{ player_name: u.username, user_id: u.id }] : []
@@ -158,16 +159,33 @@ function AddTeamModal({
       setMemberError(t('tournaments.teamModal.playerNameRequired'))
       return
     }
+    // One account, one team: the server refuses it too (an account on both
+    // sides would win whichever side wins), say it before sending.
+    const taken = members.find((m) => m.user_id != null && takenBy.has(m.user_id))
+    if (taken && taken.user_id != null) {
+      setMemberError(t('tournaments.teamModal.playerTaken', { name: taken.player_name, team: takenBy.get(taken.user_id) }))
+      return
+    }
+    const ids = members.map((m) => m.user_id).filter((id) => id != null)
+    if (new Set(ids).size !== ids.length) {
+      setMemberError(t('tournaments.teamModal.playerTwice'))
+      return
+    }
     const payload = {
       team_name: isIndividual ? members[0]?.player_name || data.team_name : data.team_name,
       color: isIndividual ? undefined : (data.color || undefined),
       seed: data.seed ? Number(data.seed) : undefined,
       members,
     }
-    if (isEditing && team) {
-      await tournamentsApi.updateTeam(tournament.id, team.id, payload)
-    } else {
-      await tournamentsApi.addTeam(tournament.id, payload)
+    try {
+      if (isEditing && team) {
+        await tournamentsApi.updateTeam(tournament.id, team.id, payload)
+      } else {
+        await tournamentsApi.addTeam(tournament.id, payload)
+      }
+    } catch {
+      setMemberError(t('tournaments.teamModal.saveFailed'))
+      return
     }
     onAdd()
     onClose()
@@ -338,6 +356,7 @@ export default function Tournaments() {
   const [standings, setStandings] = useState<RoundRobinStanding[]>([])
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showAddTeam, setShowAddTeam] = useState(false)
+  const [showDraw, setShowDraw] = useState(false)
   const [editingTeam, setEditingTeam] = useState<Team | undefined>(undefined)
   const [generatingBrackets, setGeneratingBrackets] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -570,12 +589,22 @@ export default function Tournaments() {
                     {selected.event_type === 'individual' ? t('tournaments.playersLabel') : t('tournaments.teamsLabel')} ({selected.teams.length})
                   </p>
                   {isOrganizer && selected.status === 'pending' && (
-                    <button
-                      onClick={() => { setEditingTeam(undefined); setShowAddTeam(true) }}
-                      className="font-mono-label text-muted-foreground hover:text-foreground text-[10px] flex items-center gap-1"
-                    >
-                      <Plus size={10} /> {selected.event_type === 'individual' ? t('tournaments.teamModal.addPlayer') : t('tournaments.teamModal.addTeam')}
-                    </button>
+                    <div className="flex items-center gap-4">
+                      {selected.event_type === 'team' && (
+                        <button
+                          onClick={() => setShowDraw(true)}
+                          className="font-mono-label text-accent hover:text-accent/80 text-[10px] flex items-center gap-1"
+                        >
+                          <Dices size={10} /> {t('tournaments.draw.button')}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setEditingTeam(undefined); setShowAddTeam(true) }}
+                        className="font-mono-label text-muted-foreground hover:text-foreground text-[10px] flex items-center gap-1"
+                      >
+                        <Plus size={10} /> {selected.event_type === 'individual' ? t('tournaments.teamModal.addPlayer') : t('tournaments.teamModal.addTeam')}
+                      </button>
+                    </div>
                   )}
                 </div>
                 {selected.teams.length === 0 ? (
@@ -727,6 +756,14 @@ export default function Tournaments() {
           allUsers={allUsers}
           onClose={() => { setShowAddTeam(false); setEditingTeam(undefined) }}
           onAdd={loadSelected}
+        />
+      )}
+      {showDraw && selected && (
+        <RandomTeamsModal
+          tournament={selected}
+          allUsers={allUsers}
+          onClose={() => setShowDraw(false)}
+          onDone={loadSelected}
         />
       )}
     </main>

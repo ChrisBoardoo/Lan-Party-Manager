@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -38,6 +40,9 @@ _EMPTY_PRORATA = {
 class SettlementMark(BaseModel):
     event_id: int
     to_user_id: int
+    # Only for a treasurer recording the payment of a member who can't log in
+    # any more (deactivated or deleted); omitted, it's the caller's own line.
+    from_user_id: Optional[int] = None
 
 
 @router.get("/prorata")
@@ -88,8 +93,13 @@ def get_expenses(
     return query.order_by(Expense.date.desc()).offset(offset).limit(limit).all()
 
 
-def _validate_payer(db: Session, paid_by):
-    if paid_by is not None and not db.query(User).filter(User.id == paid_by).first():
+def _validate_payer(db: Session, paid_by, current=None):
+    """`current` is the expense's payer before an edit: a deleted member can
+    stay the payer of what they fronted, but not be picked for a new one."""
+    if paid_by is None:
+        return
+    payer = db.query(User).filter(User.id == paid_by).first()
+    if not payer or (payer.deleted_at is not None and paid_by != current):
         raise HTTPException(400, "paid_by user not found")
 
 
@@ -141,7 +151,7 @@ def update_expense(
         raise HTTPException(404, "Expense not found")
     payload = data.model_dump()
     payload["paid_by"] = payload.get("paid_by") or expense.paid_by or current_user.id
-    _validate_payer(db, payload["paid_by"])
+    _validate_payer(db, payload["paid_by"], current=expense.paid_by or expense.created_by)
     _validate_event(db, payload["event_id"])
     before = _describe(db, expense)
     for field, value in payload.items():
@@ -169,10 +179,34 @@ def delete_expense(
 
 
 # ── Settlement "payment sent" (self-service, any member) ────────────────────────
-# A debtor marks/reverses only their OWN debt line (from_user_id == themselves).
+# A debtor marks/reverses only their OWN debt line (from_user_id == themselves),
+# except that a treasurer records it for a debtor who can't log in any more
+# (deactivated or deleted, still in a started LAN's split): nobody else could.
 # Marking records the amount of the line as it stands right now; the split then
 # counts it, so anything that changes later (a late receipt, new dates) shows
 # up as what is still owed instead of silently relabelling the old line.
+
+def _settlement_debtor(db: Session, data: SettlementMark, current_user: User) -> User:
+    if data.from_user_id is None or data.from_user_id == current_user.id:
+        return current_user
+    if current_user.role not in ("treasurer", "admin"):
+        raise HTTPException(403, "Treasurer or admin role required")
+    debtor = db.query(User).filter(User.id == data.from_user_id).first()
+    if not debtor:
+        raise HTTPException(404, "User not found")
+    if debtor.is_active:
+        raise HTTPException(400, "This member records their own payments")
+    return debtor
+
+
+def _audit_on_behalf(db: Session, current_user: User, debtor: User, data: SettlementMark, what: str):
+    if debtor.id == current_user.id:
+        return
+    creditor = db.query(User.username).filter(User.id == data.to_user_id).scalar() or "?"
+    event = db.query(LanEvent.title).filter(LanEvent.id == data.event_id).scalar() or "?"
+    add_audit(db, current_user.id, "settlement_recorded",
+              f"{what}: {debtor.username} → {creditor} ({event})")
+
 
 @router.post("/settlements/mark")
 def mark_settlement(
@@ -180,7 +214,8 @@ def mark_settlement(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_feature("treasury")),
 ):
-    if data.to_user_id == current_user.id:
+    debtor = _settlement_debtor(db, data, current_user)
+    if data.to_user_id == debtor.id:
         raise HTTPException(400, "You cannot owe yourself")
     event = db.query(LanEvent).filter(LanEvent.id == data.event_id).first()
     if not event:
@@ -190,7 +225,7 @@ def mark_settlement(
     line = next(
         (
             l for l in result["settlements"]
-            if not l["paid"] and l["from_user_id"] == current_user.id and l["to_user_id"] == data.to_user_id
+            if not l["paid"] and l["from_user_id"] == debtor.id and l["to_user_id"] == data.to_user_id
         ),
         None,
     )
@@ -201,7 +236,7 @@ def mark_settlement(
         db.query(SettlementPayment)
         .filter(
             SettlementPayment.event_id == data.event_id,
-            SettlementPayment.from_user_id == current_user.id,
+            SettlementPayment.from_user_id == debtor.id,
             SettlementPayment.to_user_id == data.to_user_id,
         )
         .first()
@@ -213,10 +248,11 @@ def mark_settlement(
     else:
         db.add(SettlementPayment(
             event_id=data.event_id,
-            from_user_id=current_user.id,
+            from_user_id=debtor.id,
             to_user_id=data.to_user_id,
             amount=line["amount"],
         ))
+    _audit_on_behalf(db, current_user, debtor, data, f"payment of {line['amount']:.2f} € recorded")
     db.commit()
     return {"ok": True, "paid": True, "amount": line["amount"]}
 
@@ -227,10 +263,13 @@ def unmark_settlement(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_feature("treasury")),
 ):
-    db.query(SettlementPayment).filter(
+    debtor = _settlement_debtor(db, data, current_user)
+    removed = db.query(SettlementPayment).filter(
         SettlementPayment.event_id == data.event_id,
-        SettlementPayment.from_user_id == current_user.id,
+        SettlementPayment.from_user_id == debtor.id,
         SettlementPayment.to_user_id == data.to_user_id,
     ).delete()
+    if removed:
+        _audit_on_behalf(db, current_user, debtor, data, "recorded payment reversed")
     db.commit()
     return {"ok": True, "paid": False}

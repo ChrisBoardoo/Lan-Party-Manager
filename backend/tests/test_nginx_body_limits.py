@@ -50,7 +50,8 @@ def test_the_default_cap_is_small():
 def test_every_upload_route_is_let_through():
     routes = _upload_routes()
     # Guards the guard: if route discovery broke, the loop below would pass vacuously.
-    assert "/api/media/upload" in routes and len(routes) >= 8
+    # (7 since the backup restore takes a raw body — its own location, tested below.)
+    assert "/api/media/upload" in routes and len(routes) >= 7
 
     location = _upload_location()
     missing = [p for p in routes if not location.fullmatch(_concrete(p))]
@@ -61,3 +62,18 @@ def test_json_routes_stay_capped():
     location = _upload_location()
     for path in ("/api/auth/login", "/api/users/1/avatar/rotate", "/api/lol/matches", "/api/chat/1/messages"):
         assert not location.fullmatch(path), path
+
+
+def test_backup_restore_has_its_own_uncapped_streamed_location():
+    # A backup holds every photo and video: the 110m cap made a 200 MB backup
+    # impossible to restore. Its location is exact, uncapped and unbuffered...
+    match = re.search(r"location = /api/backup/import \{(.*?)\}", _conf(), re.DOTALL)
+    assert match, "no exact location for /api/backup/import in frontend/nginx.conf"
+    block = match.group(1)
+    assert "client_max_body_size 0;" in block
+    assert "proxy_request_buffering off;" in block
+    assert "proxy_pass $upstream$request_uri;" in block
+    # ...which is only safe because the route takes a raw body: a multipart form
+    # is parsed before require_admin runs, so anyone could fill the disk.
+    assert "/api/backup/import" not in _upload_routes()
+    assert not _upload_location().fullmatch("/api/backup/import")

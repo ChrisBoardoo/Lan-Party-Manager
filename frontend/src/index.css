@@ -319,3 +319,862 @@
     animation: none !important;
   }
 }
+
+/* ── Crew cards (components/cards) ─────────────────────────────────────────────
+   Everything inside a card is sized in cqw (the card's own width), so the same
+   markup serves the collection grid, the booster reveal and the zoomed view.
+   The holographic Epic is three blended layers — a rainbow sheen, a glare and
+   glitter — positioned by --lpm-mx / --lpm-my: the pointer while it's on the
+   card (PlayerCard.tsx), a slow idle drift otherwise. Registered with @property
+   so the drift interpolates instead of jumping. */
+@property --lpm-mx { syntax: '<percentage>'; inherits: true; initial-value: 50%; }
+@property --lpm-my { syntax: '<percentage>'; inherits: true; initial-value: 50%; }
+@property --lpm-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+.lpm-card-tilt {
+  perspective: 900px;
+}
+.lpm-card {
+  container-type: inline-size;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 63 / 88;
+  overflow: hidden;
+  background: #0F0F0F;
+  border: 1px solid #262626;
+  color: #FAFAFA;
+  user-select: none;
+  transform: rotateX(var(--lpm-rx, 0deg)) rotateY(var(--lpm-ry, 0deg));
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s;
+}
+.lpm-card[data-active='true'] {
+  transition: transform 0.08s linear, box-shadow 0.45s;
+  box-shadow: 0 1.5cqw 4cqw rgba(0, 0, 0, 0.18);
+}
+.lpm-card__inner {
+  position: absolute;
+  inset: 2.5cqw;
+  display: flex;
+  flex-direction: column;
+  background: #0F0F0F;
+  border: 1px solid #262626;
+}
+.lpm-card__top,
+.lpm-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2cqw;
+  padding: 2.6cqw 3.2cqw;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 3.6cqw;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #737373;
+  white-space: nowrap;
+}
+.lpm-card__top span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lpm-card__foot {
+  margin-top: auto;
+  border-top: 1px solid #262626;
+  font-size: 3cqw;
+  letter-spacing: 0.2em;
+}
+.lpm-card__photo {
+  position: relative;
+  margin: 0 3.2cqw;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: #1A1A1A;
+}
+.lpm-card__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lpm-card__initial {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 42cqw;
+  line-height: 1;
+  color: #262626;
+}
+/* The accent tick in the photo's corner: the LPM signature on every card. */
+.lpm-card__photo::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 14cqw;
+  height: 1.4cqw;
+  background: #FF3D00;
+}
+.lpm-card__name {
+  padding: 3cqw 3.2cqw 0;
+  font-weight: 900;
+  font-size: 10.5cqw;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lpm-card__meta {
+  padding: 1.6cqw 3.2cqw 0;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 3.4cqw;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #737373;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lpm-card__meta--accent {
+  color: #FF3D00;
+}
+.lpm-card__rarity {
+  color: #FAFAFA;
+}
+.lpm-card--departed .lpm-card__photo {
+  filter: grayscale(1) brightness(0.6);
+}
+
+/* Glare: every card catches the light under the pointer; Epics also shimmer. */
+.lpm-card__glare {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: overlay;
+  background: radial-gradient(
+    farthest-corner circle at var(--lpm-mx) var(--lpm-my),
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.08) 38%,
+    rgba(0, 0, 0, 0.04) 95%
+  );
+  transition: opacity 0.4s;
+}
+.lpm-card[data-active='true'] .lpm-card__glare {
+  opacity: 1;
+}
+
+/* Epic: an iridescent frame that turns, and the holographic layers. */
+.lpm-card--epic {
+  border: none;
+  animation: lpm-holo-drift 9s ease-in-out infinite;
+}
+.lpm-card--epic[data-active='true'] {
+  animation: none;
+  box-shadow: 0 0 6cqw rgba(255, 61, 0, 0.35), 0 1.5cqw 4cqw rgba(0, 0, 0, 0.18);
+}
+.lpm-card--epic::before {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background: conic-gradient(
+    from var(--lpm-angle),
+    #FF3D00, #FFB800, #5CFFB0, #3D8BFF, #B13DFF, #FF3D00
+  );
+  animation: lpm-frame-turn 6s linear infinite;
+}
+.lpm-card--epic .lpm-card__inner {
+  inset: 1.8cqw;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.lpm-card--epic .lpm-card__glare {
+  opacity: 0.85;
+}
+.lpm-card__holo,
+.lpm-card__glitter {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.lpm-card__holo {
+  mix-blend-mode: color-dodge;
+  opacity: 0.38;
+  background-image: repeating-linear-gradient(
+    115deg,
+    hsl(14 100% 58%) 0%,
+    hsl(45 100% 58%) 6%,
+    hsl(150 100% 58%) 12%,
+    hsl(210 100% 62%) 18%,
+    hsl(280 100% 64%) 24%,
+    hsl(14 100% 58%) 30%
+  );
+  background-size: 260% 260%;
+  background-position: var(--lpm-mx) var(--lpm-my);
+  filter: brightness(0.62) contrast(1.6) saturate(1.2);
+}
+.lpm-card__glitter {
+  mix-blend-mode: color-dodge;
+  opacity: 0.22;
+  background-image:
+    radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.9) 0 0.35cqw, transparent 0.6cqw),
+    radial-gradient(circle at 70% 75%, rgba(255, 255, 255, 0.7) 0 0.3cqw, transparent 0.55cqw);
+  background-size: 9cqw 9cqw, 13cqw 13cqw;
+  background-position:
+    calc(var(--lpm-mx) * -0.15) calc(var(--lpm-my) * -0.15),
+    calc(var(--lpm-mx) * 0.1) calc(var(--lpm-my) * 0.1);
+}
+@keyframes lpm-frame-turn {
+  to { --lpm-angle: 360deg; }
+}
+@keyframes lpm-holo-drift {
+  0%, 100% { --lpm-mx: 18%; --lpm-my: 22%; }
+  50% { --lpm-mx: 82%; --lpm-my: 78%; }
+}
+
+/* The card back: the reveal's face-down side. */
+.lpm-card-back {
+  container-type: inline-size;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 63 / 88;
+  overflow: hidden;
+  border: 1px solid #262626;
+  background: repeating-linear-gradient(135deg, #0F0F0F 0 5cqw, #131313 5cqw 10cqw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3cqw;
+}
+.lpm-card-back::before {
+  content: '';
+  position: absolute;
+  inset: 2.5cqw;
+  border: 1px solid #262626;
+}
+.lpm-flip:not([data-flipped='true']) .lpm-card-back::after {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, 0.1) 50%, transparent 58%);
+  animation: lpm-pack-sheen 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+.lpm-card-back__logo {
+  font-weight: 900;
+  font-size: 26cqw;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  color: #FF3D00;
+}
+.lpm-card-back__label {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 3.4cqw;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #737373;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lpm-card {
+    transform: none !important;
+    transition: none;
+  }
+  .lpm-card--epic,
+  .lpm-card--epic::before {
+    animation: none;
+  }
+}
+
+/* ── Booster opening (components/cards/BoosterOpening.tsx) ─────────────────────
+   The choreography: the pack drops in and floats; a click charges it (it
+   shakes harder and harder, light leaks from the seal), it tears (the cap flies
+   off, flash, shockwave, sparks), the cards rise face-down into a fan, each one
+   flips in 3D; the last slot always gets the spotlight — lifted to the centre,
+   trembling — and an Epic lands with rays, a rainbow shockwave and confetti.
+   --pack-c is the pack's colour, set from its source. */
+.lpm-opening {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 45%, #1a1210 0%, #0a0a0a 55%, #000 100%);
+  color: #FAFAFA;
+  animation: lpm-fade-in 0.5s ease-out both;
+}
+@keyframes lpm-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.lpm-opening__glow {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 90vmin;
+  height: 90vmin;
+  transform: translate(-50%, -50%);
+  border-radius: 9999px;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--pack-c) 35%, transparent), transparent);
+  filter: blur(20px);
+  opacity: 0.55;
+  transition: opacity 0.6s, transform 0.6s;
+  pointer-events: none;
+}
+.lpm-opening[data-stage='charging'] .lpm-opening__glow {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
+/* The pack */
+.lpm-pack {
+  container-type: inline-size;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 5 / 8;
+  user-select: none;
+}
+.lpm-pack__art {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--pack-c) 26%, transparent) 0%, transparent 45%),
+    linear-gradient(135deg, #262626 0%, #141414 38%, #1d1d1d 52%, #0f0f0f 100%);
+  border: 1px solid color-mix(in srgb, var(--pack-c) 45%, #262626);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5cqw;
+}
+/* Heat-sealed crimps, top and bottom. */
+.lpm-pack__art::before,
+.lpm-pack__art::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 6cqw;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0 0.8cqw, rgba(0, 0, 0, 0.35) 0.8cqw 1.6cqw);
+}
+.lpm-pack__art::before { top: 0; }
+.lpm-pack__art::after { bottom: 0; }
+.lpm-pack__sheen {
+  position: absolute;
+  inset: -20%;
+  background: linear-gradient(100deg, transparent 40%, rgba(255, 255, 255, 0.22) 50%, transparent 60%);
+  animation: lpm-pack-sheen 3.6s ease-in-out infinite;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+@keyframes lpm-pack-sheen {
+  0%, 35% { transform: translateX(-60%); }
+  75%, 100% { transform: translateX(60%); }
+}
+.lpm-pack__logo {
+  font-weight: 900;
+  font-size: 30cqw;
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+  color: var(--pack-c);
+  text-shadow: 0 0 6cqw color-mix(in srgb, var(--pack-c) 55%, transparent);
+}
+.lpm-pack__label {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 4.2cqw;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #FAFAFA;
+}
+.lpm-pack__small {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 3.4cqw;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #a3a3a3;
+  text-align: center;
+  padding: 0 8cqw;
+}
+.lpm-pack__badge {
+  position: absolute;
+  bottom: 9cqw;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 3.4cqw;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 1.2cqw 3cqw;
+  color: #0A0A0A;
+  background: var(--pack-c);
+}
+/* The tear line splits the same artwork into a cap and a body. */
+.lpm-pack__cap,
+.lpm-pack__main {
+  position: absolute;
+  inset: 0;
+}
+.lpm-pack__cap { clip-path: inset(0 0 86% 0); }
+.lpm-pack__main { clip-path: inset(14% 0 0 0); }
+.lpm-pack__seam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 14%;
+  height: 0.7cqw;
+  transform: scaleX(0);
+  background: #fff;
+  box-shadow: 0 0 4cqw 1.5cqw color-mix(in srgb, var(--pack-c) 70%, #fff);
+  opacity: 0;
+}
+
+.lpm-pack-stage {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: min(54vw, 300px, 34vh);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+.lpm-pack-stage__float {
+  animation: lpm-pack-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both, lpm-pack-float 3.2s ease-in-out 0.9s infinite;
+}
+@keyframes lpm-pack-in {
+  0% { transform: translateY(-60vh) rotate(-8deg) scale(0.8); opacity: 0; }
+  70% { transform: translateY(2%) rotate(1deg) scale(1.02); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+@keyframes lpm-pack-float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-3%) rotate(1deg); }
+}
+.lpm-pack-stage__tilt {
+  transform: perspective(900px) rotateX(var(--lpm-rx, 0deg)) rotateY(var(--lpm-ry, 0deg));
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lpm-opening[data-stage='charging'] .lpm-pack-stage__float {
+  animation: lpm-pack-charge 0.95s linear both;
+}
+.lpm-opening[data-stage='charging'] .lpm-pack__seam {
+  animation: lpm-seam-charge 0.95s ease-in both;
+}
+@keyframes lpm-pack-charge {
+  0% { transform: translate(0, 0) rotate(0); }
+  10% { transform: translate(-0.4%, 0.2%) rotate(-0.5deg); }
+  20% { transform: translate(0.6%, -0.3%) rotate(0.7deg); }
+  30% { transform: translate(-0.9%, 0.4%) rotate(-1deg); }
+  40% { transform: translate(1.2%, -0.5%) rotate(1.3deg); }
+  50% { transform: translate(-1.6%, 0.6%) rotate(-1.7deg); }
+  60% { transform: translate(2%, -0.8%) rotate(2deg) scale(1.02); }
+  70% { transform: translate(-2.4%, 0.9%) rotate(-2.4deg) scale(1.03); }
+  80% { transform: translate(2.8%, -1%) rotate(2.8deg) scale(1.04); }
+  90% { transform: translate(-3.2%, 1.2%) rotate(-3deg) scale(1.05); }
+  100% { transform: translate(0, 0) rotate(0) scale(1.06); }
+}
+@keyframes lpm-seam-charge {
+  from { transform: scaleX(0); opacity: 0; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+.lpm-opening[data-stage='dealt'] .lpm-pack-stage,
+.lpm-opening[data-stage='done'] .lpm-pack-stage {
+  pointer-events: none;
+}
+.lpm-opening[data-stage='dealt'] .lpm-pack__cap,
+.lpm-opening[data-stage='done'] .lpm-pack__cap {
+  animation: lpm-cap-off 0.8s cubic-bezier(0.3, 0.6, 0.4, 1) both;
+}
+.lpm-opening[data-stage='dealt'] .lpm-pack__main,
+.lpm-opening[data-stage='done'] .lpm-pack__main {
+  animation: lpm-pack-sink 0.7s cubic-bezier(0.5, 0, 0.75, 0) 0.25s both;
+}
+.lpm-opening[data-stage='dealt'] .lpm-pack__seam,
+.lpm-opening[data-stage='done'] .lpm-pack__seam {
+  opacity: 0;
+}
+@keyframes lpm-cap-off {
+  0% { transform: none; opacity: 1; }
+  100% { transform: translate(60%, -160%) rotate(38deg); opacity: 0; }
+}
+@keyframes lpm-pack-sink {
+  0% { transform: none; opacity: 1; }
+  100% { transform: translateY(45%) scale(0.92); opacity: 0; }
+}
+
+/* Flash and shockwave */
+.lpm-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  pointer-events: none;
+  animation: lpm-flash 0.55s ease-out both;
+}
+@keyframes lpm-flash {
+  from { opacity: 0.95; }
+  to { opacity: 0; }
+}
+.lpm-shock {
+  position: absolute;
+  width: 140vmax;
+  height: 140vmax;
+  border-radius: 9999px;
+  border: 0.6vmin solid var(--shock-c, #fff);
+  box-shadow: 0 0 4vmin var(--shock-c, #fff), inset 0 0 4vmin var(--shock-c, #fff);
+  transform: translate(-50%, -50%) scale(0);
+  pointer-events: none;
+  animation: lpm-shock 0.9s cubic-bezier(0.1, 0.7, 0.3, 1) both;
+}
+@keyframes lpm-shock {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+.lpm-shock--rainbow {
+  border: none;
+  box-shadow: none;
+  background: conic-gradient(#FF3D00, #FFB800, #5CFFB0, #3D8BFF, #B13DFF, #FF3D00);
+  -webkit-mask: radial-gradient(closest-side, transparent 90%, #000 94%, transparent 100%);
+  mask: radial-gradient(closest-side, transparent 90%, #000 94%, transparent 100%);
+}
+
+/* The deal: face-down cards rising from the pack into a fan. */
+.lpm-deal {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-content: center;
+  gap: var(--gap);
+  grid-template-columns: repeat(var(--cols), var(--cw));
+}
+.lpm-deal__slot {
+  position: relative;
+  animation: lpm-card-rise 0.75s cubic-bezier(0.16, 1, 0.3, 1) var(--delay, 0ms) both;
+}
+@keyframes lpm-card-rise {
+  from { transform: translate(var(--fx, 0), var(--fy, 0)) scale(0.45) rotate(var(--fr, 0deg)); opacity: 0; }
+  30% { opacity: 1; }
+  to { transform: none; opacity: 1; }
+}
+.lpm-flip {
+  position: relative;
+  perspective: 1200px;
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lpm-flip:not([data-flipped='true']):hover {
+  transform: translateY(-5%);
+}
+.lpm-flip__inner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.75s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+.lpm-flip[data-flipped='true'] .lpm-flip__inner {
+  transform: rotateY(180deg);
+}
+.lpm-flip__back,
+.lpm-flip__front {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.lpm-flip__front {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+}
+.lpm-flip[data-hidden='true'] {
+  visibility: hidden;
+}
+/* The last slot keeps its secret: the same aura whatever it holds. */
+.lpm-flip--rare:not([data-flipped='true'])::before {
+  content: '';
+  position: absolute;
+  inset: -22%;
+  background: radial-gradient(closest-side, rgba(255, 220, 160, 0.6), rgba(255, 61, 0, 0.25) 60%, transparent);
+  filter: blur(6px);
+  animation: lpm-aura 1.6s ease-in-out infinite;
+  pointer-events: none;
+}
+.lpm-flip--rare:not([data-flipped='true']) .lpm-card-back {
+  animation: lpm-rare-pulse 1.6s ease-in-out infinite;
+}
+@keyframes lpm-rare-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255, 200, 120, 0.45), 0 0 18px 2px rgba(255, 120, 40, 0.35); }
+  50% { box-shadow: 0 0 0 1px rgba(255, 230, 170, 0.9), 0 0 38px 8px rgba(255, 140, 50, 0.6); }
+}
+@keyframes lpm-aura {
+  0%, 100% { opacity: 0.55; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+.lpm-flip--nope {
+  animation: lpm-tremble 0.4s linear;
+}
+@keyframes lpm-tremble {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-3%) rotate(-2deg); }
+  40% { transform: translateX(3%) rotate(2deg); }
+  60% { transform: translateX(-2%) rotate(-1deg); }
+  80% { transform: translateX(2%) rotate(1deg); }
+}
+.lpm-badge {
+  position: absolute;
+  top: -0.6rem;
+  right: -0.4rem;
+  z-index: 3;
+  padding: 0.15rem 0.45rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #0A0A0A;
+  background: #FF3D00;
+  animation: lpm-badge-pop 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 0.45s both;
+}
+.lpm-badge--epic {
+  background: linear-gradient(90deg, #FF3D00, #FFB800, #5CFFB0, #3D8BFF, #B13DFF);
+}
+@keyframes lpm-badge-pop {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+
+/* The spotlight: the last card, lifted to the centre. */
+.lpm-spot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.88) 70%);
+  animation: lpm-fade-in 0.4s ease-out both;
+}
+.lpm-spot__card {
+  position: relative;
+  width: min(62vw, 320px, 42vh);
+}
+.lpm-spot[data-phase='anticipate'] .lpm-spot__shake {
+  animation: lpm-charge-card 1.25s ease-in both;
+}
+@keyframes lpm-charge-card {
+  0% { transform: none; filter: brightness(1); }
+  30% { transform: translate(-0.6%, 0.3%) rotate(-0.6deg) scale(1.01); }
+  45% { transform: translate(0.9%, -0.4%) rotate(0.9deg) scale(1.02); }
+  60% { transform: translate(-1.3%, 0.5%) rotate(-1.3deg) scale(1.03); filter: brightness(1.15); }
+  75% { transform: translate(1.8%, -0.7%) rotate(1.8deg) scale(1.05); }
+  90% { transform: translate(-2.2%, 0.8%) rotate(-2.2deg) scale(1.07); filter: brightness(1.4); }
+  100% { transform: scale(1.08); filter: brightness(1.6); }
+}
+.lpm-spot__aura {
+  position: absolute;
+  inset: -25%;
+  border-radius: 9999px;
+  background: radial-gradient(closest-side, rgba(255, 220, 160, 0.6), transparent);
+  filter: blur(10px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease-in;
+}
+.lpm-spot[data-phase='anticipate'] .lpm-spot__aura {
+  opacity: 1;
+}
+.lpm-rays {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 170vmax;
+  height: 170vmax;
+  margin: -85vmax 0 0 -85vmax;
+  pointer-events: none;
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.09) 0deg 5deg, transparent 5deg 15deg);
+  -webkit-mask: radial-gradient(closest-side, #000 8%, transparent 62%);
+  mask: radial-gradient(closest-side, #000 8%, transparent 62%);
+  animation: lpm-rays 24s linear infinite, lpm-fade-in 0.6s ease-out both;
+}
+.lpm-rays--epic {
+  background: repeating-conic-gradient(
+    rgba(255, 61, 0, 0.3) 0deg 4deg, transparent 4deg 10deg,
+    rgba(92, 255, 176, 0.25) 10deg 14deg, transparent 14deg 20deg,
+    rgba(61, 139, 255, 0.28) 20deg 24deg, transparent 24deg 30deg
+  );
+}
+@keyframes lpm-rays {
+  to { transform: rotate(360deg); }
+}
+.lpm-epic-title {
+  font-weight: 900;
+  font-size: clamp(3rem, 11vw, 7.5rem);
+  line-height: 1.05;
+  padding: 0.12em 0.08em 0;
+  letter-spacing: -0.05em;
+  background: linear-gradient(90deg, #FF3D00, #FFB800, #5CFFB0, #3D8BFF, #B13DFF, #FF3D00);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 2.5rem rgba(255, 61, 0, 0.45));
+  animation: lpm-title-slam 0.75s cubic-bezier(0.2, 1.4, 0.4, 1) both, lpm-title-flow 3s linear 0.75s infinite;
+}
+@keyframes lpm-title-slam {
+  0% { transform: scale(2.6); filter: blur(14px); opacity: 0; }
+  60% { transform: scale(0.94); filter: blur(0); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes lpm-title-flow {
+  to { background-position: 200% 0; }
+}
+.lpm-rise-in {
+  animation: lpm-rise-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) var(--delay, 0ms) both;
+}
+@keyframes lpm-rise-in {
+  from { transform: translateY(1rem); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lpm-pack-stage__float,
+  .lpm-pack__sheen,
+  .lpm-opening[data-stage='charging'] .lpm-pack-stage__float,
+  .lpm-deal__slot,
+  .lpm-flip--rare::before,
+  .lpm-flip--rare .lpm-card-back,
+  .lpm-card-back::after,
+  .lpm-spot[data-phase='anticipate'] .lpm-spot__shake,
+  .lpm-epic-title {
+    animation: none !important;
+  }
+  .lpm-shock,
+  .lpm-flash,
+  .lpm-rays {
+    display: none;
+  }
+  .lpm-flip__inner {
+    transition: none;
+  }
+}
+
+/* ── Backup modal (components/BackupModal.tsx): a game save screen ─────────────
+   A ring of ticks lighting up in turn (the console's save icon), a segmented
+   bar whose segments switch on with a glow — a scanner sweeps it while the
+   server starts — the next segment pulsing, and a flash across the whole bar
+   when the save completes. */
+.lpm-save__ring {
+  position: relative;
+  width: 3.25rem;
+  height: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lpm-save__ring span {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 0.22rem;
+  height: 0.8rem;
+  margin-left: -0.11rem;
+  transform-origin: 50% 1.625rem;
+  background: #FF3D00;
+  opacity: 0.15;
+  animation: lpm-save-tick 0.96s linear infinite;
+}
+@keyframes lpm-save-tick {
+  0% { opacity: 1; box-shadow: 0 0 0.5rem rgba(255, 61, 0, 0.8); }
+  100% { opacity: 0.15; box-shadow: none; }
+}
+.lpm-save__bar {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 0.2rem;
+  height: 1.4rem;
+  overflow: hidden;
+}
+.lpm-save__bar span {
+  background: #1A1A1A;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.lpm-save__bar span.is-on {
+  background: #FF3D00;
+  box-shadow: 0 0 0.6rem rgba(255, 61, 0, 0.55);
+}
+.lpm-save__bar span.is-next {
+  animation: lpm-save-next 0.8s ease-in-out infinite;
+}
+@keyframes lpm-save-next {
+  0%, 100% { background: #1A1A1A; }
+  50% { background: rgba(255, 61, 0, 0.45); }
+}
+/* While the server starts: a light sweeping the empty bar. */
+.lpm-save__bar--scan::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18%;
+  background: linear-gradient(90deg, transparent, rgba(255, 61, 0, 0.55), transparent);
+  animation: lpm-save-scan 1.3s ease-in-out infinite;
+}
+@keyframes lpm-save-scan {
+  from { left: -18%; }
+  to { left: 100%; }
+}
+/* Save complete: a white flash runs along the segments. */
+.lpm-save[data-phase='done'] .lpm-save__bar span {
+  animation: lpm-save-flash 0.6s ease-out both;
+}
+@keyframes lpm-save-flash {
+  0% { background: #FAFAFA; box-shadow: 0 0 1rem rgba(255, 255, 255, 0.9); }
+  100% { background: #FF3D00; box-shadow: 0 0 0.6rem rgba(255, 61, 0, 0.55); }
+}
+.lpm-save[data-phase='failed'] .lpm-save__bar span.is-on {
+  background: #7f1d1d;
+  box-shadow: none;
+}
+.lpm-save__tip {
+  animation: lpm-rise-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lpm-save__ring span,
+  .lpm-save__bar span.is-next,
+  .lpm-save__bar--scan::after,
+  .lpm-save[data-phase='done'] .lpm-save__bar span,
+  .lpm-save__tip {
+    animation: none;
+  }
+  .lpm-save__ring span {
+    opacity: 0.6;
+  }
+}
+
+/* Zoomed collection view: switching cards (CollectionPage.tsx, Zoom). The card
+   leaves to one side while the next comes in from the other, with a slight
+   tilt, as if dealt from a hand. */
+.lpm-swap-in-next { animation: lpm-swap-in-next 0.42s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.lpm-swap-in-prev { animation: lpm-swap-in-prev 0.42s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.lpm-swap-out-next { animation: lpm-swap-out-next 0.34s cubic-bezier(0.5, 0, 0.75, 0) both; }
+.lpm-swap-out-prev { animation: lpm-swap-out-prev 0.34s cubic-bezier(0.5, 0, 0.75, 0) both; }
+@keyframes lpm-swap-in-next {
+  from { transform: translateX(75%) rotate(9deg) scale(0.9); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes lpm-swap-in-prev {
+  from { transform: translateX(-75%) rotate(-9deg) scale(0.9); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes lpm-swap-out-next {
+  to { transform: translateX(-75%) rotate(-9deg) scale(0.9); opacity: 0; }
+}
+@keyframes lpm-swap-out-prev {
+  to { transform: translateX(75%) rotate(9deg) scale(0.9); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lpm-swap-in-next, .lpm-swap-in-prev { animation: none; }
+  .lpm-swap-out-next, .lpm-swap-out-prev { display: none; }
+}

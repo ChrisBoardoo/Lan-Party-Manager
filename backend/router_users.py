@@ -24,6 +24,7 @@ from auth import (
 from activity import add_audit
 from limiter import limiter
 from badges import user_badges
+from cards import scrub_faces
 from riot_id import parse_riot_id
 from router_lol import link_captured_players
 from router_presence import is_user_online
@@ -378,6 +379,9 @@ def delete_user(
     user.is_active = False
     user.deleted_at = datetime.utcnow()
     revoke_sessions(user)
+    # Their face goes off every card too (photo copies deleted, name anonymized):
+    # the cards stay in the others' collections as "departed".
+    scrub_faces(db, user)
 
     add_audit(db, current_user.id, "user_deleted", f"User: {original_username}")
     db.commit()

@@ -6,6 +6,7 @@ import AnnouncementsManager from '../components/AnnouncementsManager'
 import KioskManager from '../components/KioskManager'
 import DeletedUsersHistory from '../components/DeletedUsersHistory'
 import TrophiesAdminCard from '../components/trophies/TrophiesAdminCard'
+import BackupModal, { RestoreModal } from '../components/BackupModal'
 import { settingsApi, backupApi } from '../lib/api'
 import { AppSetting } from '../types'
 import Button from '../components/ui/Button'
@@ -267,6 +268,92 @@ function FeatureToggleRow({
   )
 }
 
+/** The Craving Chat window: days before/after a LAN, and "always open". Shown
+ *  under the chat's own toggle while the chat is on (router_chat._window_open). */
+function ChatWindowRows({
+  settings,
+  onSave,
+}: {
+  settings: AppSetting[]
+  onSave: (key: string, value: string) => Promise<void>
+}) {
+  const { t } = useTranslation()
+  const { refreshConfig } = useAppConfig()
+  const stored = (key: string) => settings.find((s) => s.key === key)?.value ?? ''
+  const [days, setDays] = useState({
+    craving_chat_open_days_before: stored('craving_chat_open_days_before'),
+    craving_chat_close_days_after: stored('craving_chat_close_days_after'),
+  })
+  const [status, setStatus] = useState<{ key: string; ok: boolean } | null>(null)
+  const always = stored('craving_chat_always_open') === 'true'
+  const storedBefore = stored('craving_chat_open_days_before')
+  const storedAfter = stored('craving_chat_close_days_after')
+  // The settings may arrive after the first render: show what's stored.
+  useEffect(() => {
+    setDays({ craving_chat_open_days_before: storedBefore, craving_chat_close_days_after: storedAfter })
+  }, [storedBefore, storedAfter])
+
+  const save = async (key: keyof typeof days) => {
+    const value = days[key].trim()
+    if (value === stored(key)) return
+    if (value !== '' && (!/^\d+$/.test(value) || Number(value) > 365)) {
+      setStatus({ key, ok: false })
+      return
+    }
+    await onSave(key, value)
+    await refreshConfig()
+    setStatus({ key, ok: true })
+  }
+
+  const field = (key: keyof typeof days, label: string, placeholder: string, disabled = false) => (
+    <label className={`flex flex-col gap-1.5 ${disabled ? 'opacity-40' : ''}`}>
+      <span className="font-mono-label text-[10px] text-muted-foreground">{label}</span>
+      <input
+        type="number"
+        min={0}
+        max={365}
+        inputMode="numeric"
+        value={days[key]}
+        placeholder={placeholder}
+        disabled={disabled}
+        onChange={(e) => setDays({ ...days, [key]: e.target.value })}
+        onBlur={() => save(key)}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        className="w-28 h-9 px-3 bg-input border border-border text-foreground text-sm focus:border-accent outline-none"
+      />
+      {status?.key === key && (
+        <span className={`font-mono-label text-[10px] ${status.ok ? 'text-green-400' : 'text-red-400'}`}>
+          {status.ok ? t('settings.chatDaysSaved') : t('settings.chatDaysInvalid')}
+        </span>
+      )}
+    </label>
+  )
+
+  return (
+    <div className="border-b border-border bg-muted/30">
+      <div className="px-4 py-4 pl-8 space-y-3">
+        <p className="font-mono-label text-foreground">{t('settings.chatWindowTitle')}</p>
+        <div className="flex flex-wrap gap-6">
+          {/* "Always open" has no "before": a room opens as soon as its LAN exists. */}
+          {field('craving_chat_open_days_before', t('settings.chatDaysBeforeLabel'), '30', always)}
+          {field('craving_chat_close_days_after', t('settings.chatDaysAfterLabel'), '15')}
+        </div>
+        <p className="text-xs text-muted-foreground">{t('settings.chatDaysHint')}</p>
+      </div>
+      <div className="pl-4">
+        <FeatureToggleRow
+          settingKey="craving_chat_always_open"
+          label={t('settings.chatAlwaysOpenLabel')}
+          description={t('settings.chatAlwaysOpenDesc')}
+          value={stored('craving_chat_always_open') || null}
+          onToggle={onSave}
+          defaultOff
+        />
+      </div>
+    </div>
+  )
+}
+
 const WIFI_SECURITY_OPTIONS = ['WPA', 'WEP', 'nopass'] as const
 
 function WifiSecurityRow({
@@ -396,19 +483,12 @@ function RestoreBackup() {
     if (f) { setFile(f); setStatus('idle') }
   }
 
-  const run = async () => {
+  // The upload, the server's restore and its restart all play out in the
+  // RestoreModal, which reloads the page once the server is back.
+  const run = () => {
     if (!file) return
     if (!confirm(t('settings.restoreConfirm'))) return
     setStatus('restoring')
-    try {
-      await backupApi.restore(file)
-      setStatus('done')
-      // Backend restarts (~a few seconds); the restored DB may invalidate the
-      // current session, so reload — a 401 will bounce to the login page.
-      setTimeout(() => window.location.reload(), 6000)
-    } catch {
-      setStatus('error')
-    }
   }
 
   return (
@@ -446,6 +526,8 @@ function RestoreBackup() {
           </Button>
         )}
       </div>
+
+      {status === 'restoring' && file && <RestoreModal file={file} onClose={() => setStatus('idle')} />}
 
       {status === 'done' && (
         <p className="flex items-center gap-1.5 mt-3 font-mono-label text-[10px] text-green-400">
@@ -550,11 +632,7 @@ export default function Settings() {
     await load()
   }
 
-  const handleBackup = () => {
-    setBackingUp(true)
-    backupApi.download()
-    setTimeout(() => setBackingUp(false), 3000)
-  }
+  const handleBackup = () => setBackingUp(true)
 
   const SETTING_META: Record<string, { label: string; description: string; isSecret?: boolean }> = {
     twitch_client_id: {
@@ -788,6 +866,9 @@ export default function Settings() {
                 value={settings.find((s) => s.key === 'craving_chat_enabled')?.value ?? null}
                 onToggle={handleSave}
               />
+              {settings.find((s) => s.key === 'craving_chat_enabled')?.value !== 'false' && (
+                <ChatWindowRows settings={settings} onSave={handleSave} />
+              )}
               <FeatureToggleRow
                 settingKey="trophies_enabled"
                 label={t('settings.trophiesToggleLabel')}
@@ -809,6 +890,22 @@ export default function Settings() {
                 label={t('settings.xpToggleLabel')}
                 description={t('settings.xpToggleDesc')}
                 value={settings.find((s) => s.key === 'xp_enabled')?.value ?? null}
+                onToggle={handleSave}
+                defaultOff
+              />
+              <FeatureToggleRow
+                settingKey="quests_enabled"
+                label={t('settings.questsToggleLabel')}
+                description={t('settings.questsToggleDesc')}
+                value={settings.find((s) => s.key === 'quests_enabled')?.value ?? null}
+                onToggle={handleSave}
+                defaultOff
+              />
+              <FeatureToggleRow
+                settingKey="cards_enabled"
+                label={t('settings.cardsToggleLabel')}
+                description={t('settings.cardsToggleDesc')}
+                value={settings.find((s) => s.key === 'cards_enabled')?.value ?? null}
                 onToggle={handleSave}
                 defaultOff
               />
@@ -1201,6 +1298,7 @@ export default function Settings() {
             {backingUp ? t('settings.preparing') : t('settings.downloadBackup')}
           </Button>
         </div>
+        {backingUp && <BackupModal onClose={() => setBackingUp(false)} />}
         <RestoreBackup />
       </section>
 
@@ -1236,7 +1334,7 @@ export default function Settings() {
               <div>
                 <p className="font-mono-label text-muted-foreground text-[10px] mb-1">{label}</p>
                 <p className="font-mono text-sm text-foreground">{repo}</p>
-                <p className="font-mono-label text-muted-foreground text-[10px] mt-1">:latest · :1.3.5</p>
+                <p className="font-mono-label text-muted-foreground text-[10px] mt-1">:latest · :1.4.0</p>
               </div>
               <ExternalLink size={12} strokeWidth={1.5} className="text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0" />
             </ExternalLinkButton>

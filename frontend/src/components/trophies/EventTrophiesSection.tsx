@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Award, Check, Eye, EyeOff, Lock, Pause, Play, Plus, RotateCcw, Trash2, Vote, X } from 'lucide-react'
+import { Award, BellRing, Check, Eye, EyeOff, Lock, Pause, Play, Plus, RotateCcw, Sparkles, Trash2, Vote, X } from 'lucide-react'
 import { trophiesApi } from '../../lib/api'
 import { useToast } from '../../contexts/ToastContext'
 import type { EventAttendee, LanEvent, Trophy, TrophyEdition, TrophyMode } from '../../types'
@@ -341,6 +341,117 @@ function EditionCard({
   )
 }
 
+// While a vote is open, the event page follows the turnout (and the admin sees
+// it climb before closing).
+const LIVE_REFRESH_MS = 10_000
+
+/**
+ * Trophy night, the admin's side: open every vote at once (the crew is
+ * notified and their vote modal pops up), remind whoever hasn't voted, close
+ * everything — then reveal the trophies one by one from their cards, each one
+ * a ceremony on the kiosk.
+ */
+function TrophyNightPanel({
+  event,
+  editions,
+  onEditions,
+}: {
+  event: LanEvent
+  editions: TrophyEdition[]
+  onEditions: (editions: TrophyEdition[]) => void
+}) {
+  const { t } = useTranslation()
+  const { push } = useToast()
+  const [busy, setBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [notify, setNotify] = useState(true)
+  const [discord, setDiscord] = useState(false)
+
+  const drafts = editions.filter((e) => e.mode === 'vote' && e.status === 'draft').length
+  const voting = editions.filter((e) => e.status === 'voting')
+  if (drafts === 0 && voting.length === 0) return null
+
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true)
+    try {
+      await fn()
+    } catch {
+      push(t('trophies.actionFailed'), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const launch = () => run(async () => {
+    const res = await trophiesApi.openVotes(event.id, { notify, post_to_discord: discord })
+    onEditions(res.editions)
+    setConfirming(false)
+    push(notify ? t('trophies.night.launched', { count: res.notified }) : t('trophies.night.launchedSilent'))
+  })
+
+  const close = () => run(async () => {
+    if (!confirm(t('trophies.night.closeConfirm'))) return
+    const res = await trophiesApi.closeVotes(event.id)
+    onEditions(res.editions)
+    push(t('trophies.night.closed'))
+  })
+
+  const nudge = () => run(async () => {
+    const res = await trophiesApi.nudge(event.id)
+    onEditions(res.editions)
+    push(res.notified ? t('trophies.night.nudged', { count: res.notified }) : t('trophies.night.nobodyLate'))
+  })
+
+  // Everyone done on every open trophy: the admin can close without nudging.
+  const allIn = voting.length > 0 && voting.every((e) => e.eligible_count > 0 && e.voters_count >= e.eligible_count)
+
+  return (
+    <div className="border border-accent bg-accent/5 p-4 mb-4 space-y-3">
+      <p className="font-mono-label text-accent flex items-center gap-1.5">
+        <Sparkles size={12} strokeWidth={1.5} /> {t('trophies.night.title')}
+      </p>
+      {voting.length === 0 ? (
+        <>
+          <p className="text-xs text-muted-foreground">{t('trophies.night.hint')}</p>
+          {confirming ? (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+                {t('trophies.night.notify')}
+              </label>
+              <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                <input type="checkbox" checked={discord} onChange={(e) => setDiscord(e.target.checked)} />
+                {t('trophies.postToDiscord')}
+              </label>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button size="sm" disabled={busy} onClick={launch}><Play size={12} /> {t('trophies.night.go')}</Button>
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirming(false)}>{t('common.cancel')}</Button>
+              </div>
+            </div>
+          ) : (
+            <Button size="sm" disabled={busy} onClick={() => setConfirming(true)}>
+              <Vote size={12} /> {t('trophies.night.launch', { count: drafts })}
+            </Button>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-muted-foreground">
+            {allIn ? t('trophies.night.allIn') : t('trophies.night.running', { count: voting.length })}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" disabled={busy} onClick={close}><Lock size={12} /> {t('trophies.night.close', { count: voting.length })}</Button>
+            {!allIn && (
+              <Button size="sm" variant="outline" disabled={busy} onClick={nudge}><BellRing size={12} /> {t('trophies.night.nudge')}</Button>
+            )}
+          </div>
+          {drafts > 0 && <p className="text-[10px] text-muted-foreground">{t('trophies.night.draftsLeft', { count: drafts })}</p>}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function EventTrophiesSection({
   event,
   isAdmin,
@@ -363,6 +474,15 @@ export default function EventTrophiesSection({
     load()
     if (isAdmin) trophiesApi.list().then(setCabinet).catch(() => setCabinet([]))
   }, [event.id, isAdmin])
+
+  const anyVoting = !!editions?.some((e) => e.status === 'voting')
+  useEffect(() => {
+    if (!anyVoting) return
+    const id = window.setInterval(() => {
+      trophiesApi.editions(event.id).then(setEditions).catch(() => {})
+    }, LIVE_REFRESH_MS)
+    return () => window.clearInterval(id)
+  }, [anyVoting, event.id])
 
   // The Hub's "votes are open" banner links to #trophies — React Router doesn't
   // scroll to a hash, and this block only exists once the editions are in.
@@ -396,6 +516,8 @@ export default function EventTrophiesSection({
       <p className="font-mono-label text-accent flex items-center gap-1.5 mb-4">
         <Award size={12} strokeWidth={1.5} /> {t('trophies.eventBlockTitle')}
       </p>
+
+      {isAdmin && <TrophyNightPanel event={event} editions={editions} onEditions={setEditions} />}
 
       {editions.length === 0 ? (
         <p className="text-xs text-muted-foreground mb-4">{t('trophies.eventEmpty')}</p>

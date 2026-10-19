@@ -15,6 +15,10 @@ Lifecycle of an edition (every transition is enforced here, not in the UI):
     draft ──(vote mode)──> voting ──> closed ──> revealed
       └──────────(direct mode: winner picked)────────^
 
+Trophy night (`/events/{event_id}/open-votes`, `/close-votes`, `/nudge`) runs
+the same transitions on every edition of an event at once, and notifies the
+attendees; `/ballot` feeds the members' vote modal.
+
 Voting is secret: no response ever pairs a voter with a nominee, not even for an
 admin. A member sees their own ballot (`my_vote`) and the turnout; an admin sees
 the totals once the vote is closed. Winners stay hidden from members until the
@@ -31,14 +35,15 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session, selectinload
 
 from activity import add_activity
+from cards import revoke_trophy_boosters
 from auth import require_admin
 from database import get_db
-from models import EventRSVP, EventTrophy, EventTrophyWinner, LanEvent, Trophy, TrophyVote, User
-from router_settings import require_feature
+from models import ActivityLog, EventRSVP, EventTrophy, EventTrophyWinner, LanEvent, Trophy, TrophyVote, User
+from router_settings import get_setting, require_feature
 from schemas import (
-    TrophyBrief, TrophyCreate, TrophyEditionCreate, TrophyEditionOut, TrophyEditionUpdate,
-    TrophyLastAward, TrophyOut, TrophyRevealIn, TrophyTallyLine, TrophyUpdate, TrophyVoteIn,
-    TrophyWinnerOut, TrophyWinnersIn, UserTrophyOut,
+    TrophyBallotOut, TrophyBrief, TrophyBulkOut, TrophyCreate, TrophyEditionCreate, TrophyEditionOut,
+    TrophyEditionUpdate, TrophyLastAward, TrophyNominee, TrophyOpenVotesIn, TrophyOut, TrophyRevealIn,
+    TrophyTallyLine, TrophyUpdate, TrophyVoteIn, TrophyWinnerOut, TrophyWinnersIn, UserTrophyOut,
 )
 from uploads import remove_upload, save_image_upload
 
@@ -102,6 +107,19 @@ def _tally(e: EventTrophy) -> list[tuple[int, int]]:
     return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
+def _propose_winners(db: Session, e: EventTrophy) -> None:
+    """Closing a vote: most votes wins, a tie makes co-winners (same rule as
+    badges.py), no ballot makes nobody."""
+    e.winners.clear()
+    db.flush()
+    counts = _tally(e)
+    if counts:
+        top = counts[0][1]
+        for uid, n in counts:
+            if n == top:
+                e.winners.append(EventTrophyWinner(user_id=uid, vote_count=n))
+
+
 def _sorted_winners(e: EventTrophy) -> list[EventTrophyWinner]:
     return sorted(e.winners, key=lambda w: (-(w.vote_count or 0), (w.user.username if w.user else "").lower()))
 
@@ -156,6 +174,20 @@ def revealed_editions(db: Session, event_id: int) -> list[EventTrophy]:
         .order_by(EventTrophy.revealed_at, EventTrophy.id)
         .all()
     )
+
+
+def vote_turnout(db: Session, event_id: int) -> Optional[tuple[int, int, list[tuple[EventTrophy, int]]]]:
+    """An event's open votes as counts only, for the kiosk: (attendees, how
+    many have voted on every open trophy, [(edition, ballots)]). None when no
+    vote is open. Counts, never names — the room sees how far the vote has
+    got, not who is dragging their feet."""
+    voting = _event_editions(db, event_id, "voting")
+    if not voting:
+        return None
+    eligible = _attendee_ids(db, event_id)
+    voters = [{v.voter_id for v in e.votes} & eligible for e in voting]
+    done = sum(1 for uid in eligible if all(uid in vs for vs in voters))
+    return len(eligible), done, [(e, len(vs)) for e, vs in zip(voting, voters)]
 
 
 def _trophy_label(t: Trophy) -> str:
@@ -270,9 +302,7 @@ def delete_trophy_image(trophy_id: int, db: Session = Depends(get_db), _: User =
 
 # ── Editions ──────────────────────────────────────────────────────────────────
 
-@router.get("/events/{event_id}", response_model=list[TrophyEditionOut])
-def list_editions(event_id: int, db: Session = Depends(get_db), viewer: User = Depends(require_feature("trophies"))):
-    """An event's trophies as the viewer may see them: drafts are admin-only."""
+def _event_editions(db: Session, event_id: int, status: Optional[str] = None) -> list[EventTrophy]:
     q = (
         db.query(EventTrophy)
         .options(
@@ -282,9 +312,17 @@ def list_editions(event_id: int, db: Session = Depends(get_db), viewer: User = D
         )
         .filter(EventTrophy.event_id == event_id)
     )
+    if status:
+        q = q.filter(EventTrophy.status == status)
+    return sorted(q.all(), key=lambda e: (e.sort_order or 0, e.id))
+
+
+@router.get("/events/{event_id}", response_model=list[TrophyEditionOut])
+def list_editions(event_id: int, db: Session = Depends(get_db), viewer: User = Depends(require_feature("trophies"))):
+    """An event's trophies as the viewer may see them: drafts are admin-only."""
+    editions = _event_editions(db, event_id)
     if viewer.role != "admin":
-        q = q.filter(EventTrophy.status != "draft")
-    editions = sorted(q.all(), key=lambda e: (e.sort_order or 0, e.id))
+        editions = [e for e in editions if e.status != "draft"]
     eligible = _attendee_ids(db, event_id)
     return [_edition_out(db, e, viewer, eligible) for e in editions]
 
@@ -326,19 +364,12 @@ def update_edition(
         if required == "missing" or (required is not None and required != e.mode):
             raise HTTPException(400, f"Can't go from {e.status} to {target}")
         if target == "closed" and e.status == "voting":
-            # Most votes wins; a tie makes co-winners (same rule as badges.py).
-            e.winners.clear()
-            db.flush()
-            counts = _tally(e)
-            if counts:
-                top = counts[0][1]
-                for uid, n in counts:
-                    if n == top:
-                        e.winners.append(EventTrophyWinner(user_id=uid, vote_count=n))
+            _propose_winners(db, e)
         elif target == "voting" and e.status == "closed":
             e.winners.clear()
         if e.status == "revealed":
             e.revealed_at = None
+            revoke_trophy_boosters(db, e.id)  # the unopened ones; see cards.py
         e.status = target
 
     if fields.get("sort_order") is not None:
@@ -350,6 +381,7 @@ def update_edition(
 @router.delete("/editions/{edition_id}")
 def delete_edition(edition_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
     e = _edition_or_404(db, edition_id)
+    revoke_trophy_boosters(db, e.id)
     db.delete(e)
     db.commit()
     return {"ok": True}
@@ -377,6 +409,10 @@ def set_winners(
     db.flush()
     for uid in ids:
         e.winners.append(EventTrophyWinner(user_id=uid, citation=citations[uid], vote_count=votes.get(uid)))
+    if e.status == "revealed":
+        # A winner removed after the reveal loses the trophy's unopened booster;
+        # a new one gets theirs on their next visit (cards.ensure_grants).
+        revoke_trophy_boosters(db, e.id, keep_owner_ids=ids)
     db.commit()
     return _edition_out(db, _edition_or_404(db, e.id), admin, _attendee_ids(db, e.event_id))
 
@@ -442,6 +478,145 @@ def reveal(
         send_discord_message(db, "\n".join(lines))  # best effort — a Discord hiccup doesn't undo the reveal
 
     return _edition_out(db, _edition_or_404(db, e.id), admin, _attendee_ids(db, e.event_id))
+
+
+# ── Trophy night ──────────────────────────────────────────────────────────────
+# The same transitions as update_edition, on every edition of an event at once,
+# plus what makes it a moment: the attendees are notified (activity feed → the
+# web vote modal and desktop toasts), the room follows the turnout on the kiosk.
+
+def _event_or_404(db: Session, event_id: int) -> LanEvent:
+    event = db.query(LanEvent).filter(LanEvent.id == event_id).first()
+    if not event:
+        raise HTTPException(404, "Event not found")
+    return event
+
+
+def _bulk_out(db: Session, event_id: int, admin: User, changed: int, notified: int = 0) -> TrophyBulkOut:
+    eligible = _attendee_ids(db, event_id)
+    return TrophyBulkOut(
+        changed=changed,
+        notified=notified,
+        editions=[_edition_out(db, e, admin, eligible) for e in _event_editions(db, event_id)],
+    )
+
+
+def _notify(db: Session, admin: User, event: LanEvent, recipients: Iterable[int], action: str, description: str) -> int:
+    """One targeted activity entry per recipient (never a broadcast: a member
+    who isn't at this LAN has nothing to vote on). The admin who acted isn't
+    notified of their own click."""
+    n = 0
+    for uid in sorted(set(recipients) - {admin.id}):
+        add_activity(db, admin.id, action, description, "event", event.id, recipient_user_id=uid)
+        n += 1
+    return n
+
+
+@router.post("/events/{event_id}/open-votes", response_model=TrophyBulkOut)
+def open_votes(
+    event_id: int, data: TrophyOpenVotesIn, db: Session = Depends(get_db), admin: User = Depends(require_admin)
+):
+    """Open the vote on every vote-mode draft of the event. Direct-mode
+    trophies, and votes already open, closed or revealed, are left alone."""
+    event = _event_or_404(db, event_id)
+    drafts = [e for e in _event_editions(db, event_id, "draft") if e.mode == "vote"]
+    if not drafts:
+        raise HTTPException(400, "No trophy waiting for a vote")
+    for e in drafts:
+        e.status = "voting"
+    labels = ", ".join(_trophy_label(e.trophy) for e in drafts)
+    notified = 0
+    if data.notify:
+        notified = _notify(db, admin, event, _attendee_ids(db, event_id), "trophy_vote_open",
+                           f"Trophy votes are open: {labels}")
+    db.commit()
+
+    if data.post_to_discord:
+        from discord_notify import send_discord_message
+
+        base = (get_setting(db, "app_base_url") or "").rstrip("/")
+        lines = ["🗳️ **Trophy votes are open! / Les votes des trophées sont ouverts !**", labels, f"_{event.title}_"]
+        if base:
+            lines.append(base)
+        send_discord_message(db, "\n".join(lines))  # best effort, like the reveal
+
+    return _bulk_out(db, event_id, admin, len(drafts), notified)
+
+
+@router.post("/events/{event_id}/close-votes", response_model=TrophyBulkOut)
+def close_votes(event_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """Close every open vote of the event and propose its winners, ready for
+    the reveals — one by one, so the kiosk plays a ceremony for each."""
+    _event_or_404(db, event_id)
+    voting = _event_editions(db, event_id, "voting")
+    if not voting:
+        raise HTTPException(400, "No vote is open")
+    for e in voting:
+        _propose_winners(db, e)
+        e.status = "closed"
+    db.commit()
+    return _bulk_out(db, event_id, admin, len(voting))
+
+
+@router.post("/events/{event_id}/nudge", response_model=TrophyBulkOut)
+def nudge(event_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """Remind the attendees who still have an open trophy to vote on — and
+    only them. Their vote modal pops up again."""
+    event = _event_or_404(db, event_id)
+    voting = _event_editions(db, event_id, "voting")
+    if not voting:
+        raise HTTPException(400, "No vote is open")
+    eligible = _attendee_ids(db, event_id)
+    notified = 0
+    if len(eligible) > 1:  # alone, there's nobody to vote for
+        for uid in sorted(eligible):
+            left = sum(1 for e in voting if not any(v.voter_id == uid for v in e.votes))
+            if left:
+                notified += _notify(db, admin, event, [uid], "trophy_vote_nudge",
+                                    f"{left} trophy vote{'s' if left > 1 else ''} still waiting for you")
+    db.commit()
+    return _bulk_out(db, event_id, admin, 0, notified)
+
+
+@router.get("/ballot", response_model=Optional[TrophyBallotOut])
+def my_ballot(db: Session = Depends(get_db), viewer: User = Depends(require_feature("trophies"))):
+    """The viewer's open trophy votes, or null. Polled by every open tab (the
+    vote modal), so the common case — no vote open anywhere — is one query."""
+    event_ids = [r[0] for r in db.query(EventTrophy.event_id).filter(EventTrophy.status == "voting").distinct().all()]
+    if not event_ids:
+        return None
+    events = (
+        db.query(LanEvent).filter(LanEvent.id.in_(event_ids))
+        .order_by(LanEvent.start_date.desc(), LanEvent.id.desc()).all()
+    )
+    for event in events:
+        eligible = _attendee_ids(db, event.id)
+        if viewer.id not in eligible:
+            continue
+        others = eligible - {viewer.id}
+        nominees = db.query(User).filter(User.id.in_(others)).all() if others else []
+        nudge_row = (
+            db.query(ActivityLog.id)
+            .filter(
+                ActivityLog.action == "trophy_vote_nudge",
+                ActivityLog.recipient_user_id == viewer.id,
+                ActivityLog.entity_type == "event",
+                ActivityLog.entity_id == event.id,
+            )
+            .order_by(ActivityLog.id.desc())
+            .first()
+        )
+        return TrophyBallotOut(
+            event_id=event.id,
+            event_title=event.title,
+            editions=[_edition_out(db, e, viewer, eligible) for e in _event_editions(db, event.id, "voting")],
+            nominees=[
+                TrophyNominee(user_id=u.id, username=u.username, avatar_url=u.avatar_url)
+                for u in sorted(nominees, key=lambda u: u.username.lower())
+            ],
+            nudge_id=nudge_row[0] if nudge_row else None,
+        )
+    return None
 
 
 # ── Showcase ──────────────────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ needs it for video.
 """
 import io
 import os
+import shutil
 import uuid
 from typing import Optional, Tuple
 
@@ -108,6 +109,24 @@ def remove_upload(url: Optional[str], subdir: Optional[str] = None) -> None:
             os.remove(path)
         except OSError:
             pass
+
+
+def copy_upload(url: Optional[str], *, src_subdir: Optional[str], dst_subdir: str, prefix: str) -> Optional[str]:
+    """Copy a stored upload under a new name and return its public URL, or None
+    when there's nothing to copy (no URL, an external one, a missing file).
+
+    For snapshots that must outlive the original: cards keep the avatar a
+    member had at the time, while uploading a new avatar deletes the old file
+    (save_image_upload's `replaces`)."""
+    if not url or not url.startswith("/uploads/"):
+        return None
+    src = _disk_path(src_subdir, os.path.basename(url))
+    if not os.path.exists(src):
+        return None
+    filename = f"{prefix}_{uuid.uuid4().hex}{os.path.splitext(src)[1] or '.webp'}"
+    os.makedirs(os.path.join(UPLOAD_DIR, dst_subdir), exist_ok=True)
+    shutil.copyfile(src, _disk_path(dst_subdir, filename))
+    return _public_url(dst_subdir, filename)
 
 
 async def save_image_upload(

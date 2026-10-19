@@ -207,6 +207,14 @@ export default function Finances() {
     await loadData()
   }
 
+  // Legacy rows have no paid_by: their creator paid (same fallback as the server).
+  const editingPayer = editingExpense ? (editingExpense.payer ?? editingExpense.creator) : null
+  // Set again once the select has rendered the payer's option (added above when
+  // they're no longer in the member list), or the browser drops the value.
+  useEffect(() => {
+    if (editingPayer) setValue('paid_by', String(editingPayer.id))
+  }, [editingExpense])
+
   const handleEdit = (expense: Expense) => {
     setEditingExpense(expense)
     setValue('description', expense.description)
@@ -369,6 +377,13 @@ export default function Finances() {
                         {u.username}
                       </option>
                     ))}
+                    {/* A deleted or deactivated payer isn't in the member list: without
+                        their own option the select would show (and save) someone else. */}
+                    {editingPayer && !users.some((u) => u.id === editingPayer.id) && (
+                      <option value={editingPayer.id} className="bg-muted">
+                        {editingPayer.username}
+                      </option>
+                    )}
                   </select>
                 </div>
 

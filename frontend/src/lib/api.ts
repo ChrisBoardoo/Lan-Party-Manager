@@ -14,9 +14,9 @@ import type {
   Game, GameMe, GameLibraryEntry, GameLibraryFilters, GameWishlistEntry, GameMatch, GameSessionResult, GameImportResult,
   GroceryEvent, GroceryItem, GroceryImportResult,
   ChatMessage, PinnedMessage, WifiConfig,
-  Trophy, TrophyEdition, TrophyMode, TrophyStatus, UserTrophy,
+  Trophy, TrophyBallot, BoosterOpening, CardCollection, CardsMe, TrophyBulkResult, TrophyEdition, TrophyMode, TrophyStatus, UserTrophy,
   LolCategory, LolMatch, LolStats,
-  XpSummary, XpCrewEntry,
+  XpSummary, XpCrewEntry, QuestContract,
 } from '../types'
 
 const client = axios.create({ baseURL: '/api' })
@@ -198,18 +198,21 @@ export const expensesApi = {
 
   delete: (id: number) => client.delete(`/expenses/${id}`).then((r) => r.data),
 
-  markSettlement: (eventId: number, toUserId: number) =>
+  // fromUserId: only for a treasurer recording the payment of a member who
+  // can't log in any more; omitted, it's the caller's own line.
+  markSettlement: (eventId: number, toUserId: number, fromUserId?: number) =>
     client
       .post<{ ok: boolean; paid: boolean }>('/expenses/settlements/mark', {
         event_id: eventId,
         to_user_id: toUserId,
+        from_user_id: fromUserId,
       })
       .then((r) => r.data),
 
-  unmarkSettlement: (eventId: number, toUserId: number) =>
+  unmarkSettlement: (eventId: number, toUserId: number, fromUserId?: number) =>
     client
       .delete<{ ok: boolean; paid: boolean }>('/expenses/settlements/mark', {
-        data: { event_id: eventId, to_user_id: toUserId },
+        data: { event_id: eventId, to_user_id: toUserId, from_user_id: fromUserId },
       })
       .then((r) => r.data),
 }
@@ -428,8 +431,11 @@ export const tournamentsApi = {
   create: (data: { game_name: string; game_id?: number; bracket_type: string; event_type: string; max_team_size: number; event_id?: number | null }) =>
     client.post<Tournament>('/tournaments/', data).then((r) => r.data),
 
-  update: (id: number, data: { game_name?: string; game_id?: number; status?: string }) =>
-    client.put<Tournament>(`/tournaments/${id}`, data).then((r) => r.data),
+  // bracket_type / max_team_size: only while the tournament is pending.
+  update: (
+    id: number,
+    data: { game_name?: string; game_id?: number; status?: string; bracket_type?: string; max_team_size?: number }
+  ) => client.put<Tournament>(`/tournaments/${id}`, data).then((r) => r.data),
 
   // Catalog for the game picker, best candidates first (played, owned, planned).
   games: (eventId?: number) =>
@@ -462,6 +468,12 @@ export const tournamentsApi = {
     teamId: number,
     data: { team_name: string; color?: string; seed?: number; members: { player_name: string; user_id?: number }[] }
   ) => client.put<Team>(`/tournaments/${tid}/teams/${teamId}`, data).then((r) => r.data),
+
+  // Random team draw: replaces every team of a pending tournament at once.
+  replaceTeams: (
+    tid: number,
+    teams: { team_name: string; color?: string; members: { player_name: string; user_id?: number }[] }[]
+  ) => client.put<Team[]>(`/tournaments/${tid}/teams`, { teams }).then((r) => r.data),
 
   deleteTeam: (tid: number, teamId: number) =>
     client.delete(`/tournaments/${tid}/teams/${teamId}`).then((r) => r.data),
@@ -523,9 +535,14 @@ export const settingsApi = {
         minigames_enabled: boolean
         games_enabled: boolean
         craving_chat_enabled: boolean
+        craving_chat_open_days_before: number
+        craving_chat_close_days_after: number
+        craving_chat_always_open: boolean
         trophies_enabled: boolean
         lol_stats_enabled: boolean
         xp_enabled: boolean
+        quests_enabled: boolean
+        cards_enabled: boolean
       }>('/settings/public-config')
       .then((r) => r.data),
 
@@ -577,6 +594,27 @@ export const xpApi = {
   user: (id: number) => client.get<XpSummary>(`/xp/users/${id}`).then((r) => r.data),
 }
 
+// ── Monthly contract ──────────────────────────────────────────────────────────
+
+export const questsApi = {
+  // This month's contract and my progress (the first look of the month draws it).
+  current: () => client.get<QuestContract>('/quests/current').then((r) => r.data),
+}
+
+// ── Cards & boosters ──────────────────────────────────────────────────────────
+
+export const cardsApi = {
+  // My unopened boosters (the server grants what I've earned first) and the XP shop.
+  me: () => client.get<CardsMe>('/cards/me').then((r) => r.data),
+
+  buy: () => client.post<CardsMe>('/cards/boosters/buy').then((r) => r.data),
+
+  // Reveal a booster's cards; calling it again returns the same cards.
+  open: (boosterId: number) => client.post<BoosterOpening>(`/cards/boosters/${boosterId}/open`).then((r) => r.data),
+
+  collection: (userId: number) => client.get<CardCollection>(`/cards/collection/${userId}`).then((r) => r.data),
+}
+
 // ── Trophies ──────────────────────────────────────────────────────────────────
 
 export const trophiesApi = {
@@ -615,6 +653,19 @@ export const trophiesApi = {
 
   setWinners: (id: number, winners: { user_id: number; citation?: string | null }[]) =>
     client.put<TrophyEdition>(`/trophies/editions/${id}/winners`, { winners }).then((r) => r.data),
+
+  // Trophy night (admin): the same step on every edition of the event at once.
+  openVotes: (eventId: number, data: { notify: boolean; post_to_discord: boolean }) =>
+    client.post<TrophyBulkResult>(`/trophies/events/${eventId}/open-votes`, data).then((r) => r.data),
+
+  closeVotes: (eventId: number) =>
+    client.post<TrophyBulkResult>(`/trophies/events/${eventId}/close-votes`).then((r) => r.data),
+
+  nudge: (eventId: number) =>
+    client.post<TrophyBulkResult>(`/trophies/events/${eventId}/nudge`).then((r) => r.data),
+
+  // My open trophy votes, or null — polled by the vote modal.
+  ballot: () => client.get<TrophyBallot | null>('/trophies/ballot').then((r) => r.data),
 
   vote: (id: number, nomineeId: number) =>
     client.post<TrophyEdition>(`/trophies/editions/${id}/vote`, { nominee_id: nomineeId }).then((r) => r.data),
@@ -893,33 +944,63 @@ export const auditApi = {
 // ── Backup ────────────────────────────────────────────────────────────────────
 
 export const backupApi = {
-  download: () => {
+  /** Download the full backup, reporting progress. The server streams the
+   *  archive while it builds it and sends its rough size up front
+   *  (X-Backup-Estimate). fetch, not a link: the token goes in a header, never
+   *  in a URL (CLAUDE.md). */
+  download: async ({
+    signal,
+    onStart,
+    onProgress,
+  }: {
+    signal?: AbortSignal
+    onStart?: (estimate: number) => void
+    onProgress?: (received: number) => void
+  } = {}) => {
     const token = localStorage.getItem('token')
-    const a = document.createElement('a')
-    a.href = `/api/backup/export`
-    // Use fetch with auth header for the download
-    fetch('/api/backup/export', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.blob())
-      .then((blob) => {
-        const url = URL.createObjectURL(blob)
-        a.href = url
-        a.download = `lanparty_backup_${new Date().toISOString().slice(0, 10)}.tar.gz`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-      })
+    const res = await fetch('/api/backup/export', { headers: { Authorization: `Bearer ${token}` }, signal })
+    if (!res.ok || !res.body) throw new Error(`Backup failed: HTTP ${res.status}`)
+    onStart?.(Number(res.headers.get('X-Backup-Estimate')) || 0)
+    const reader = res.body.getReader()
+    // Typed as BlobPart: TS's DOM lib types a stream chunk as Uint8Array<ArrayBufferLike>.
+    const parts: BlobPart[] = []
+    let received = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      parts.push(value as BlobPart)
+      received += value.length
+      onProgress?.(received)
+    }
+    const name =
+      /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ??
+      `lanparty_backup_${new Date().toISOString().slice(0, 10)}.tar.gz`
+    return { blob: new Blob(parts, { type: 'application/gzip' }), name, size: received }
   },
 
-  restore: (file: File) => {
-    const form = new FormData()
-    form.append('file', file)
-    return client
-      .post<{ ok: boolean; restarting: boolean }>('/backup/import', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      .then((r) => r.data)
+  /** Hand a downloaded backup to the browser's "save file". */
+  save: (blob: Blob, name: string) => {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
   },
+
+  /** Restore a backup. The archive is the raw request body, not a form: the
+   *  server checks the admin token before reading it, then streams it to disk
+   *  (router_backup.import_backup) — whatever its size. */
+  restore: (file: File, { signal, onProgress }: { signal?: AbortSignal; onProgress?: (sent: number) => void } = {}) =>
+    client
+      .post<{ ok: boolean; restarting: boolean }>('/backup/import', file, {
+        headers: { 'Content-Type': 'application/gzip' },
+        signal,
+        onUploadProgress: (e) => onProgress?.(e.loaded),
+      })
+      .then((r) => r.data),
 
   storage: () =>
     client

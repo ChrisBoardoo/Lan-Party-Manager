@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import QRCode from 'react-qr-code'
 import { kioskApi } from '../lib/api'
-import type { KioskSummary, KioskMatch, KioskStanding, KioskChampion, KioskTrophy, KioskMedia } from '../types'
+import type { KioskSummary, KioskMatch, KioskStanding, KioskChampion, KioskTrophy, KioskTrophyVote, KioskMedia } from '../types'
 import { playAnnouncementChime, playChampionFanfare } from '../lib/kioskSound'
 import Confetti from '../components/kiosk/Confetti'
 import LoveWall, { type ReactionBurst } from '../components/kiosk/LoveWall'
@@ -206,6 +206,16 @@ export default function Kiosk() {
     if (summary.champion) s.push('champion')
     if (summary.trophies.length) s.push('trophies')
     if (summary.wifi || summary.join_url) s.push('join')
+    // Trophy night: while the votes are open, the turnout comes back every
+    // third scene — first, then between every two others.
+    if (summary.trophy_vote) {
+      const withVote: string[] = []
+      s.forEach((scene, i) => {
+        if (i % 2 === 0) withVote.push('trophyvote')
+        withVote.push(scene)
+      })
+      return withVote.length ? withVote : ['trophyvote']
+    }
     return s
   }, [summary])
 
@@ -306,6 +316,9 @@ export default function Kiosk() {
         )}
         {activeScene === 'join' && <JoinScene summary={summary} />}
         {activeScene === 'trophies' && <TrophiesScene trophies={summary.trophies} />}
+        {activeScene === 'trophyvote' && summary.trophy_vote && (
+          <TrophyVoteScene vote={summary.trophy_vote} joinBase={summary.join_url || window.location.origin} />
+        )}
         {activeScene === 'champion' && summary.champion && (
           <ChampionScene champion={summary.champion} celebrating={celebrating} />
         )}
@@ -644,6 +657,58 @@ function TrophiesScene({ trophies }: { trophies: KioskTrophy[] }) {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// Trophy night in progress: how far the room's vote has got — counts only,
+// never who has or hasn't voted — and a QR code to go and vote.
+function TrophyVoteScene({ vote, joinBase }: { vote: KioskTrophyVote; joinBase: string }) {
+  const { t } = useTranslation()
+  const everyone = vote.eligible > 0 && vote.done >= vote.eligible
+  const pct = (n: number) => (vote.eligible ? Math.min(100, Math.round((n / vote.eligible) * 100)) : 0)
+  return (
+    <div className="w-full max-w-[84vw] flex items-center gap-[5vw]">
+      <div className="flex-1 min-w-0">
+        <div className="font-mono-kiosk text-accent text-[1.4vw] tracking-widest mb-[1.5vh]">{t('kiosk.trophyVoteKicker')}</div>
+        <h1 className="text-[5.5vw] font-black tracking-tighter leading-none mb-[3vh]">
+          {everyone ? t('kiosk.trophyVoteAllIn') : t('kiosk.trophyVoteTitle')}
+        </h1>
+        <div className="flex items-baseline gap-[1vw] mb-[1.5vh]">
+          <span className="text-[6vw] font-black leading-none text-accent tabular-nums">{vote.done}</span>
+          <span className="text-[3vw] font-black leading-none text-muted-foreground tabular-nums">/ {vote.eligible}</span>
+          <span className="font-mono-kiosk text-muted-foreground text-[1.3vw] ml-[1vw]">{t('kiosk.trophyVoteDone')}</span>
+        </div>
+        <div className="h-[1.2vh] bg-muted mb-[4vh]">
+          <div className="h-full bg-accent transition-all duration-700" style={{ width: `${pct(vote.done)}%` }} />
+        </div>
+        <div className="grid grid-cols-2 gap-x-[3vw] gap-y-[2.2vh]">
+          {vote.trophies.map((tr) => (
+            <div key={tr.edition_id} className="flex items-center gap-[1vw] min-w-0">
+              <TrophyIcon trophy={tr} className="w-[3.2vw] h-[3.2vw] text-[2.6vw]" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline justify-between gap-[1vw]">
+                  <span className="text-[1.4vw] font-bold truncate">{tr.name}</span>
+                  <span className="font-mono-kiosk text-muted-foreground text-[1.1vw] tabular-nums shrink-0">{tr.voters}/{vote.eligible}</span>
+                </div>
+                <div className="h-[0.6vh] bg-muted mt-[0.8vh]">
+                  <div className="h-full bg-accent/80 transition-all duration-700" style={{ width: `${pct(tr.voters)}%` }} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {!everyone && (
+        <div className="flex flex-col items-center shrink-0">
+          <div className="bg-white p-[1vw]">
+            <QRCode value={joinBase} size={256} style={{ width: '14vw', height: '14vw' }} viewBox="0 0 256 256" />
+          </div>
+          <div className="font-mono-kiosk text-muted-foreground text-[1.1vw] mt-[2vh] text-center max-w-[18vw]">
+            {t('kiosk.trophyVoteCta')}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

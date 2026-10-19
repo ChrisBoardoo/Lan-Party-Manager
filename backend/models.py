@@ -74,6 +74,15 @@ class User(Base):
     # before, see auth.revoke_sessions.
     token_version = Column(Integer, nullable=False, default=0, server_default="0")
 
+    # Cards (see cards.py). `cards_level_base`: the XP level the member had when
+    # cards first looked at them — level-up boosters start above it, so
+    # switching the feature on doesn't pay out past levels. `cards_opt_out` is
+    # unused: the opt-out was dropped on 2026-10-18 (see cards.scrub_faces). The
+    # column, added by 0035 and already deployed, stays rather than costing a
+    # migration that rebuilds `users` on the Pi's SQLite.
+    cards_opt_out = Column(Boolean, nullable=False, default=False, server_default="0")
+    cards_level_base = Column(Integer, nullable=True)
+
     expenses = relationship("Expense", foreign_keys="Expense.created_by", back_populates="creator")
     tournaments = relationship("Tournament", back_populates="organizer")
     team_memberships = relationship("TeamMember", back_populates="user")
@@ -1134,3 +1143,83 @@ class LolMatchPlayer(Base):
 
     match = relationship("LolMatch", back_populates="players")
     user = relationship("User")
+
+
+# ── Cards & boosters (see cards.py) ───────────────────────────────────────────
+# Unlike XP and badges, a booster is not derivable from other data: its content
+# is drawn once, server-side, when it's granted, and must never be redrawn.
+
+class CardFace(Base):
+    """A member's face for one edition (one LAN): the photo copied into
+    uploads/cards/ when their first card of that edition is drawn, so changing
+    avatar later never changes (or deletes) the cards already out there."""
+    __tablename__ = "card_faces"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("lan_events.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    username = Column(String, nullable=False)
+    image_url = Column(String, nullable=True)  # NULL: no avatar at the time, or account deleted since
+    xp_level = Column(Integer, nullable=True)  # NULL when XP was off
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("event_id", "user_id", name="uq_card_face"),)
+
+    event = relationship("LanEvent")
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class CardBooster(Base):
+    """A booster a member received. Its cards are drawn at grant time and
+    stored; opening it only reveals them. `source_type` + `source_id` make a
+    grant idempotent (an event id, a trophy edition id, an XP level); a
+    purchase has no source_id and may repeat."""
+    __tablename__ = "card_boosters"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    source_type = Column(String, nullable=False)  # attendance | trophy | xp_level | purchase
+    source_id = Column(Integer, nullable=True)
+    event_id = Column(Integer, ForeignKey("lan_events.id"), nullable=False)  # the edition
+    size = Column(Integer, nullable=False)
+    epic_rate = Column(Float, nullable=False)
+    cost_xp = Column(Integer, nullable=False, default=0, server_default="0")
+    granted_at = Column(DateTime, server_default=func.now())
+    opened_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (UniqueConstraint("owner_id", "source_type", "source_id", name="uq_card_booster_source"),)
+
+    event = relationship("LanEvent")
+    cards = relationship("Card", back_populates="booster", cascade="all, delete-orphan", order_by="Card.slot")
+
+
+class Card(Base):
+    """One card a member owns. `kind` = "pulled" (from a booster, in `slot`
+    order; an Epic is always the last slot) or "signature" (their own card,
+    given once, never in a booster)."""
+    __tablename__ = "cards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    booster_id = Column(Integer, ForeignKey("card_boosters.id"), nullable=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    face_id = Column(Integer, ForeignKey("card_faces.id"), nullable=False)
+    slot = Column(Integer, nullable=False, default=1)
+    rarity = Column(String, nullable=False, default="common")  # common | epic
+    kind = Column(String, nullable=False, default="pulled")  # pulled | signature
+    created_at = Column(DateTime, server_default=func.now())
+
+    booster = relationship("CardBooster", back_populates="cards")
+    face = relationship("CardFace")
+
+
+class MonthlyContract(Base):
+    """A month's contract (quests.py): the objectives drawn for it, the first
+    time anyone looked at it that month, and kept as drawn — so what's asked
+    never changes mid-month and past months' XP never moves. Progress isn't
+    stored: it's computed from the facts, like the rest of the XP."""
+    __tablename__ = "monthly_contracts"
+
+    month = Column(String, primary_key=True)  # "YYYY-MM", instance timezone
+    objectives = Column(Text, nullable=False)  # JSON: [{"code", "target", "event_id"?}]
+    required = Column(Integer, nullable=False)  # objectives to meet: 2, fewer if fewer were drawn
+    created_at = Column(DateTime, server_default=func.now())

@@ -17,6 +17,17 @@ from prorata import calculate_prorata
 
 # ── pure calculation ───────────────────────────────────────────────────────────
 
+def _today():
+    """The app's today (instance timezone, UTC by default), not the test
+    machine's: between midnight and 02:00 in Paris they differ by a day, and
+    the code under test (has_started, lan_reminders) uses the app's."""
+    s = database.SessionLocal()
+    try:
+        return event_utils.local_today(s)
+    finally:
+        s.close()
+
+
 def _u(uid):
     return SimpleNamespace(id=uid, username=f"u{uid}", avatar_url=None, phone=None)
 
@@ -98,7 +109,7 @@ def _seed(start_offset=5, nights=3):
     everyone in for the whole event, admin fronted 300."""
     admin = make_user("admin", role="admin")
     bob, cara = make_user("bob"), make_user("cara")
-    start = date.today() + timedelta(days=start_offset)
+    start = _today() + timedelta(days=start_offset)
     s = database.SessionLocal()
     try:
         ev = models.LanEvent(title="LAN", start_date=start, end_date=start + timedelta(days=nights), created_by=admin)
@@ -133,7 +144,7 @@ def test_marking_paid_records_the_amount_and_adds_up(client):
     # A late receipt: bob owes 20 more, and paying it adds up into the same row.
     s = database.SessionLocal()
     try:
-        s.add(models.Expense(description="Ice", amount=60.0, category="general", date=date.today(),
+        s.add(models.Expense(description="Ice", amount=60.0, category="general", date=_today(),
                              created_by=admin, paid_by=admin, event_id=eid))
         s.commit()
     finally:
@@ -151,7 +162,7 @@ def test_marking_paid_records_the_amount_and_adds_up(client):
 def test_member_can_change_dates_before_the_lan_but_not_once_it_started(client):
     eid, _, bob, _ = _seed(start_offset=5)
     t = login(client, "bob")
-    start = date.today() + timedelta(days=5)
+    start = _today() + timedelta(days=5)
     body = {"arrival_date": str(start), "departure_date": str(start + timedelta(days=1))}
     assert client.post(f"/api/events/{eid}/rsvp", json=body, headers=auth_header(t)).status_code == 200
 
@@ -170,7 +181,7 @@ def _seed_started():
         admin = s.query(models.User).filter_by(username="admin").first()
         dan = models.User(username="dan", email="dan@example.com", hashed_password=admin.hashed_password)
         s.add(dan)
-        start = date.today() - timedelta(days=1)
+        start = _today() - timedelta(days=1)
         ev = models.LanEvent(title="Running LAN", start_date=start, end_date=start + timedelta(days=3),
                              created_by=admin.id)
         s.add(ev)
@@ -194,7 +205,7 @@ def test_treasurer_adjusts_a_member_after_the_start_and_it_is_traced(client):
     finally:
         s.close()
     member_t, tess_t = login(client, "bob"), login(client, "tess")
-    start = date.today() - timedelta(days=1)
+    start = _today() - timedelta(days=1)
     body = {"status": "in", "arrival_date": str(start), "departure_date": str(start + timedelta(days=1))}
 
     assert client.put(f"/api/events/{eid}/rsvps/{dan}", json=body, headers=auth_header(member_t)).status_code == 403
@@ -235,6 +246,89 @@ def test_admin_removes_a_member_from_an_upcoming_lan_and_keeps_their_account(cli
         s.close()
     # Their account still works.
     assert login(client, "bob")
+
+
+def test_deleted_member_can_be_taken_out_of_a_started_lan_but_not_put_in(client):
+    # Deletion keeps the RSVP, so a started LAN's split still counts them;
+    # the treasurer's only way out is marking them absent.
+    _seed()
+    eid, _, dan, _ = _seed_started()
+    admin_t = login(client, "admin")
+    _delete(client, admin_t, dan)
+    assert dan in {s["user_id"] for s in _prorata(client, admin_t, eid)["shares"]}
+
+    start = _today() - timedelta(days=1)
+    back_in = {"status": "in", "arrival_date": str(start), "departure_date": str(start + timedelta(days=1))}
+    assert client.put(f"/api/events/{eid}/rsvps/{dan}", json=back_in, headers=auth_header(admin_t)).status_code == 404
+
+    resp = client.put(f"/api/events/{eid}/rsvps/{dan}", json={"status": "out"}, headers=auth_header(admin_t))
+    assert resp.status_code == 200 and resp.json()["changed"] is True
+    assert dan not in {s["user_id"] for s in _prorata(client, admin_t, eid)["shares"]}
+    s = database.SessionLocal()
+    try:
+        assert s.query(models.ActivityLog).filter_by(action="rsvp_adjusted").count() == 0
+    finally:
+        s.close()
+
+
+def _delete(client, admin_t, uid):
+    assert client.delete(f"/api/users/{uid}", headers=auth_header(admin_t)).status_code in (200, 204)
+
+
+def _mark(client, token, eid, to_user, from_user=None, method="post"):
+    body = {"event_id": eid, "to_user_id": to_user}
+    if from_user is not None:
+        body["from_user_id"] = from_user
+    if method == "post":
+        return client.post("/api/expenses/settlements/mark", json=body, headers=auth_header(token))
+    return client.request("DELETE", "/api/expenses/settlements/mark", json=body, headers=auth_header(token))
+
+
+def test_treasurer_records_the_payment_of_a_member_who_cannot_log_in(client):
+    # bob attended a started LAN, then his account was deleted: he still owes
+    # his share and only the treasurer can close that line.
+    eid, admin, bob, cara = _seed(start_offset=-1)
+    admin_t = login(client, "admin")
+    cara_t = login(client, "cara")
+    _delete(client, admin_t, bob)
+    line = next(l for l in _prorata(client, admin_t, eid)["settlements"] if l["from_user_id"] == bob)
+    assert line["from_inactive"] is True and line["amount"] == 100.0
+    assert next(s for s in _prorata(client, admin_t, eid)["shares"] if s["user_id"] == bob)["deleted"] is True
+
+    # A plain member can't record it for him, nor can anyone for an active member.
+    assert _mark(client, cara_t, eid, admin, from_user=bob).status_code == 403
+    assert _mark(client, admin_t, eid, admin, from_user=cara).status_code == 400
+
+    resp = _mark(client, admin_t, eid, admin, from_user=bob)
+    assert resp.status_code == 200 and resp.json()["amount"] == 100.0
+    assert not [l for l in _prorata(client, admin_t, eid)["settlements"] if l["from_user_id"] == bob and not l["paid"]]
+
+    assert _mark(client, admin_t, eid, admin, from_user=bob, method="delete").status_code == 200
+    assert [l["amount"] for l in _prorata(client, admin_t, eid)["settlements"]
+            if l["from_user_id"] == bob and not l["paid"]] == [100.0]
+    s = database.SessionLocal()
+    try:
+        assert s.query(models.AuditLog).filter_by(action="settlement_recorded").count() == 2
+    finally:
+        s.close()
+
+
+def test_a_deleted_member_keeps_what_they_fronted_but_cannot_be_picked_as_payer(client):
+    eid, admin, bob, _ = _seed(start_offset=-1)
+    admin_t = login(client, "admin")
+    body = {"description": "Pizza", "amount": 40.0, "date": str(_today()), "event_id": eid, "paid_by": bob}
+    expense = client.post("/api/expenses/", json=body, headers=auth_header(admin_t)).json()
+    _delete(client, admin_t, bob)
+
+    assert client.post("/api/expenses/", json=body, headers=auth_header(admin_t)).status_code == 400
+    # Editing something else on his expense keeps him as the payer...
+    edited = client.put(f"/api/expenses/{expense['id']}", json={**body, "amount": 45.0}, headers=auth_header(admin_t))
+    assert edited.status_code == 200 and edited.json()["paid_by"] == bob
+    # ...but another expense can't be moved onto him.
+    rent = next(e for e in client.get(f"/api/expenses/?event_id={eid}", headers=auth_header(admin_t)).json()
+                if e["description"] == "Rent")
+    moved = {"description": "Rent", "amount": 300.0, "date": rent["date"], "event_id": eid, "paid_by": bob}
+    assert client.put(f"/api/expenses/{rent['id']}", json=moved, headers=auth_header(admin_t)).status_code == 400
 
 
 def test_deactivated_member_counts_once_the_lan_started_and_not_before(client):

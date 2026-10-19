@@ -769,8 +769,13 @@ async fn poll_activity(
                 if status.is_success() {
                     match resp.json::<Vec<ActivityItem>>().await {
                         Ok(items) => {
-                            // Backend returns newest-first (router_activity.py).
-                            if let Some(newest) = items.first() {
+                            // The highest id, not `items.first()`: the feed is
+                            // ordered by created_at, which has one-second
+                            // resolution, and servers before the tie-break fix
+                            // could put the lower id of a same-second pair
+                            // first — the other row then counted as new on
+                            // every poll and its toast fired forever.
+                            if let Some(newest) = items.iter().max_by_key(|i| i.id) {
                                 if let Some(last) = last_seen_id {
                                     let mut new_items: Vec<&ActivityItem> =
                                         items.iter().filter(|i| i.id > last).collect();

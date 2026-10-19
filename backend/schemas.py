@@ -304,6 +304,14 @@ class TournamentUpdate(BaseModel):
     game_name: Optional[str] = None
     game_id: Optional[int] = None
     status: Optional[str] = None
+    # Only while the tournament is pending (the random team draw sets both).
+    bracket_type: Optional[Literal["single_elimination", "round_robin", "groups_then_knockout"]] = None
+    max_team_size: Optional[int] = Field(default=None, ge=1, le=10)
+
+
+class TeamsReplace(BaseModel):
+    """Every team of a pending tournament at once — the random team draw."""
+    teams: List[TeamCreate] = Field(..., min_length=1)
 
 
 class TournamentOut(BaseModel):
@@ -986,6 +994,26 @@ class XpCrewEntry(BaseModel):
     title: str
 
 
+class QuestObjectiveOut(BaseModel):
+    """One objective of the month's contract. `code` is an i18n key on the
+    frontend (`quests.objective.<code>`); `progress` is capped at `target`."""
+    code: str
+    target: int
+    progress: int
+    done: bool
+    event_title: Optional[str] = None  # rsvp_next: the LAN to answer
+
+
+class QuestContractOut(BaseModel):
+    month: str  # "YYYY-MM"
+    ends_on: date
+    days_left: int  # today included
+    required: int
+    xp: int
+    done: bool
+    objectives: list[QuestObjectiveOut]
+
+
 class RecapEvent(BaseModel):
     id: int
     title: str
@@ -1554,6 +1582,37 @@ class TrophyEditionOut(BaseModel):
     tally: Optional[List[TrophyTallyLine]] = None
 
 
+class TrophyOpenVotesIn(BaseModel):
+    """Trophy night: open every vote-mode draft of an event in one go."""
+    notify: bool = True
+    post_to_discord: bool = False
+
+
+class TrophyBulkOut(BaseModel):
+    """What a trophy-night action changed, and the event's editions after it."""
+    changed: int = 0
+    notified: int = 0
+    editions: List[TrophyEditionOut] = []
+
+
+class TrophyNominee(BaseModel):
+    user_id: int
+    username: str
+    avatar_url: Optional[str] = None
+
+
+class TrophyBallotOut(BaseModel):
+    """The viewer's open trophy votes, for the vote modal: the editions being
+    voted on (with their own `my_vote` only) and who they can vote for — the
+    event's attendees minus themselves. `nudge_id` is the newest reminder an
+    admin sent them, so the modal pops again after one."""
+    event_id: int
+    event_title: str
+    editions: List[TrophyEditionOut]
+    nominees: List[TrophyNominee]
+    nudge_id: Optional[int] = None
+
+
 class UserTrophyOut(BaseModel):
     """A trophy in a member's showcase: which edition, and why."""
     edition_id: int
@@ -1663,3 +1722,79 @@ class LolMatchOut(BaseModel):
     played_at: datetime
     submitted_by: Optional[str] = None
     players: List[LolMatchPlayerOut] = []
+
+
+# ── Cards & boosters (see cards.py) ───────────────────────────────────────────
+
+class CardFaceOut(BaseModel):
+    """A member as printed on a card of one edition. `image_url` is null when
+    they had no photo, or their account was deleted (`departed`)."""
+    user_id: int
+    username: str
+    image_url: Optional[str] = None
+    xp_level: Optional[int] = None
+    event_id: int
+    event_title: str
+    year: Optional[int] = None
+    number: Optional[int] = None  # rank in the edition, "07 / 09"
+    edition_size: int = 0
+    trophies: List[str] = []  # trophies this member won at this LAN
+    departed: bool = False
+
+
+class CardOut(BaseModel):
+    id: int
+    rarity: str  # common | epic
+    kind: str  # pulled | signature
+    slot: int
+    source_type: str  # attendance | trophy | xp_level | purchase | signature
+    obtained_at: Optional[datetime] = None
+    face: CardFaceOut
+
+
+class BoosterOut(BaseModel):
+    """A booster as shown before opening: never its content."""
+    id: int
+    source_type: str
+    event_id: int
+    event_title: str
+    size: int
+    epic_rate: float
+    granted_at: Optional[datetime] = None
+    opened_at: Optional[datetime] = None
+
+
+class CardsMeOut(BaseModel):
+    """The viewer's unopened boosters and what they can buy. `xp_balance` is
+    null when XP is off (no purchase then)."""
+    boosters: List[BoosterOut]
+    xp_balance: Optional[int] = None
+    booster_price: int
+    purchases_per_week: int
+    purchases_left: Optional[int] = None  # this rolling week; null when XP is off
+    next_purchase_at: Optional[datetime] = None  # when the weekly limit is reached
+
+
+class BoosterOpenOut(BaseModel):
+    booster: BoosterOut
+    cards: List[CardOut]  # slot order: an Epic is always last
+    new_member_ids: List[int]  # members the owner had no card of before this booster
+
+
+class CollectionMemberOut(BaseModel):
+    user_id: int
+    username: str
+    image_url: Optional[str] = None
+    departed: bool = False
+    count: int
+    epic_count: int
+    cards: List[CardOut]
+
+
+class CollectionOut(BaseModel):
+    owner_id: int
+    members: List[CollectionMemberOut]
+    collected: int  # crew members (active, owner excluded) with at least one card
+    crew_size: int
+    total_cards: int
+    epic_cards: int

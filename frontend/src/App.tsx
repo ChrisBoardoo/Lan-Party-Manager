@@ -31,10 +31,12 @@ import Kiosk from './pages/Kiosk'
 import RecapPage, { SharedRecapPage } from './pages/RecapPage'
 import SharedSetupPage from './pages/SharedSetupPage'
 import MiniGamesPage from './pages/MiniGamesPage'
+import CollectionPage from './pages/CollectionPage'
 import Games from './pages/Games'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import AnnouncementBanner from './components/AnnouncementBanner'
+import TrophyVoteModal from './components/trophies/TrophyVoteModal'
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth()
@@ -112,6 +114,14 @@ function MiniGamesOnly({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
+// Cards are opt-in: same deep-link guard as MiniGamesOnly.
+function CardsOnly({ children }: { children: ReactNode }) {
+  const { cardsEnabled, configLoaded } = useAppConfig()
+  if (!configLoaded) return <ConfigGate />
+  if (!cardsEnabled) return <Navigate to="/" replace />
+  return <>{children}</>
+}
+
 // The Games page is opt-in, same guard shape as MiniGamesOnly (waits for
 // /public-config since the flags start false, so a fresh deep-link isn't
 // bounced before the real value arrives). Either of its two features opens
@@ -141,6 +151,7 @@ function Layout({ children }: { children: ReactNode }) {
       <AnnouncementBanner />
       <div className="flex-1">{children}</div>
       <Footer />
+      <TrophyVoteModal />
     </div>
   )
 }
@@ -198,6 +209,8 @@ function AppRoutes() {
       <Route path="/streams" element={<Protected><Layout><StreamsOnly><Streams /></StreamsOnly></Layout></Protected>} />
       <Route path="/media" element={<Protected><Layout><Media /></Layout></Protected>} />
       <Route path="/minigames" element={<Protected><Layout><MiniGamesOnly><MiniGamesPage /></MiniGamesOnly></Layout></Protected>} />
+      <Route path="/collection" element={<Protected><Layout><CardsOnly><CollectionPage /></CardsOnly></Layout></Protected>} />
+      <Route path="/collection/:userId" element={<Protected><Layout><CardsOnly><CollectionPage /></CardsOnly></Layout></Protected>} />
       <Route path="/games-finder" element={<Protected><Layout><GamesOnly><Games /></GamesOnly></Layout></Protected>} />
       <Route path="/settings" element={<Protected><Layout><Settings /></Layout></Protected>} />
       <Route path="/audit" element={<Protected><Layout><AuditLog /></Layout></Protected>} />
