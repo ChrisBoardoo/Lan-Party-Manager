@@ -150,7 +150,7 @@ jobs:
     # only way to actually catch this class of bug before a Pi does.
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
       - name: Run the full Alembic chain twice inside an arm64 container
         run: |
           docker run --rm --platform linux/arm64/v8 \
