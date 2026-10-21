@@ -7,7 +7,7 @@
 **Le QG auto-hébergé de vos week-ends LAN.**
 Invitations, brackets, frais partagés, photos, hype sur grand écran — sur une machine à vous.
 
-[![Version](https://img.shields.io/badge/version-1.4.0-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.4.1-FF3D00?style=flat-square)](#)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0-4C566A?style=flat-square)](LICENSE)
 [![Plateforme](https://img.shields.io/badge/plateforme-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -42,7 +42,7 @@ pas d'abonnement.** Le chaos de votre équipe reste chez vous.
 | 📸 **Médiathèque** | Galerie photo/vidéo partagée, réactions emoji et miniatures vidéo. |
 | 📺 **Kiosque grand écran** | Une page projecteur autorisée par jeton : matchs en cours, arrivées, mur de photos, cérémonies de trophées avec confettis. |
 | 🗓️ **Planning** | Proposez des créneaux, votez, verrouillez le programme. Le projecteur affiche le compte à rebours du prochain. |
-| 🎮 **Et le reste** | Streams Twitch, connexion et annonces Discord, checklist matériel (« qui apporte le switch ? »), courses, trophées, récap d'après-LAN… **29 fonctionnalités**, chacune désactivable. |
+| 🎮 **Et le reste** | Streams Twitch, connexion et annonces Discord, checklist matériel (« qui apporte le switch ? »), courses, trophées, récap d'après-LAN… **30+ fonctionnalités**, chacune désactivable. |
 
 Bilingue **FR/EN**, au choix de chaque joueur. Visite complète sur le [site](https://lanpartymanager.com/fr/).
 

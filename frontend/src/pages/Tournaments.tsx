@@ -4,6 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppConfig } from '../contexts/AppConfigContext'
 import { tournamentsApi, usersApi, eventsApi } from '../lib/api'
+import { useLoad } from '../hooks/useLoad'
+import LoadError from '../components/ui/LoadError'
+import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import { isEmbeddedInDesktop, requestOpenExternal } from '../lib/desktopBridge'
 import { Tournament, Team, User, RoundRobinStanding } from '../types'
 import { formatDate } from '../lib/formatDate'
@@ -183,8 +187,8 @@ function AddTeamModal({
       } else {
         await tournamentsApi.addTeam(tournament.id, payload)
       }
-    } catch {
-      setMemberError(t('tournaments.teamModal.saveFailed'))
+    } catch (e) {
+      setMemberError(apiErrorMessage(e, t))  // the server says which member or why
       return
     }
     onAdd()
@@ -359,13 +363,14 @@ export default function Tournaments() {
   const [showDraw, setShowDraw] = useState(false)
   const [editingTeam, setEditingTeam] = useState<Team | undefined>(undefined)
   const [generatingBrackets, setGeneratingBrackets] = useState(false)
-  const [loading, setLoading] = useState(true)
 
   const { minigamesEnabled } = useAppConfig()
   const [tab, setTab] = useState<'tournaments' | 'stats' | 'minigames'>('tournaments')
 
   const canCreateTournament = user?.is_tournament_organizer || user?.role === 'admin' || user?.role === 'treasurer'
   const isOrganizer = selected ? selected.organizer_id === user?.id || user?.role === 'admin' : false
+
+  const { push } = useToast()
 
   const loadTournaments = async () => {
     const data = await tournamentsApi.getAll()
@@ -374,7 +379,6 @@ export default function Tournaments() {
       const fresh = data.find((t) => t.id === selected.id)
       if (fresh) setSelected(fresh)
     }
-    setLoading(false)
   }
 
   const loadSelected = async () => {
@@ -397,12 +401,10 @@ export default function Tournaments() {
     }
   }
 
-  useEffect(() => {
-    Promise.all([tournamentsApi.getAll(), usersApi.getAll()]).then(([t, u]) => {
-      setTournaments(t)
-      setAllUsers(u)
-      setLoading(false)
-    })
+  const { loading, error, retry } = useLoad(async () => {
+    const [t, u] = await Promise.all([tournamentsApi.getAll(), usersApi.getAll()])
+    setTournaments(t)
+    setAllUsers(u)
   }, [])
 
   useEffect(() => {
@@ -415,6 +417,8 @@ export default function Tournaments() {
     try {
       await tournamentsApi.generateBrackets(selected.id)
       await loadSelected()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setGeneratingBrackets(false)
     }
@@ -422,13 +426,23 @@ export default function Tournaments() {
 
   const handleDeleteTeam = async (teamId: number) => {
     if (!selected || !confirm(t('tournaments.removeTeamConfirm'))) return
-    await tournamentsApi.deleteTeam(selected.id, teamId)
+    try {
+      await tournamentsApi.deleteTeam(selected.id, teamId)
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+      return
+    }
     await loadSelected()
   }
 
   const handleDeleteTournament = async () => {
     if (!selected || !confirm(t('tournaments.deleteTournamentConfirm', { name: selected.game_name }))) return
-    await tournamentsApi.delete(selected.id)
+    try {
+      await tournamentsApi.delete(selected.id)
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+      return
+    }
     setSelected(null)
     await loadTournaments()
   }
@@ -443,6 +457,7 @@ export default function Tournaments() {
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-12">
+      {error && <LoadError message={error} onRetry={retry} />}
       <div className="flex items-start justify-between mb-12">
         <div>
           <div className="font-mono-label text-accent mb-3">{t('tournaments.tagline')}</div>

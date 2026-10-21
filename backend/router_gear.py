@@ -9,7 +9,6 @@ same car-boot of kit every time.
 All endpoints are gated by the `gear` feature flag (non-admins get 404 when it's
 off; admins always pass so they can configure it first), mirroring Planning.
 """
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload

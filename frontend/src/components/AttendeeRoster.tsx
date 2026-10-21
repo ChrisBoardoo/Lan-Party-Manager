@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDate } from '../lib/formatDate'
 import { eventsApi } from '../lib/api'
+import { apiErrorMessage } from '../lib/apiError'
 import { LanEvent } from '../types'
 import { ChevronDown, ChevronUp, UserMinus } from 'lucide-react'
 
@@ -33,8 +34,8 @@ export default function AttendeeRoster({
     try {
       await eventsApi.adjustRsvp(event.id, userId, { status: 'out' })
       onAttendanceChanged()
-    } catch (e: any) {
-      setError(t('events.roster.removeFailed', { detail: e.response?.data?.detail ?? '' }))
+    } catch (e) {
+      setError(t('events.roster.removeFailed', { detail: apiErrorMessage(e, t) }))
     } finally {
       setBusyId(null)
     }

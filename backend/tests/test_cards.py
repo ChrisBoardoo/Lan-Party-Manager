@@ -26,7 +26,7 @@ import database
 import models
 import uploads
 from cards_rules import BOOSTER_PRICE_XP, EPIC_RATES, booster_size
-from conftest import auth_header, login, make_user
+from conftest import auth_header, login, make_user, run_concurrently
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -453,3 +453,70 @@ def test_deletion_takes_the_photo_off(client, lan, monkeypatch):
     assert not os.path.exists(os.path.join(uploads.UPLOAD_DIR, "cards", os.path.basename(url)))
     bob = next(m for m in _collection(client, lan, "alice", "alice")["members"] if m["user_id"] == lan["ids"]["bob"])
     assert bob["departed"] is True and bob["image_url"] is None and bob["username"].startswith("deleted_user_")
+
+
+# ── Races: a double click, two tabs (D-1, D-7 of the 2026-10-20 review) ───────
+
+def _purchases(user_id):
+    s = database.SessionLocal()
+    try:
+        return s.query(models.CardBooster).filter(
+            models.CardBooster.owner_id == user_id, models.CardBooster.source_type == "purchase",
+        ).count()
+    finally:
+        s.close()
+
+
+def _buy(client, lan, who):
+    return lambda: client.post("/api/cards/boosters/buy", headers=_h(lan, who))
+
+
+def _xp_on(client, lan):
+    _set(client, lan["tok"]["founder"], "xp_enabled", "true")
+    _set(client, lan["tok"]["founder"], "trophies_enabled", "true")
+
+
+def test_two_purchases_at_once_pay_for_one_booster(client, lan):
+    _xp_on(client, lan)
+    assert _me(client, lan, "alice")["xp_balance"] == 100
+    statuses = sorted(r.status_code for r in run_concurrently(_buy(client, lan, "alice"), _buy(client, lan, "alice")))
+    # 409 when they really raced (the loser gives its booster back), 400 when
+    # the second one simply came after; never two boosters for one price.
+    assert statuses[0] == 200 and statuses[1] in (400, 409), statuses
+    assert _purchases(lan["ids"]["alice"]) == 1
+    assert _me(client, lan, "alice")["xp_balance"] == 0
+
+
+def test_purchases_at_once_respect_the_weekly_cap(client, lan):
+    _xp_on(client, lan)
+    for i in range(6):  # 6 trophies: +300 XP on top of the LAN's 100
+        _reveal_trophy(lan, ["alice"], name=f"Trophy {i}")
+    assert _me(client, lan, "alice")["xp_balance"] == 400
+    assert client.post("/api/cards/boosters/buy", headers=_h(lan, "alice")).status_code == 200
+    statuses = [r.status_code for r in run_concurrently(*[_buy(client, lan, "alice")] * 3)]
+    assert statuses.count(200) == 1 and all(s in (200, 400, 409) for s in statuses), statuses
+    assert _purchases(lan["ids"]["alice"]) == 2
+    assert _me(client, lan, "alice")["purchases_left"] == 0
+
+
+def test_purchases_at_once_on_undrawn_faces_never_500(client, lan):
+    # bob never opened LPM: no face exists for anyone he may draw, so three
+    # purchases at once race on uq_card_face as well as on the balance — and
+    # with XP for two boosters, the two losers of the first draw race again
+    # on their second attempt (the audit saw 200, 200, 500 here).
+    _xp_on(client, lan)
+    for i in range(6):
+        _reveal_trophy(lan, ["bob"], name=f"Trophy {i}")
+    statuses = [r.status_code for r in run_concurrently(*[_buy(client, lan, "bob")] * 3)]
+    assert all(s in (200, 400, 409) for s in statuses), statuses
+    assert statuses.count(200) == 2 and _purchases(lan["ids"]["bob"]) == 2
+
+
+def test_opening_at_once_announces_the_epic_once(client, lan, monkeypatch):
+    monkeypatch.setattr(cards, "_rng", _Rng(0.0))
+    b = _me(client, lan, "alice")["boosters"][0]
+    results = run_concurrently(lambda: _open(client, lan, "alice", b["id"]), lambda: _open(client, lan, "alice", b["id"]))
+    assert [r.status_code for r in results] == [200, 200], [r.text for r in results]
+    assert results[0].json()["cards"] == results[1].json()["cards"]
+    feed = client.get("/api/activity/", headers=_h(lan, "bob")).json()
+    assert [a["action"] for a in feed].count("card_epic_pulled") == 1

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useToast } from '../../contexts/ToastContext'
+import { apiErrorMessage } from '../../lib/apiError'
 import { useTranslation } from 'react-i18next'
 import { Volume2, VolumeX, X } from 'lucide-react'
 import { cardsApi } from '../../lib/api'
@@ -100,6 +102,7 @@ export default function BoosterOpening({
   const { t } = useTranslation()
   const [index, setIndex] = useState(0)
   const [stage, setStage] = useState<Stage>('intro')
+  const { push } = useToast()
   const [opening, setOpening] = useState<Opening | null>(null)
   const [flipped, setFlipped] = useState<boolean[]>([])
   const [spot, setSpot] = useState<SpotPhase | null>(null)
@@ -168,9 +171,11 @@ export default function BoosterOpening({
     let res: Opening
     try {
       res = await cardsApi.open(booster.id)
-    } catch {
+    } catch (e) {
+      // The 409 of a withheld booster (taken out of the LAN) now says so.
       setStage('intro')
       setError(true)
+      push(apiErrorMessage(e, t), 'error')
       return
     }
     onOpened?.()

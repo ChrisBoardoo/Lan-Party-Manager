@@ -26,7 +26,8 @@ from database import SessionLocal
 from discord_notify import send_discord_message
 from event_utils import _instance_tz, local_day_start_utc, local_today
 from models import (
-    AppSetting, BlockVote, ChatMessage, EventRSVP, LanEvent, LolMatch, LolMatchPlayer, MiniGameScore,
+    AppSetting, BlockVote, ChatMessage, EventRSVP, LanEvent, LolMatch, LolMatchPlayer, LolMatchSubmitter,
+    MiniGameScore,
     MonthlyContract, ScheduleBlock,
 )
 from router_settings import get_setting, is_feature_enabled
@@ -45,7 +46,7 @@ REQUIRED = 2
 
 # What each objective asks for, within the month.
 TARGETS = {
-    "lol_squad": 5,      # captured LoL games with at least one other crew member
+    "lol_squad": 5,      # LoL games your own app sent, with another crew member in them
     "minigame": 3,       # mini-game runs that made the leaderboard
     "chat_days": 5,      # days with a Craving Chat message that counts
     "rsvp_next": 1,      # an answer to the next LAN's RSVP
@@ -76,8 +77,10 @@ def month_window(db: Session, key: str) -> Window:
 # ── Progress: per member, from the facts ──────────────────────────────────────
 
 def _lol_squad(db: Session, window: Window, objective: dict) -> Dict[int, int]:
-    """Captured games with at least two crew accounts in them, on the same side
-    or not: a crew 1v1 counts as much as a premade."""
+    """Games with at least two crew accounts in them, on the same side or not
+    (a crew 1v1 counts as much as a premade) — counted for a member only when
+    their own app sent the game (lol_match_submitters): a block typed by hand
+    can't fill someone else's objective (D-3 of the 2026-10-20 review)."""
     start, end = window
     crew: Dict[int, Set[int]] = defaultdict(set)
     rows = (
@@ -88,10 +91,18 @@ def _lol_squad(db: Session, window: Window, objective: dict) -> Dict[int, int]:
     )
     for match_id, uid in rows:
         crew[match_id].add(uid)
+    sent: Dict[int, Set[int]] = defaultdict(set)
+    if crew:
+        for match_id, uid in (
+            db.query(LolMatchSubmitter.match_id, LolMatchSubmitter.user_id)
+            .filter(LolMatchSubmitter.match_id.in_(list(crew)))
+            .all()
+        ):
+            sent[match_id].add(uid)
     games: Counter = Counter()
-    for members in crew.values():
+    for match_id, members in crew.items():
         if len(members) >= 2:
-            games.update(members)
+            games.update(members & sent[match_id])
     return games
 
 

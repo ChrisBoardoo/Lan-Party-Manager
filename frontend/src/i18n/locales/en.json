@@ -1817,5 +1817,18 @@
       "voteOpen": "🏆 Trophy votes are open — cast yours!",
       "voteNudge": "⏳ You still have trophies to vote on"
     }
+  },
+  "errors": {
+    "network": "The server isn't answering. Check the Wi-Fi, or try again in a moment.",
+    "unauthorized": "Your session has expired. Sign in again.",
+    "forbidden": "You're not allowed to do that.",
+    "notFound": "That no longer exists — someone may have removed it.",
+    "conflict": "That just changed under you. Reload and try again.",
+    "tooLarge": "That file is too big for the server.",
+    "invalid": "Some of what you entered isn't valid.",
+    "tooMany": "Too many requests — wait a minute and try again.",
+    "server": "The server hit an error. Try again; tell an admin if it keeps happening.",
+    "generic": "Something went wrong. Try again.",
+    "loadFailed": "This page couldn't load."
   }
 }

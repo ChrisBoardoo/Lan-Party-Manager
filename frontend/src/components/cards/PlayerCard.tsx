@@ -82,7 +82,7 @@ export default function PlayerCard({
           </div>
           <div className="lpm-card__photo">
             {face.image_url ? (
-              <img src={face.image_url} alt="" draggable={false} />
+              <img src={face.image_url} alt="" draggable={false} loading="lazy" decoding="async" />
             ) : (
               <span className="lpm-card__initial" aria-hidden="true">
                 {face.username.charAt(0).toUpperCase()}

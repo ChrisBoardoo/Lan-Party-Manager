@@ -155,6 +155,15 @@ def update_user(
 
     fields = data.model_dump(exclude_unset=True)
 
+    # The organizer role is granted by an admin (D-2 of the 2026-10-20 review):
+    # a member who could tick it himself ran a fake tournament during a LAN and
+    # paid himself the final's XP. A member sending back their own, unchanged
+    # value (an older client's full profile form) is simply ignored.
+    if "is_tournament_organizer" in fields and current_user.role != "admin":
+        if bool(fields["is_tournament_organizer"]) != bool(user.is_tournament_organizer):
+            raise HTTPException(403, "Only an admin can grant the tournament organizer role")
+        fields.pop("is_tournament_organizer")
+
     # Username is unique and used as the login identifier — validate before applying.
     if "username" in fields:
         new_username = (fields.pop("username") or "").strip()

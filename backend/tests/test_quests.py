@@ -254,8 +254,15 @@ def test_lol_squad_counts_games_with_another_member(client, crew):
         player(m3, alice, "a"), player(m3, bob, "b"),
         player(old, alice, "a"), player(old, bob, "b"),  # last month
     )
+
+    def sent(match, uid):
+        return models.LolMatchSubmitter(match_id=match, user_id=uid)
+
+    _add(sent(m1, alice), sent(m2, alice), sent(m3, alice), sent(old, alice), sent(m1, bob), sent(old, bob))
+    # alice's app sent all three: m1 and m3 count (a crew mate in them), m2 doesn't
+    # (nobody from the crew). bob's app only sent m1: m3 is alice's word, not his.
     assert _current(client, crew, "alice")["objectives"][0]["progress"] == 2
-    assert _current(client, crew, "bob")["objectives"][0]["progress"] == 2
+    assert _current(client, crew, "bob")["objectives"][0]["progress"] == 1
 
 
 def test_chat_days_are_local_days_with_a_message_that_counts(client, crew):

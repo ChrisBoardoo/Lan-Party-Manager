@@ -1,0 +1,22 @@
+# Tooling only — the app has no package metadata, requirements.txt stays the
+# dependency list. Added in 1.4.1 (Q-12 of the 2026-10-20 review).
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [".venv", ".venv_test", "alembic/versions"]
+
+[tool.ruff.lint]
+# F = pyflakes (unused imports and names, undefined names), E = pycodestyle
+# errors. Import sorting (I) is left out on purpose: it would touch sixty files
+# for nothing. E501 is handled by the eye, E741 (`l`) by taste.
+select = ["F", "E"]
+ignore = ["E501", "E741"]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest's fixture style: a fixture imported from another test module *is* used
+# (as a parameter), and a test may assign a value it only needs for its side
+# effect.
+"tests/*" = ["F401", "F811", "F841"]
+# The baseline migration adopts an old database by importing every model.
+"db_migrate.py" = ["F401"]

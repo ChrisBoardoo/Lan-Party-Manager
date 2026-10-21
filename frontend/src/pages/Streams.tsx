@@ -3,7 +3,10 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { streamsApi } from '../lib/api'
+import { useLoad } from '../hooks/useLoad'
+import LoadError from '../components/ui/LoadError'
 import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import { LiveStream, LiveStatus } from '../types'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -258,14 +261,12 @@ export default function Streams() {
   const { push } = useToast()
   const [streams, setStreams] = useState<LiveStream[]>([])
   const [liveStatus, setLiveStatus] = useState<Record<string, LiveStatus>>({})
-  const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingStream, setEditingStream] = useState<LiveStream | undefined>(undefined)
 
   const load = async () => {
     const data = await streamsApi.getAll()
     setStreams(data)
-    setLoading(false)
     // Fetch live status in background (may fail if no Twitch credentials)
     try {
       const status = await streamsApi.getLiveStatus()
@@ -275,11 +276,16 @@ export default function Streams() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  const { loading, error, retry } = useLoad(load, [])
 
   const handleDelete = async (stream: LiveStream) => {
     if (!confirm(t('streams.removeConfirm', { name: stream.channel_name }))) return
-    await streamsApi.delete(stream.id)
+    try {
+      await streamsApi.delete(stream.id)
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+      return
+    }
     await load()
     push(t('streams.streamDeleted'))
   }
@@ -294,6 +300,7 @@ export default function Streams() {
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-12">
+      {error && <LoadError message={error} onRetry={retry} />}
       <div className="flex items-start justify-between mb-12">
         <div>
           <div className="font-mono-label text-accent mb-3">{t('streams.tagline')}</div>

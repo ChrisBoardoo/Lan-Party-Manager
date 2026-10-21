@@ -1817,5 +1817,18 @@
       "voteOpen": "🏆 Les votes des trophées sont ouverts — à toi de voter !",
       "voteNudge": "⏳ Il te reste des trophées à voter"
     }
+  },
+  "errors": {
+    "network": "Le serveur ne répond pas. Vérifie le Wi-Fi, ou réessaie dans un instant.",
+    "unauthorized": "Ta session a expiré. Reconnecte-toi.",
+    "forbidden": "Tu n'as pas le droit de faire ça.",
+    "notFound": "Ça n'existe plus — quelqu'un l'a peut-être supprimé.",
+    "conflict": "Ça vient de changer sous tes pieds. Recharge et réessaie.",
+    "tooLarge": "Ce fichier est trop gros pour le serveur.",
+    "invalid": "Une partie de ce que tu as saisi n'est pas valide.",
+    "tooMany": "Trop de requêtes — attends une minute et réessaie.",
+    "server": "Le serveur a rencontré une erreur. Réessaie ; préviens un admin si ça continue.",
+    "generic": "Quelque chose s'est mal passé. Réessaie.",
+    "loadFailed": "Cette page n'a pas pu se charger."
   }
 }

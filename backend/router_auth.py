@@ -5,7 +5,8 @@ import secrets
 from datetime import datetime, timedelta
 from urllib.parse import parse_qs, quote, urlparse
 
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError as JWTError
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse

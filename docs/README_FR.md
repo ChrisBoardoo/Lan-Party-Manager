@@ -7,7 +7,7 @@
 **Gestion d'événements auto-hébergée pour LAN parties** — invitations, tournois, trésorerie,
 médias et streams en direct, le tout sur votre propre matériel. D'un Raspberry Pi à un NUC.
 
-[![Version](https://img.shields.io/badge/version-1.4.0-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.4.1-FF3D00?style=flat-square)](#)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0-4C566A?style=flat-square)](../LICENSE)
 [![Plateforme](https://img.shields.io/badge/plateforme-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -58,11 +58,20 @@ compte cloud, aucune télémétrie, aucun abonnement. Les données de votre équ
 | **Connexion flexible** | Connectez-vous avec **votre pseudo ou votre e-mail** ; **SSO Discord** optionnel pour une connexion et une inscription en un clic ; **mot de passe oublié / réinitialisation** en libre-service par e-mail (SMTP). Les joueurs lient/délient Discord depuis leur profil ; les admins le configurent dans les Réglages. |
 | **Gestion de l'équipe** | Inscription protégée par un code d'invitation par événement (6 caractères, places liées à la capacité de l'événement) ; profils, tailles de t-shirt, avatars WebP, pages de profil joueur. |
 | **Calendrier des LAN** | Planifiez des événements avec dates, lieu, description et capacité optionnelle ; RSVP avec dates d'arrivée/départ bornées à la fenêtre de l'événement et décompte en direct des participants ; code d'invitation partageable par QR pour chaque événement ; **ajout au calendrier** (lien Google Agenda ou fichier `.ics`) pour chaque événement. |
-| **Craving Chat** | Un chat de groupe léger par événement, réservé aux participants confirmés, ouvert de 30 jours avant l'événement à 15 jours après. Réponses, fenêtre d'auto-édition de 10 minutes, une réaction emoji par personne, autocomplétion des mentions @, aperçus de liens, message épinglé par un admin, indicateur « en train d'écrire… » en direct, et recherche dans les messages. Des raccourcis tapés comme `<3`, `:)`, `xD` et `:rofl:` s'affichent en emoji. Optionnel. |
+| **Craving Chat** | Un chat de groupe léger par événement, réservé aux participants confirmés, ouvert de 30 jours avant l'événement à 15 jours après. Réponses, fenêtre d'auto-édition de 10 minutes, une réaction emoji par personne, autocomplétion des mentions @, aperçus de liens, message épinglé par un admin, indicateur « en train d'écrire… » en direct, et recherche dans les messages. Des raccourcis tapés comme `<3`, `:)`, `xD` et `:rofl:` s'affichent en emoji. Activé par défaut ; un admin peut le désactiver et régler la fenêtre. |
 | **Planification (vue calendrier)** | Proposez des jeux pour un événement et **votez sur les heures** pour y jouer via une heatmap jour × heure — dans les limites de la présence de chacun — puis un organisateur **verrouille** le planning. Deux bascules indépendantes (proposer / voter). Optionnel. |
 | **Matériel BYO** | « Qui apporte quoi » par événement : les membres **annoncent** le matériel qu'ils apportent, les admins publient des **demandes** (« il nous faut un 4ᵉ écran ») qu'un membre peut **réclamer**, et un casier de matériel personnel reprend le kit habituel d'un membre en un clic pour le prochain événement. Optionnel. |
 | **Checklist de préparation** | Une checklist de préparation **privée**, par membre et par événement — 9 objets pré-remplis (ordinateur, écran, câbles, casque…) plus jusqu'à 10 champs personnalisés, avec reprise en un clic de « votre liste habituelle » depuis le dernier événement. Personne d'autre que le propriétaire ne peut jamais la voir, pas même un admin. Optionnel. |
 | **Mini-Jeux** | Jeux d'arcade intégrés avec un **classement persistant par joueur**, pour faire revenir le crew entre deux LAN. Livré avec *Neon Survivor* (un roguelite) ; le schéma est multi-jeux, d'autres peuvent donc être ajoutés sans migration. Seules les parties solo sont classées — une partie coop à deux dure mécaniquement plus longtemps. Les scores sont vérifiés côté serveur contre un jeton de partie et le temps réellement écoulé. Optionnel. |
+| **Ludothèque et recherche de jeux** | Chaque membre tient sa ludothèque (favoris, nombre de joueurs, liste de souhaits), importable depuis un compte Steam lié. La recherche classe les coéquipiers par jeux en commun et liste ce que tout un groupe possède, pour une session qui démarre sans le tour de « qui l'a ? ». Optionnel. |
+| **Riot ID et stats LoL** | Les membres renseignent leur Riot ID ; l'application de bureau capture les parties de League of Legends jouées pendant une LAN, et la page Jeux affiche les stats par événement et globales. Les envois sont limités et bornés, une partie ne compte pour un membre que si sa propre application l'a envoyée, et un admin peut retirer une partie qui ne devrait pas compter. Optionnel. |
+| **XP et niveaux** | XP et niveaux du crew dérivés à la lecture des tournois, des présences, du chat et des médias — rien n'est stocké, rien à migrer — avec un classement sur le Hub et le détail sur chaque profil. Un tournoi ne rapporte d'XP que si les deux camps ont des comptes liés. Optionnel. |
+| **Cartes à collectionner et boosters** | Dépensez de l'XP en boosters qui révèlent des cartes du crew (l'Épique toujours en dernier) ; la collection de chaque membre est une vitrine que tout le crew peut parcourir. Achat et ouverture sont atomiques — un double clic ne dépense jamais deux fois. Optionnel, nécessite l'XP. |
+| **Contrat mensuel** | Une série d'objectifs pour le mois, qui rapporte de l'XP une fois le nombre requis atteint, avec la progression de chaque membre calculée à partir de ce qu'il fait déjà. Optionnel, nécessite l'XP. |
+| **Trophées et votes** | Des trophées définis par le crew et décernés par événement — par vote des participants (ouverture, clôture, relance des retardataires, révélation) ou par un admin. Les brouillons restent réservés aux admins jusqu'à la révélation ; les trophées d'un membre font sa vitrine. Optionnel. |
+| **Courses** | Une liste de courses par événement : les participants ajoutent des articles, désignent qui achète, cochent ce qui est acheté, ou importent toute une liste d'un coup. Optionnel. |
+| **WiFi invités (QR)** | Les admins saisissent une fois le SSID, la sécurité et le mot de passe du lieu ; la page de l'événement et le kiosque affichent un QR code WiFi à scanner. Un SSID vide le masque. |
+| **Verrou des présences** | Dès le premier jour d'un événement, les membres ne peuvent plus changer leur réponse (409 avec un message clair) ; un trésorier ou un admin la fixe pour eux, avec trace d'audit et notification — le prorata repose ainsi sur les nuits réelles. |
 | **Trésorerie** | Suivi des dépenses par catégorie, **répartition automatique au prorata** selon les nuits de présence, règlement entre pairs (P2P) et export CSV en un clic. |
 | **Lots** | Présentez les lots (photo + description) par événement pour récompenser les vainqueurs des tournois. Activer les Lots masque la Trésorerie — les équipes qui offrent des lots ne partagent généralement pas les dépenses. Optionnel. |
 | **Sponsors** | Bannières de sponsors (image ou vidéo) avec lien cliquable, affichées sur les pages événement, tournois et profil joueur. Optionnel. |
@@ -74,9 +83,28 @@ compte cloud, aucune télémétrie, aucun abonnement. Les données de votre équ
 | **Kiosque / Grand écran** | Un affichage ambiant, en lecture seule, pour la salle de LAN, autorisé par un jeton révocable (aucune connexion personnelle sur l'écran partagé). Fait défiler activité, classements, streams et planning, plus le **#LoveWall** : dernières photos/vidéos révélées en animation, coup de cœur épinglé, emojis de réaction en direct, et un « drop » plein écran quand quelqu'un poste pendant la LAN (désactivable par un admin). Optionnel. |
 | **Activité et Panthéon** | Fil des 20 événements les plus récents sur le tableau de bord, plus un classement des joueurs par taux de victoire issu des tournois terminés. |
 | **Annonces et présence** | **Bannière PA** admin (info/alerte, expiration auto, relais Discord optionnel) affichée dans toute l'app ; la liste du HUB montre **qui est en ligne** via un heartbeat léger du navigateur. |
-| **Journal d'audit** | Trace réservée aux admins des actions sensibles (création/suppression d'événements et de tournois) avec auteur et horodatage. |
+| **Journal d'audit** | Trace réservée aux admins des actions sensibles — création/suppression d'événement, suppression de tournoi, codes d'invitation, chaque écriture de dépense et de règlement, changements de rôle, désactivation/suppression de membre, réinitialisations de mot de passe, annonces, retrait d'une partie LoL — avec auteur et horodatage. |
 | **Réglages admin** | Identifiants Twitch + SSO Discord, SMTP (e-mails de réinitialisation), devise, bascules d'activation par fonctionnalité, et sauvegarde en un clic de la BDD + envois au format `tar.gz`. |
 | **Accès par rôle** | Rôles Admin, Trésorier et Utilisateur appliqués côté serveur pour chaque route — pas seulement masqués dans l'interface. |
+
+### Pour quelle taille de LAN ?
+
+LPM est conçu pour un crew de 10 à 50 personnes qui se retrouve quelques fois par an, et c'est là
+qu'il est chez lui. Ce que disent les chiffres :
+
+- Un Raspberry Pi 4 sur carte SD fait tourner toute la pile à cette taille avec de la marge : les
+  écritures se comptent en quelques-unes par minute au pic d'une LAN, et SQLite en mode WAL en
+  absorbe des centaines par seconde.
+- L'XP, les cartes, la rétrospective et le panthéon sont dérivés à la lecture de ce que le crew fait
+  déjà : ils n'ajoutent aucune ligne. Un crew de 20 reste à quelques mégaoctets de base après des
+  années.
+- À 250 personnes avec sponsors, ce qui cède en premier n'est pas la base : le worker uvicorn unique
+  sur un Pi, le chat qui relaie chaque message à 250 connexions WebSocket, les miniatures ffmpeg sur
+  le Pi et le `fsync` de la carte SD. La réponse est un Pi 5 sur NVMe ou une petite machine x86 et
+  plus de workers, pas un autre moteur de base de données.
+- `DATABASE_URL` est une variable d'environnement et SQLAlchemy + Alembic parlent PostgreSQL, pour le
+  jour où plusieurs conteneurs backend, une centaine d'écrivains simultanés ou une base de plusieurs
+  Go se présenteront. Rien de tout cela n'est en vue à l'échelle d'un crew.
 
 ---
 
@@ -144,6 +172,17 @@ docker compose up -d
 ```
 
 > Images sur Docker Hub : [`crosswax/lanpartymanager-backend`](https://hub.docker.com/r/crosswax/lanpartymanager-backend) · [`crosswax/lanpartymanager-frontend`](https://hub.docker.com/r/crosswax/lanpartymanager-frontend)
+
+### Portainer et autres interfaces de stack
+
+Portainer transforme `${VAR:-défaut}` en chaîne vide au lieu de la valeur par défaut : écrivez des
+valeurs littérales dans la stack. Deux autres habitudes qui payent sur une machine auto-hébergée :
+
+- Épinglez les deux lignes `image:` à un numéro de version (`crosswax/lanpartymanager-backend:1.4.1`,
+  pas `:latest`). Une mise à jour devient une modification délibérée, et revenir en arrière consiste
+  à remettre le numéro précédent. Chaque version est poussée sous les deux tags.
+- Si le conteneur backend ne résout plus les noms (liaison Discord et Steam en échec toutes les deux,
+  mails qui ne partent pas), ajoutez `dns: [1.1.1.1, 9.9.9.9]` au service backend.
 
 ### Option B — Compilation depuis les sources
 
@@ -360,9 +399,11 @@ npm run dev   # Serveur de dev Vite sur http://localhost:5173
 ### Tests et vérifications
 
 ```bash
-cd backend && pytest                       # suite de tests backend
+cd backend && pytest -n auto               # suite de tests backend (~20 s avec xdist)
+cd backend && ruff check .                 # lint backend
+cd frontend && npm run test && npm run lint && npm run build
 python scripts/check_i18n_parity.py        # parité des traductions EN/FR
-python scripts/check_version_sync.py       # cohérence de version entre les fichiers
+python scripts/check_version_sync.py       # cohérence de version (16 emplacements, desktop compris)
 ```
 
 ---
@@ -623,6 +664,102 @@ dans `backend/minigames_registry.py`. Ajouter un jeu, c'est une entrée là plus
 | DELETE  | `/api/announcements/{id}`        | Admin uniquement | Supprimer/masquer une annonce                                    |
 | POST    | `/api/presence/ping`             | Tous       | Heartbeat du navigateur — alimente la liste « qui est en ligne » du HUB |
 
+### Courses
+
+*Optionnel — 404 tant que le drapeau `groceries` est désactivé.*
+
+| Méthode | Chemin                                        | Accès                          | Description                                                        |
+|---------|-----------------------------------------------|--------------------------------|--------------------------------------------------------------------|
+| GET     | `/api/groceries/events/{event_id}`            | Tous                           | Toute la liste de l'événement en un appel                          |
+| POST    | `/api/groceries/events/{event_id}/items`      | Tous                           | Ajouter un article, en désignant éventuellement qui l'achète       |
+| POST    | `/api/groceries/events/{event_id}/import`     | Tous                           | Ajouter des articles en masse (l'import CSV)                       |
+| PUT     | `/api/groceries/items/{item_id}`              | Créateur, acheteur désigné ou admin | Modifier nom, catégorie, quantité, acheteur, ou cocher comme acheté |
+| DELETE  | `/api/groceries/items/{item_id}`              | Créateur, acheteur désigné ou admin | Retirer un article                                            |
+
+### Ludothèque
+
+*Optionnel — 404 tant que le drapeau `games` est désactivé. L'import Steam demande un compte Steam lié depuis le profil (`/api/auth/steam/link`).*
+
+| Méthode | Chemin                                     | Accès | Description                                                             |
+|---------|--------------------------------------------|-------|-------------------------------------------------------------------------|
+| GET     | `/api/games/catalog`                       | Tous  | Le catalogue partagé (titres de base + chaque ajout personnalisé)       |
+| GET     | `/api/games/me`                            | Tous  | Ma ludothèque, ma liste de souhaits et mes filtres                      |
+| PUT     | `/api/games/me/filters`                    | Tous  | Enregistrer mes filtres                                                 |
+| POST    | `/api/games/me/library`                    | Tous  | Ajouter un jeu à ma ludothèque                                          |
+| PUT     | `/api/games/me/library/{game_id}`          | Tous  | Modifier une entrée (nombre de joueurs, …)                              |
+| PUT     | `/api/games/me/library/{game_id}/favorite` | Tous  | Mettre ou retirer le favori                                             |
+| DELETE  | `/api/games/me/library/{game_id}`          | Tous  | Retirer un jeu de ma ludothèque                                         |
+| POST    | `/api/games/me/wishlist`                   | Tous  | Ajouter un jeu à ma liste de souhaits                                   |
+| DELETE  | `/api/games/me/wishlist/{game_id}`         | Tous  | L'en retirer                                                            |
+| GET     | `/api/games/matches`                       | Tous  | Chaque autre membre, classé par jeux en commun avec moi                 |
+| POST    | `/api/games/session`                       | Tous  | Les jeux possédés par tous les membres listés, avec le plafond de joueurs du groupe |
+| POST    | `/api/games/me/import-steam`               | Tous  | Importer mes jeux Steam dans ma ludothèque                              |
+
+### Trophées
+
+*Optionnel — 404 tant que le drapeau `trophies` est désactivé. Les éditions en brouillon restent réservées aux admins jusqu'à la révélation.*
+
+| Méthode | Chemin                                            | Accès            | Description                                                              |
+|---------|---------------------------------------------------|------------------|--------------------------------------------------------------------------|
+| GET     | `/api/trophies/`                                  | Admin uniquement | Toute la vitrine, trophées archivés en dernier                           |
+| POST    | `/api/trophies/`                                  | Admin uniquement | Créer un trophée                                                         |
+| PUT     | `/api/trophies/{trophy_id}`                       | Admin uniquement | Modifier un trophée                                                      |
+| DELETE  | `/api/trophies/{trophy_id}`                       | Admin uniquement | Supprimer un trophée que personne n'a encore gagné (sinon il est archivé) |
+| POST    | `/api/trophies/{trophy_id}/image`                 | Admin uniquement | Envoyer son image                                                        |
+| DELETE  | `/api/trophies/{trophy_id}/image`                 | Admin uniquement | Retirer son image                                                        |
+| GET     | `/api/trophies/events/{event_id}`                 | Tous             | Les trophées d'un événement, tels que le lecteur peut les voir           |
+| POST    | `/api/trophies/events/{event_id}`                 | Admin uniquement | Ajouter une édition de trophée à un événement                            |
+| PATCH   | `/api/trophies/editions/{edition_id}`             | Admin uniquement | Modifier une édition                                                     |
+| DELETE  | `/api/trophies/editions/{edition_id}`             | Admin uniquement | Supprimer une édition                                                    |
+| PUT     | `/api/trophies/editions/{edition_id}/winners`     | Admin uniquement | Fixer les vainqueurs à la main                                           |
+| POST    | `/api/trophies/editions/{edition_id}/vote`        | Tous             | Voter — un bulletin par membre et par édition, une relance ne compte jamais deux fois |
+| POST    | `/api/trophies/editions/{edition_id}/reveal`      | Admin uniquement | Révéler les vainqueurs                                                   |
+| POST    | `/api/trophies/events/{event_id}/open-votes`      | Admin uniquement | Ouvrir les votes des éditions d'un événement                             |
+| POST    | `/api/trophies/events/{event_id}/close-votes`     | Admin uniquement | Clore tous les votes ouverts et proposer les vainqueurs                  |
+| POST    | `/api/trophies/events/{event_id}/nudge`           | Admin uniquement | Relancer les participants qui n'ont pas encore voté                      |
+| GET     | `/api/trophies/ballot`                            | Tous             | Mes votes ouverts, ou `null` (interrogé par les onglets ouverts)         |
+| GET     | `/api/trophies/users/{user_id}`                   | Tous             | Les trophées révélés d'un membre, événement le plus récent en premier    |
+
+### League of Legends (capture par l'application de bureau)
+
+*Optionnel — 404 tant que le drapeau `lol_stats` est désactivé. Les parties sont envoyées par la capture de l'application de bureau, jamais saisies à la main.*
+
+| Méthode | Chemin                          | Accès               | Description                                                                 |
+|---------|---------------------------------|---------------------|-----------------------------------------------------------------------------|
+| POST    | `/api/lol/matches`              | Tous, 30 par heure  | Envoyer une partie capturée. Les valeurs sont bornées (K/D/A, dégâts, durée, 10 joueurs au plus) et la partie ne compte pour un membre que si sa propre application l'a envoyée |
+| GET     | `/api/lol/capture-status`       | Tous                | Ce que l'application de bureau d'un membre interroge pour savoir si elle doit capturer (répond même drapeau éteint, pour que l'application s'arrête) |
+| GET     | `/api/lol/stats`                | Tous                | Statistiques agrégées (`?event_id=`, ou globales)                           |
+| GET     | `/api/lol/matches`              | Tous                | Parties capturées (`?event_id=`)                                            |
+| DELETE  | `/api/lol/matches/{match_id}`   | Admin uniquement    | Retirer une partie qui ne devrait pas compter (un test, un remake) ; audité |
+
+### XP et niveaux
+
+*Optionnel — 404 tant que le drapeau `xp` est désactivé. Dérivé à la lecture des tournois, présences, chat et médias ; le registre est mis en cache 30 s par processus et invalidé par toute écriture qui compte.*
+
+| Méthode | Chemin                      | Accès | Description                                                                 |
+|---------|-----------------------------|-------|-----------------------------------------------------------------------------|
+| GET     | `/api/xp/crew`              | Tous  | L'XP et le niveau de chaque membre actif, du meilleur au dernier (classement du Hub) |
+| GET     | `/api/xp/users/{user_id}`   | Tous  | L'XP d'un membre avec son détail                                            |
+
+### Cartes et boosters
+
+*Optionnel — 404 tant que le drapeau `cards` est désactivé ; nécessite l'XP.*
+
+| Méthode | Chemin                                     | Accès | Description                                                                          |
+|---------|--------------------------------------------|-------|--------------------------------------------------------------------------------------|
+| GET     | `/api/cards/me`                            | Tous  | Mes boosters non ouverts, après attribution de ce que j'ai gagné depuis ma dernière visite |
+| POST    | `/api/cards/boosters/buy`                  | Tous  | Acheter un booster avec l'XP dépensable ; 409 quand le solde ne couvre plus         |
+| POST    | `/api/cards/boosters/{booster_id}/open`    | Tous  | Révéler les cartes d'un booster dans l'ordre des emplacements (l'Épique en dernier) ; une seconde ouverture est refusée |
+| GET     | `/api/cards/collection/{user_id}`          | Tous  | La collection d'un membre, visible par tout le crew                                  |
+
+### Contrat mensuel
+
+*Optionnel — 404 tant que le drapeau `quests` est désactivé, et seulement avec l'XP activée.*
+
+| Méthode | Chemin                  | Accès | Description                                                                      |
+|---------|-------------------------|-------|----------------------------------------------------------------------------------|
+| GET     | `/api/quests/current`   | Tous  | Le contrat du mois et ma progression (le premier regard du mois le crée)         |
+
 ### Réglages, Activité, Audit et Sauvegarde
 
 | Méthode | Chemin                | Accès           | Description                                                                  |
@@ -631,7 +768,9 @@ dans `backend/minigames_registry.py`. Ajouter un jeu, c'est une entrée là plus
 | PUT     | `/api/settings/{key}` | Admin uniquement | Enregistrer un réglage (twitch_client_id/secret, discord_oauth_enabled/client_id/client_secret, …) |
 | GET     | `/api/activity/`      | Tous            | Fil d'activité paginé (`?limit=`)                                            |
 | GET     | `/api/audit/`         | Admin uniquement | Journal d'audit admin paginé                                                |
-| GET     | `/api/backup/export`  | Admin uniquement | Télécharger un `tar.gz` de la BDD + du dossier uploads                       |
+| GET     | `/api/backup/export`  | Admin uniquement | Télécharger un `tar.gz` de la BDD + du dossier uploads (instantané SQLite cohérent ; `X-Backup-Estimate` porte la taille) |
+| GET     | `/api/backup/storage` | Admin uniquement | Espace disque du volume des envois                                           |
+| POST    | `/api/backup/import`  | Admin uniquement | Restaurer une archive d'`/export` (corps brut `application/gzip`) : remplace BDD + envois, puis redémarre le backend |
 
 ---
 
@@ -719,9 +858,13 @@ les mises à jour automatiques.
 - **Se met à jour automatiquement** une fois installée — vérifie une fois par lancement, aucun
   téléchargement manuel par la suite.
 
-Le code source se trouve dans [`desktopapp/`](../desktopapp/) — voir
-[`desktopapp/README.md`](../desktopapp/README.md) (en anglais) pour les instructions de build/dev. Les
-installeurs ne sont pas encore publiés ; compilez et lancez depuis les sources pour l'instant :
+Un installeur Windows signé (`LPM_Desktop_v<version>_x64.msi`) est publié sur
+[lanpartymanager.com](https://lanpartymanager.com/fr/) — la section Desktop du site renvoie vers la
+version courante. Une fois installée, l'application consulte
+`https://lanpartymanager.com/assets/desktop/latest.json` à chaque lancement et n'accepte qu'une mise à
+jour dont la signature correspond à la clé publique compilée dedans. Le code source se trouve dans
+[`desktopapp/`](../desktopapp/) — voir [`desktopapp/README.md`](../desktopapp/README.md) (en anglais)
+pour compiler et lancer depuis les sources :
 
 ```powershell
 cd desktopapp
@@ -772,6 +915,13 @@ Lan-Party-Manager/
 │   ├── router_kiosk.py        # /api/kiosk (affichage projecteur optionnel, autorisé par jeton)
 │   ├── router_announcements.py# /api/announcements (bannière PA admin + relais Discord)
 │   ├── router_presence.py     # /api/presence (heartbeat navigateur, qui est en ligne)
+│   ├── router_groceries.py    # /api/groceries (optionnel, liste de courses par événement)
+│   ├── router_games.py        # /api/games (optionnel : ludothèque, souhaits, import Steam, recherche)
+│   ├── router_trophies.py     # /api/trophies (optionnel : trophées, éditions, votes, révélation)
+│   ├── router_lol.py          # /api/lol (optionnel, parties LoL capturées par l'application de bureau)
+│   ├── router_xp.py           # /api/xp (optionnel, XP et niveaux dérivés à la lecture — xp.py)
+│   ├── router_cards.py        # /api/cards (optionnel, cartes et boosters — cards.py)
+│   ├── router_quests.py       # /api/quests (optionnel, contrat mensuel — quests.py)
 │   ├── router_settings.py     # /api/settings
 │   ├── router_activity.py     # /api/activity
 │   ├── router_audit.py        # /api/audit

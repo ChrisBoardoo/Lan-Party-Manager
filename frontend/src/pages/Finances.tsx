@@ -4,7 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppConfig } from '../contexts/AppConfigContext'
 import { expensesApi, eventsApi, usersApi } from '../lib/api'
+import { useLoad } from '../hooks/useLoad'
+import LoadError from '../components/ui/LoadError'
 import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import { Expense, ProRataResult, LanEvent, User, EXPENSE_CATEGORIES } from '../types'
 import i18n from '../i18n'
 import { buildCsv, csvFormatFor, downloadCsv, formatCsvNumber } from '../lib/csv'
@@ -131,7 +134,6 @@ export default function Finances() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [activeTab, setActiveTab] = useState<'expenses' | 'prorata'>('expenses')
   const [unassignedCount, setUnassignedCount] = useState(0)
-  const [loading, setLoading] = useState(true)
 
   const defaultPaidBy = user ? String(user.id) : ''
   const formDefaults = () => ({
@@ -163,10 +165,9 @@ export default function Finances() {
     setProRata(pr)
     setSelectedEventId(pr.event_id)
     setUnassignedCount(unassigned)
-    setLoading(false)
   }
 
-  useEffect(() => { loadData(null) }, [])
+  const { loading, error, retry } = useLoad(() => loadData(null), [])
 
   const handleEventChange = async (eventId: number) => {
     setSelectedEventId(eventId)
@@ -189,10 +190,15 @@ export default function Finances() {
       event_id: data.event_id ? Number(data.event_id) : null,
       paid_by: data.paid_by ? Number(data.paid_by) : null,
     }
-    if (editingExpense) {
-      await expensesApi.update(editingExpense.id, payload)
-    } else {
-      await expensesApi.create(payload)
+    try {
+      if (editingExpense) {
+        await expensesApi.update(editingExpense.id, payload)
+      } else {
+        await expensesApi.create(payload)
+      }
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+      return
     }
     await loadData()
     reset(formDefaults())
@@ -203,7 +209,12 @@ export default function Finances() {
 
   const handleDelete = async (id: number) => {
     if (!confirm(t('finances.deleteExpenseConfirm'))) return
-    await expensesApi.delete(id)
+    try {
+      await expensesApi.delete(id)
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+      return
+    }
     await loadData()
   }
 
@@ -236,6 +247,7 @@ export default function Finances() {
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-12">
+      {error && <LoadError message={error} onRetry={retry} />}
       {/* Header */}
       <div className="flex items-start justify-between mb-12">
         <div>

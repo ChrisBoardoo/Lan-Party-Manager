@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Send, Smile, ChevronDown, X, CornerUpLeft, Pencil, Trash2, Pin, PinOff, Search } from 'lucide-react'
 import { chatApi } from '../lib/api'
+import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import { useCravingChat } from '../hooks/useCravingChat'
 import { useAuth } from '../contexts/AuthContext'
 import type { ChatMention, ChatMessage, EventAttendee, PinnedMessage } from '../types'
@@ -153,14 +155,30 @@ const MAX_EMOTE_SUGGESTIONS = 8
 const TYPING_EXPIRE_MS = 4000
 const TYPING_SEND_THROTTLE_MS = 2000
 
+/** Merges messages into the list by id, in id order. A message I send can
+ *  arrive twice — in the POST's response and on the socket's next tick, which
+ *  pushes the sender's own messages too — so appending blindly showed it
+ *  twice, and React, given two children with the same key, then left one copy
+ *  stale. `keepExisting`: don't overwrite a copy already in the list (the
+ *  POST's response can be older than what the socket pushed). */
+export function mergeMessages(prev: ChatMessage[], incoming: ChatMessage[], keepExisting = false): ChatMessage[] {
+  const byId = new Map(prev.map((m) => [m.id, m]))
+  for (const m of incoming) {
+    if (!keepExisting || !byId.has(m.id)) byId.set(m.id, m)
+  }
+  return Array.from(byId.values()).sort((a, b) => a.id - b.id)
+}
+
 export default function CravingChatSection({ eventId, attendees, heightClassName = 'h-[460px]' }: Props) {
   const { t } = useTranslation()
   const { user } = useAuth()
+  const { push } = useToast()
   const isAdmin = user?.role === 'admin'
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const sendingRef = useRef(false)
   const [closed, setClosed] = useState(false)
   const [openMenuId, setOpenMenuId] = useState<number | null>(null)
   const [reactingId, setReactingId] = useState<number | null>(null)
@@ -230,13 +248,7 @@ export default function CravingChatSection({ eventId, attendees, heightClassName
     // Unlike the activity feed (only ever gets new rows), a chat message can
     // change in place — an edit or a reaction — with no new id appearing, so
     // this upserts by id instead of only appending.
-    onMessages: (incoming) => {
-      setMessages((prev) => {
-        const byId = new Map(prev.map((m) => [m.id, m]))
-        for (const m of incoming) byId.set(m.id, m)
-        return Array.from(byId.values()).sort((a, b) => a.id - b.id)
-      })
-    },
+    onMessages: (incoming) => setMessages((prev) => mergeMessages(prev, incoming)),
     onTyping: ({ user_id, username }) => {
       if (user_id === user?.id) return
       setTypingUsers((prev) => ({ ...prev, [user_id]: username }))
@@ -263,7 +275,10 @@ export default function CravingChatSection({ eventId, attendees, heightClassName
 
   const send = async () => {
     const content = draft.trim()
-    if (!content) return
+    // The button is disabled while sending, Enter isn't: without this, Enter
+    // again while a slow POST is in flight posted the same message twice.
+    if (!content || sendingRef.current) return
+    sendingRef.current = true
     setSending(true)
     try {
       if (editingId != null) {
@@ -271,20 +286,29 @@ export default function CravingChatSection({ eventId, attendees, heightClassName
         setEditingId(null)
       } else {
         const msg = await chatApi.postMessage(eventId, content, replyingTo?.id ?? null)
-        setMessages((prev) => [...prev, msg])
+        setMessages((prev) => mergeMessages(prev, [msg], true))
         setReplyingTo(null)
       }
       setDraft('')
       setMentionQuery(null)
       setEmoteQuery(null)
+    } catch (e) {
+      // The draft stays in the box: nothing was sent (a 403 after the room
+      // closed, the Pi rebooting). Before 1.4.1 this failed without a word.
+      push(apiErrorMessage(e, t), 'error')
     } finally {
+      sendingRef.current = false
       setSending(false)
     }
   }
 
   const remove = async (messageId: number) => {
-    await chatApi.deleteMessage(eventId, messageId)
-    setMessages((prev) => prev.filter((m) => m.id !== messageId))
+    try {
+      await chatApi.deleteMessage(eventId, messageId)
+      setMessages((prev) => prev.filter((m) => m.id !== messageId))
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+    }
   }
 
   const startReply = (m: ChatMessage) => {
@@ -314,18 +338,26 @@ export default function CravingChatSection({ eventId, attendees, heightClassName
 
   const pickReaction = async (messageId: number, emoji: string) => {
     setReactingId(null)
-    applyUpdate(await chatApi.react(eventId, messageId, emoji))
+    try {
+      applyUpdate(await chatApi.react(eventId, messageId, emoji))
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+    }
   }
 
   const canEdit = (m: ChatMessage) => m.is_mine && Date.now() - parseUtc(m.created_at).getTime() < EDIT_WINDOW_MS
 
   const togglePin = async (m: ChatMessage) => {
     setOpenMenuId(null)
-    if (pinned?.id === m.id) {
-      await chatApi.unpin(eventId)
-      setPinned(null)
-    } else {
-      setPinned(await chatApi.pin(eventId, m.id))
+    try {
+      if (pinned?.id === m.id) {
+        await chatApi.unpin(eventId)
+        setPinned(null)
+      } else {
+        setPinned(await chatApi.pin(eventId, m.id))
+      }
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     }
   }
 

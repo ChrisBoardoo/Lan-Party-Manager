@@ -393,4 +393,7 @@ def upsert_setting(
         db.add(s)
     db.commit()
     db.refresh(s)
+    from xp import invalidate_ledger  # lazy: xp imports this module
+
+    invalidate_ledger()  # a flag or cards_since changed what the ledger counts
     return s

@@ -32,6 +32,7 @@ from datetime import datetime
 from typing import Iterable, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from activity import add_activity
@@ -437,8 +438,19 @@ def vote(
         ballot.nominee_id = data.nominee_id
     else:
         e.votes.append(TrophyVote(voter_id=voter.id, nominee_id=data.nominee_id))
-    db.commit()
-    return _edition_out(db, _edition_or_404(db, e.id), voter, eligible)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two clicks at once: the other one just created this voter's ballot
+        # (uq_trophy_vote). Change that ballot rather than answer 500.
+        db.rollback()
+        e = _edition_or_404(db, edition_id)
+        ballot = next((v for v in e.votes if v.voter_id == voter.id), None)
+        if ballot is None:
+            raise HTTPException(409, "Your vote wasn't recorded, try again")
+        ballot.nominee_id = data.nominee_id
+        db.commit()
+    return _edition_out(db, _edition_or_404(db, edition_id), voter, eligible)
 
 
 @router.post("/editions/{edition_id}/reveal", response_model=TrophyEditionOut)

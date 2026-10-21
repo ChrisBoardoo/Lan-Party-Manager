@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { prizesApi, eventsApi } from '../lib/api'
+import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import { LanEvent, Prize } from '../types'
 import Button from '../components/ui/Button'
 import PrizeGrid from '../components/PrizeGrid'
@@ -26,6 +28,7 @@ function PrizeAdminCard({
   onChange: () => void
 }) {
   const { t } = useTranslation()
+  const { push } = useToast()
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(prize.title)
   const [description, setDescription] = useState(prize.description ?? '')
@@ -34,7 +37,12 @@ function PrizeAdminCard({
 
   const save = async () => {
     if (!title.trim()) return
-    await prizesApi.update(prize.id, { title: title.trim(), description: description.trim() || null })
+    try {
+      await prizesApi.update(prize.id, { title: title.trim(), description: description.trim() || null })
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+      return
+    }
     setEditing(false)
     onChange()
   }
@@ -45,6 +53,8 @@ function PrizeAdminCard({
     try {
       await prizesApi.uploadPhoto(prize.id, file)
       onChange()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setUploading(false)
     }
@@ -52,7 +62,12 @@ function PrizeAdminCard({
 
   const remove = async () => {
     if (!confirm(t('prizes.deleteConfirm'))) return
-    await prizesApi.delete(prize.id)
+    try {
+      await prizesApi.delete(prize.id)
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+      return
+    }
     onChange()
   }
 
@@ -127,6 +142,7 @@ function PrizeAdminCard({
 export default function Prizes() {
   const { isAdmin } = useAuth()
   const { t } = useTranslation()
+  const { push } = useToast()
   const [events, setEvents] = useState<LanEvent[]>([])
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
   const [prizes, setPrizes] = useState<Prize[]>([])
@@ -159,6 +175,8 @@ export default function Prizes() {
       await prizesApi.create({ event_id: selectedEventId, title: title.trim(), description: description.trim() || null })
       setTitle(''); setDescription(''); setShowForm(false)
       loadPrizes()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setSaving(false)
     }

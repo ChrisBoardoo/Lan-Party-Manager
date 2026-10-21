@@ -1,8 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
-import io, logging, os, queue, tarfile, shutil, tempfile, threading, time, zlib
+import io
+import logging
+import os
+import queue
+import sqlite3
+import tarfile
+import shutil
+import tempfile
+import threading
+import time
+import zlib
 from datetime import datetime
+from pathlib import Path
 
 from models import User
 from auth import require_admin
@@ -32,16 +43,47 @@ def _dir_size(path: str) -> int:
 
 
 def _checkpoint_wal() -> None:
-    """Fold any pending WAL transactions back into the main .db file so a copy of
-    lanparty.db alone is a complete snapshot (WAL mode keeps recent commits in a
-    separate -wal file that a plain file copy would otherwise miss)."""
+    """Fold any pending WAL transactions back into the main .db file, so the
+    -wal sidecar stays small. Not what makes a backup consistent any more —
+    that's `_snapshot_db` — but still worth a line in the log when it fails:
+    a checkpoint that can't run is a disk or lock problem worth knowing about."""
     try:
         with engine.connect() as conn:
             conn.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
-    except Exception:
-        # A checkpoint failure shouldn't block a backup — worst case the -wal
-        # sidecar simply isn't folded in yet; the export still captures the db file.
-        pass
+    except Exception as e:
+        logger.warning("WAL checkpoint failed: %s", e)
+
+
+def _snapshot_db(dest: str, src: str | None = None) -> None:
+    """A consistent copy of the live database at `dest`, by SQLite's online
+    backup API: writers carry on, the copy is one point in time — no torn copy,
+    no commit left behind in the -wal file (Q-4 of the 2026-10-20 review: the
+    old `tar.add(lanparty.db)` copied the live file after a checkpoint, and a
+    write landing in between gave an archive that was out of date or wouldn't
+    open). A file SQLite can't read (a corrupted database is exactly what an
+    admin may want to export) is copied byte for byte instead."""
+    src = src or DB_PATH
+    try:
+        source = sqlite3.connect(f"{Path(src).resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            target = sqlite3.connect(dest)
+            try:
+                source.backup(target)
+            finally:
+                target.close()
+        finally:
+            source.close()
+    except sqlite3.Error as e:
+        logger.warning("SQLite backup API failed on %s (%s); copying the file as is", src, e)
+        shutil.copyfile(src, dest)
+
+
+def _snapshot_path() -> str:
+    """A temp file next to the database (same volume, same permissions) for
+    `_snapshot_db`; the caller removes it."""
+    fd, path = tempfile.mkstemp(prefix="lanparty_snapshot_", suffix=".db", dir=os.path.dirname(DB_PATH) or None)
+    os.close(fd)
+    return path
 
 
 @router.get("/storage")
@@ -75,11 +117,11 @@ _CHUNK_BYTES = 256 * 1024
 _QUEUE_CHUNKS = 64
 
 
-def _backup_entries():
-    """(path, name in the archive) of everything a backup holds: the database,
-    then the uploads tree, directories included, in a stable order."""
-    if os.path.exists(DB_PATH):
-        yield DB_PATH, "lanparty.db"
+def _backup_entries(db_path: str):
+    """(path, name in the archive) of everything a backup holds: the database
+    snapshot, then the uploads tree, directories included, in a stable order."""
+    if os.path.exists(db_path):
+        yield db_path, "lanparty.db"
     if not os.path.isdir(UPLOAD_DIR):
         return
     yield UPLOAD_DIR, "uploads"
@@ -93,15 +135,18 @@ def _backup_entries():
             yield os.path.join(dirpath, name), f"{base}/{name}"
 
 
-def _backup_size_estimate() -> int:
+def _backup_size_estimate(db_path: str) -> int:
     """Bytes the archive will roughly weigh: what it holds, uncompressed. Media
-    barely compresses, so it's close — the admin's progress bar runs on it."""
-    db = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
+    barely compresses, so it's close — the admin's progress bar runs on it.
+    Measured on the snapshot: the live file alone is only the checkpointed
+    part (7 KB for an 800 KB database, seen 2026-10-21), so the bar overshot."""
+    db = os.path.getsize(db_path) if os.path.exists(db_path) else 0
     return db + (_dir_size(UPLOAD_DIR) if os.path.isdir(UPLOAD_DIR) else 0)
 
 
-def _stream_backup():
-    """Yield the .tar.gz as it's being built."""
+def _stream_backup(db_path: str):
+    """Yield the .tar.gz as it's being built; `db_path` (a snapshot) is removed
+    once the download ends or is dropped."""
     chunks: queue.Queue = queue.Queue(maxsize=_QUEUE_CHUNKS)
     stop = threading.Event()  # the download was dropped: stop building
     done = object()
@@ -144,7 +189,7 @@ def _stream_backup():
         try:
             sink = _GzipSink()
             with tarfile.open(fileobj=sink, mode="w|") as tar:
-                for path, arcname in _backup_entries():
+                for path, arcname in _backup_entries(db_path):
                     if stop.is_set():
                         return
                     try:
@@ -158,7 +203,6 @@ def _stream_backup():
         finally:
             put(done)
 
-    _checkpoint_wal()
     threading.Thread(target=produce, daemon=True).start()
     try:
         while True:
@@ -168,19 +212,37 @@ def _stream_backup():
             yield item
     finally:
         stop.set()
+        try:
+            os.remove(db_path)
+        except OSError:
+            pass
 
 
 @router.get("/export")
 def export_backup(_: User = Depends(require_admin)):
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    _checkpoint_wal()
+    snapshot = _snapshot_path()
+    try:
+        if os.path.exists(DB_PATH):
+            _snapshot_db(snapshot)
+        else:
+            os.remove(snapshot)
+        estimate = _backup_size_estimate(snapshot)
+    except Exception:
+        try:
+            os.remove(snapshot)
+        except OSError:
+            pass
+        raise
     return StreamingResponse(
-        _stream_backup(),
+        _stream_backup(snapshot),
         media_type="application/gzip",
         headers={
             "Content-Disposition": f'attachment; filename="lanparty_backup_{timestamp}.tar.gz"',
             # No Content-Length for an archive built on the fly: this is what the
             # admin's progress bar measures against (Settings → backup modal).
-            "X-Backup-Estimate": str(_backup_size_estimate()),
+            "X-Backup-Estimate": str(estimate),
             "Cache-Control": "no-store",
         },
     )

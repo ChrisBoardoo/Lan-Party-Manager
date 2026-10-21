@@ -30,6 +30,18 @@ DEATHS_FIELDS = ("NUM_DEATHS",)
 ASSISTS_FIELDS = ("ASSISTS",)
 DAMAGE_FIELDS = ("TOTAL_DAMAGE_DEALT_TO_CHAMPIONS",)
 
+# Bounds (D-3 of the 2026-10-20 review): the block comes from a member's app,
+# so a forged one can carry anything. Values above these are clamped, text is
+# cut, a block with more players than a game can hold is refused — and nothing
+# reaches SQLite's 64-bit limit (a 1e30 kill count used to be a 500).
+MAX_KDA = 200
+MAX_DAMAGE = 10_000_000
+MAX_DURATION_S = 6 * 3600
+MAX_PLAYERS = 10
+MAX_NAME_CHARS = 64
+MAX_TAG_CHARS = 16
+MAX_INT = 2 ** 53
+
 
 class CaptureError(ValueError):
     """The payload isn't an end-of-game block this parser can read."""
@@ -71,20 +83,25 @@ def _first(obj: Any, names) -> Any:
     return None
 
 
-def _count(stats: Any, names) -> int:
-    """A stat as a non-negative int; missing or garbage counts as 0 rather
-    than failing the whole game over one odd field."""
+def _count(stats: Any, names, cap: int = MAX_KDA) -> int:
+    """A stat as an int between 0 and `cap`; missing or garbage counts as 0
+    rather than failing the whole game over one odd field."""
     try:
-        return max(int(_first(stats, names)), 0)
-    except (TypeError, ValueError):
+        return min(max(int(_first(stats, names)), 0), cap)
+    except (TypeError, ValueError, OverflowError):
         return 0
 
 
-def _optional_int(value: Any) -> Optional[int]:
+def _optional_int(value: Any, cap: Optional[int] = None) -> Optional[int]:
+    """An int, or None when missing, garbage or beyond what a database column
+    holds; clamped to `cap` when one is given."""
     try:
-        return int(value)
-    except (TypeError, ValueError):
+        n = int(value)
+    except (TypeError, ValueError, OverflowError):
         return None
+    if abs(n) > MAX_INT:
+        return None
+    return min(n, cap) if cap is not None else n
 
 
 def _riot_id(player: dict) -> Optional[tuple[str, str]]:
@@ -99,7 +116,7 @@ def _riot_id(player: dict) -> Optional[tuple[str, str]]:
         if not isinstance(legacy, str) or "#" not in legacy:
             return None
         name, _, tag = legacy.rpartition("#")
-    name, tag = str(name).strip(), str(tag).strip()
+    name, tag = str(name).strip()[:MAX_NAME_CHARS], str(tag).strip()[:MAX_TAG_CHARS]
     if not name or not tag:
         return None
     return f"{name}#{tag}", riot_id_key(name, tag)
@@ -142,16 +159,18 @@ def parse_end_of_game(eog: Any, session: Any = None) -> CapturedGame:
             players.append(CapturedPlayer(
                 riot_id=ident[0],
                 riot_id_key=ident[1],
-                champion=str(champion) if champion is not None else None,
+                champion=str(champion)[:MAX_NAME_CHARS] if champion is not None else None,
                 team_id=_optional_int(team.get("teamId")),
                 win=team_won,
                 kills=_count(stats, KILLS_FIELDS),
                 deaths=_count(stats, DEATHS_FIELDS),
                 assists=_count(stats, ASSISTS_FIELDS),
-                damage=_count(stats, DAMAGE_FIELDS),
+                damage=_count(stats, DAMAGE_FIELDS, MAX_DAMAGE),
             ))
     if not players:
         raise CaptureError("End-of-game block has no identifiable player")
+    if len(players) > MAX_PLAYERS:
+        raise CaptureError(f"End-of-game block has more than {MAX_PLAYERS} players")
 
     game_mode = eog.get("gameMode")
     queue_type = eog.get("queueType")
@@ -160,7 +179,7 @@ def parse_end_of_game(eog: Any, session: Any = None) -> CapturedGame:
         game_mode=game_mode if isinstance(game_mode, str) and game_mode else None,
         queue_type=queue_type if isinstance(queue_type, str) and queue_type else None,
         is_custom=_is_custom(eog, session),
-        duration_s=_optional_int(eog.get("gameLength")),
+        duration_s=_optional_int(eog.get("gameLength"), cap=MAX_DURATION_S),
         players=players,
         is_remake=eog.get("gameEndedInEarlySurrender") is True,
     )

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Package, Plus, Check, X, Trash2, Hand, Sparkles } from 'lucide-react'
 import { gearApi } from '../lib/api'
+import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import type { GearEvent, GearItem, GearSuggestion } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 import Button from './ui/Button'
@@ -14,6 +16,7 @@ const CATEGORIES = ['network', 'power', 'display', 'peripheral', 'consumable', '
 // so a disabled/empty gear feature never takes the event page down.
 export default function GearSection({ eventId }: { eventId: number }) {
   const { t } = useTranslation()
+  const { push } = useToast()
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
 
@@ -71,7 +74,14 @@ export default function GearSection({ eventId }: { eventId: number }) {
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true)
-    try { await fn(); load() } finally { setBusy(false) }
+    try {
+      await fn()
+      load()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const addPledge = () => {
@@ -90,7 +100,8 @@ export default function GearSection({ eventId }: { eventId: number }) {
   const toggleTick = (key: string) => {
     setTicked((prev) => {
       const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }

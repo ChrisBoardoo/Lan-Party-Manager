@@ -34,7 +34,6 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session, selectinload
 
-from auth import get_current_user
 from database import get_db
 from limiter import limiter
 from models import SetupReaction, User, UserSetup, UserSetupField, UserSetupPhoto

@@ -1,9 +1,10 @@
 import logging
 import os
 import tarfile
+import tempfile
 from datetime import datetime
 
-from router_backup import DB_PATH, UPLOAD_DIR, _checkpoint_wal
+from router_backup import DB_PATH, UPLOAD_DIR, _checkpoint_wal, _snapshot_db
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +32,19 @@ def run_scheduled_backup() -> None:
         path = os.path.join(BACKUP_DIR, f"lanparty_backup_{timestamp}.tar.gz")
         tmp_path = path + ".tmp"
 
-        with tarfile.open(tmp_path, mode="w:gz") as tar:
+        # Level 1: the archive is mostly photos and videos, which don't compress;
+        # the default level 9 cost a Pi minutes of CPU for the same size (the
+        # on-demand export uses level 0 for the same reason).
+        with tarfile.open(tmp_path, mode="w:gz", compresslevel=1) as tar:
             if os.path.exists(DB_PATH):
-                tar.add(DB_PATH, arcname="lanparty.db")
+                # A consistent snapshot, not the live file (see _snapshot_db).
+                fd, snapshot = tempfile.mkstemp(prefix="lanparty_snapshot_", suffix=".db", dir=BACKUP_DIR)
+                os.close(fd)
+                try:
+                    _snapshot_db(snapshot, DB_PATH)
+                    tar.add(snapshot, arcname="lanparty.db")
+                finally:
+                    os.remove(snapshot)
             if os.path.exists(UPLOAD_DIR):
                 tar.add(UPLOAD_DIR, arcname="uploads")
         os.replace(tmp_path, path)  # atomic — a reader never sees a half-written archive

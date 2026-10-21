@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CalendarPlus, Check, Download, Lock, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { checklistApi } from '../lib/api'
+import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import { isEmbeddedInDesktop, requestOpenExternal } from '../lib/desktopBridge'
 import { buildGoogleCalendarUrl, downloadIcsFile } from '../lib/calendar'
 import { CHECKLIST_FIXED_FIELDS, MAX_CHECKLIST_CUSTOM_FIELDS } from '../types'
@@ -21,6 +23,7 @@ export default function ChecklistSection({ eventId, event }: { eventId: number; 
   const [busy, setBusy] = useState(false)
   const [carryoverDismissed, setCarryoverDismissed] = useState(false)
   const [newFieldLabel, setNewFieldLabel] = useState('')
+  const { push } = useToast()
 
   useEffect(() => {
     setLoading(true)
@@ -47,6 +50,8 @@ export default function ChecklistSection({ eventId, event }: { eventId: number; 
         custom_fields: customFields.map((f) => ({ label: f.label, checked: f.checked })),
       })
       setData(updated)
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setBusy(false)
     }
@@ -79,6 +84,8 @@ export default function ChecklistSection({ eventId, event }: { eventId: number; 
     try {
       const updated = await checklistApi.carryover(eventId)
       setData(updated)
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setBusy(false)
       setCarryoverDismissed(true)

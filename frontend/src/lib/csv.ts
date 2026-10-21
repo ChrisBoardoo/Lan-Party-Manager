@@ -67,7 +67,7 @@ function detectSeparator(text: string): ';' | ',' {
 // line endings), reading back what buildCsv writes: BOM skipped, separator
 // detected, a formula-guard apostrophe removed. Blank lines dropped.
 export function parseCsv(text: string): string[][] {
-  const src = text.replace(/^﻿/, '')
+  const src = text.replace(/^\uFEFF/, '')  // the BOM buildCsv writes
   const sep = detectSeparator(src)
   const unguard = (f: string) => (f.startsWith("'") && FORMULA_START.test(f.slice(1)) ? f.slice(1) : f)
   const rows: string[][] = []

@@ -152,8 +152,10 @@ def test_a_match_decided_now_counts_only_if_a_lan_is_on(client):
     admin = make_user("boss", role="admin")
     tok = login(client, "boss")
     player = make_user("farmer")
-    tid, a, _b, mid = _tournament(admin)
+    rival = make_user("rival")
+    tid, a, b, mid = _tournament(admin)
     _add(models.TeamMember(team_id=a, player_name="farmer", user_id=player))
+    _add(models.TeamMember(team_id=b, player_name="rival", user_id=rival))  # a real opponent (D-2)
     client.put(f"/api/tournaments/{tid}/matches/{mid}", json={"status": "completed", "winner_id": a},
                headers=auth_header(tok))
     assert _xp(player) == {}  # no LAN at all: a fake tournament
@@ -277,3 +279,24 @@ def test_at_most_two_boosters_bought_a_week(client):
         s.close()
     assert client.get("/api/cards/me", headers=h).json()["purchases_left"] == 1
     assert client.post("/api/cards/boosters/buy", headers=h).status_code == 200
+
+
+# ── Both sides need an account (D-2 of the 2026-10-20 review) ─────────────────
+
+def test_a_win_over_a_team_without_accounts_pays_nothing_even_at_a_lan():
+    # The fake tournament of the review: during a LAN, "me" against a team of
+    # made-up names. Neither the final nor the title pays.
+    ledger = _Ledger()
+    add_tournament_xp(ledger, [_t(None, datetime(2026, 10, 16, 20), [_team(1, 7), _team(2)])], WINDOWS)
+    assert ledger.rows == {}
+    # With a real opponent on record, the same win pays as before.
+    add_tournament_xp(ledger, [_t(None, datetime(2026, 10, 16, 20), [_team(1, 7), _team(2, 8)])], WINDOWS)
+    assert {code: v[1] for code, v in ledger.rows[7].items()} == {"match_final": 100, "tournament_win": 50}
+    assert 8 not in ledger.rows
+
+
+def test_the_title_needs_two_teams_with_an_account():
+    ledger = _Ledger()
+    # A tournament whose only other team is guests: no champion bonus either.
+    add_tournament_xp(ledger, [_t(1, datetime(2026, 10, 16, 20), [_team(1, 7), _team(2)])], WINDOWS)
+    assert "tournament_win" not in ledger.rows.get(7, {})

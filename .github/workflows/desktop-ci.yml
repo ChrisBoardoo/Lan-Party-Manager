@@ -1,0 +1,69 @@
+name: Desktop CI
+
+# The desktop app's tests used to run only at release time (desktop-release.yml),
+# so a broken `cargo test` was found when cutting a release — in the middle of a
+# LAN, if the release was a hotfix (K-6 of the 2026-10-20 review). This runs on
+# every change under desktopapp/.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "desktopapp/**"
+      - ".github/workflows/desktop-ci.yml"
+  pull_request:
+    paths:
+      - "desktopapp/**"
+      - ".github/workflows/desktop-ci.yml"
+
+concurrency:
+  group: desktop-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop-check:
+    name: Shell build, cargo test, clippy, cargo audit
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: desktopapp/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktopapp/src-tauri -> target
+
+      - name: Install shell dependencies
+        working-directory: desktopapp
+        run: npm ci
+
+      # Tauri embeds ui/dist at compile time: it has to exist before cargo runs.
+      - name: Build the shell
+        working-directory: desktopapp
+        run: npm run vite:build
+
+      - name: Rust tests
+        working-directory: desktopapp/src-tauri
+        run: cargo test --locked
+
+      - name: Clippy
+        working-directory: desktopapp/src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      # Advisory while tauri-plugin-updater drags rustls/zip advisories along
+      # (cargo update closes the rustls ones): reported, not blocking, for now.
+      - name: cargo audit
+        working-directory: desktopapp/src-tauri
+        continue-on-error: true
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit

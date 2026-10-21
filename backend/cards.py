@@ -53,7 +53,7 @@ from models import (
 )
 from router_settings import get_setting, is_feature_enabled
 from uploads import copy_upload, remove_upload
-from xp import crew_xp, user_xp
+from xp import build_ledger, user_xp
 
 # Not random.random(): nobody gets to predict or replay the draws.
 _rng = secrets.SystemRandom()
@@ -117,16 +117,18 @@ class _Levels:
     """Members' XP levels, computed once per request and only if a face needs
     one (the XP ledger walks every tournament, photo and chat message)."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, ledger=None):
         self.db = db
+        self.ledger = ledger  # shared with the caller when it already built one
         self._levels: Optional[Dict[int, int]] = None
 
     def get(self, user_id: int) -> Optional[int]:
         if not is_feature_enabled(self.db, "xp"):
             return None
         if self._levels is None:
-            users = self.db.query(User).filter(User.deleted_at.is_(None)).all()
-            self._levels = {s.user_id: s.level for s in crew_xp(self.db, users)}
+            ledger = self.ledger if self.ledger is not None else build_ledger(self.db)
+            users = self.db.query(User.id).filter(User.deleted_at.is_(None)).all()
+            self._levels = {uid: ledger.summary(uid).level for (uid,) in users}
         return self._levels.get(user_id)
 
 
@@ -189,7 +191,14 @@ def _ensure_signature(db: Session, owner: User, today: date, levels: _Levels) ->
     db.flush()
 
 
-def ensure_grants(db: Session, user: User) -> None:
+def xp_ledger(db: Session):
+    """The XP ledger when XP is on, else None — built once per request and
+    handed to ensure_grants / xp_balance / buy_booster (Q-1 of the 2026-10-20
+    review: GET /cards/me used to build it two to three times)."""
+    return build_ledger(db) if is_feature_enabled(db, "xp") else None
+
+
+def ensure_grants(db: Session, user: User, ledger=None) -> None:
     """Grant whatever `user` has earned and not received yet. Idempotent; the
     caller commits. Two concurrent runs can race on the unique constraints —
     the routes roll back and run it once more (see router_cards)."""
@@ -197,7 +206,9 @@ def ensure_grants(db: Session, user: User) -> None:
         return
     today = local_today(db)
     since = cards_since(db)
-    levels = _Levels(db)
+    if ledger is None:
+        ledger = xp_ledger(db)
+    levels = _Levels(db, ledger)
 
     _ensure_signature(db, user, today, levels)
 
@@ -236,8 +247,8 @@ def ensure_grants(db: Session, user: User) -> None:
         _grant(db, user, "trophy", edition.id, edition.event, levels)
 
     # XP levels reached above the base level.
-    if is_feature_enabled(db, "xp"):
-        level = user_xp(db, user.id).level
+    if ledger is not None:
+        level = ledger.summary(user.id).level
         if user.cards_level_base is None:
             user.cards_level_base = level  # no payout for levels reached before cards
         elif level > user.cards_level_base:
@@ -289,46 +300,62 @@ def xp_spent(db: Session, user_id: int) -> int:
     return db.query(func.coalesce(func.sum(CardBooster.cost_xp), 0)).filter(CardBooster.owner_id == user_id).scalar()
 
 
-def xp_balance(db: Session, user: User) -> Optional[int]:
+def xp_balance(db: Session, user: User, ledger=None) -> Optional[int]:
     """Spendable XP: earned − spent on boosters. None when XP is off. Earned XP
     is recomputed on read and can drop (a corrected score, a deleted photo), so
     the balance can go below zero: that blocks purchases, it never takes a
     booster back."""
     if not is_feature_enabled(db, "xp"):
         return None
-    return user_xp(db, user.id).total - xp_spent(db, user.id)
+    return user_xp(db, user.id, ledger).total - xp_spent(db, user.id)
 
 
-def purchase_allowance(db: Session, user: User) -> tuple[int, Optional[datetime]]:
-    """(purchases left this rolling week, when the next one frees up if none)."""
+def _recent_purchases(db: Session, user_id: int) -> List[datetime]:
+    """When the member bought a booster in the rolling week, oldest first."""
     window_start = datetime.utcnow() - timedelta(days=PURCHASE_WINDOW_DAYS)
-    recent = sorted(
+    return sorted(
         at for (at,) in db.query(CardBooster.granted_at).filter(
-            CardBooster.owner_id == user.id,
+            CardBooster.owner_id == user_id,
             CardBooster.source_type == "purchase",
             CardBooster.granted_at >= window_start,
         ).all()
         if at is not None
     )
+
+
+def purchase_allowance(db: Session, user: User) -> tuple[int, Optional[datetime]]:
+    """(purchases left this rolling week, when the next one frees up if none)."""
+    recent = _recent_purchases(db, user.id)
     left = max(0, PURCHASES_PER_WEEK - len(recent))
     next_at = recent[-PURCHASES_PER_WEEK] + timedelta(days=PURCHASE_WINDOW_DAYS) if left == 0 and recent else None
     return left, next_at
 
 
-def buy_booster(db: Session, user: User) -> CardBooster:
-    balance = xp_balance(db, user)
-    if balance is None:
+def buy_booster(db: Session, user: User, ledger=None) -> CardBooster:
+    if not is_feature_enabled(db, "xp"):
         raise HTTPException(400, "XP is not enabled")
-    if purchase_allowance(db, user)[0] == 0:
+    earned = user_xp(db, user.id, ledger).total
+    if len(_recent_purchases(db, user.id)) >= PURCHASES_PER_WEEK:
         raise HTTPException(400, "Weekly purchase limit reached")
-    if balance < BOOSTER_PRICE_XP:
+    if earned - xp_spent(db, user.id) < BOOSTER_PRICE_XP:
         raise HTTPException(400, "Not enough XP")
     event = latest_edition(db)
     if event is None:
         raise HTTPException(400, "No LAN yet")
-    booster = _grant(db, user, "purchase", None, event, _Levels(db), cost_xp=BOOSTER_PRICE_XP)
+    booster = _grant(db, user, "purchase", None, event, _Levels(db, ledger), cost_xp=BOOSTER_PRICE_XP)
     if booster is None:
         raise HTTPException(400, "Nobody to collect at this LAN yet")
+    # Checked again now that the booster is written (flushed): a purchase that
+    # ran at the same moment — a double click, two tabs — wasn't visible to the
+    # checks above; it is to these, since our write waited for its commit. The
+    # unique constraint can't arbitrate (a purchase has no source_id), so the
+    # loser gives its booster back (D-1 of the 2026-10-20 review).
+    if earned - xp_spent(db, user.id) < 0:
+        db.rollback()
+        raise HTTPException(409, "Not enough XP: another purchase went through first")
+    if len(_recent_purchases(db, user.id)) > PURCHASES_PER_WEEK:
+        db.rollback()
+        raise HTTPException(409, "Weekly purchase limit reached by a purchase that went through first")
     return booster
 
 
@@ -373,14 +400,24 @@ def open_booster(db: Session, user: User, booster_id: int) -> CardBooster:
     if booster.opened_at is None and _withheld(booster, _attending(db, user.id)):
         raise HTTPException(409, "You are no longer attending this LAN")
     if booster.opened_at is None:
-        booster.opened_at = datetime.utcnow()
-        for card in booster.cards:
-            if card.rarity == "epic":
-                # Broadcast: an Epic is an event for the whole crew (Hub feed,
-                # desktop toast). Common cards stay quiet, or the day after a
-                # LAN would drown the feed.
-                add_activity(db, user.id, "card_epic_pulled", f"pulled an Epic card of {card.face.username}",
-                             "card", card.id)
+        # Claimed in one statement: two opens at the same moment (a double
+        # click) both saw opened_at None above; only one changes the row here,
+        # and only that one announces the Epic. The other returns the same
+        # cards, as a replay does.
+        claimed = (
+            db.query(CardBooster)
+            .filter(CardBooster.id == booster.id, CardBooster.opened_at.is_(None))
+            .update({"opened_at": datetime.utcnow()}, synchronize_session=False)
+        )
+        db.refresh(booster)
+        if claimed:
+            for card in booster.cards:
+                if card.rarity == "epic":
+                    # Broadcast: an Epic is an event for the whole crew (Hub feed,
+                    # desktop toast). Common cards stay quiet, or the day after a
+                    # LAN would drown the feed.
+                    add_activity(db, user.id, "card_epic_pulled", f"pulled an Epic card of {card.face.username}",
+                                 "card", card.id)
     return booster
 
 

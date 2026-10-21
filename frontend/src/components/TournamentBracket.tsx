@@ -4,6 +4,8 @@ import { Tournament, Match, Team } from '../types'
 import Button from './ui/Button'
 import { useAuth } from '../contexts/AuthContext'
 import { tournamentsApi } from '../lib/api'
+import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 
 interface TournamentBracketProps {
   tournament: Tournament
@@ -245,6 +247,7 @@ function MatchCard({ match, canEdit, onUpdate, onReport, onConfirm, onReject }: 
 export default function TournamentBracket({ tournament, onUpdate }: TournamentBracketProps) {
   const { t } = useTranslation()
   const { user } = useAuth()
+  const { push } = useToast()
   const canEdit = user?.id === tournament.organizer_id || user?.role === 'admin'
 
   const rounds = Array.from(new Set(tournament.matches.map((m) => m.round_number))).sort()
@@ -254,28 +257,29 @@ export default function TournamentBracket({ tournament, onUpdate }: TournamentBr
       .filter((m) => m.round_number === rn)
       .sort((a, b) => a.match_number - b.match_number)
 
-  const handleMatchUpdate = async (
+  // Every change goes through here: a 403/409 from the server (not the
+  // organizer any more, match already confirmed) used to re-enable the button
+  // and say nothing (F-2 of the 2026-10-20 review).
+  const run = async (action: () => Promise<unknown>) => {
+    try {
+      await action()
+      onUpdate()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+    }
+  }
+
+  const handleMatchUpdate = (
     matchId: number,
     data: { score_a?: number; score_b?: number; status?: string; winner_id?: number }
-  ) => {
-    await tournamentsApi.updateMatch(tournament.id, matchId, data)
-    onUpdate()
-  }
+  ) => run(() => tournamentsApi.updateMatch(tournament.id, matchId, data))
 
-  const handleReport = async (matchId: number, data: { score_a: number; score_b: number }) => {
-    await tournamentsApi.reportMatch(tournament.id, matchId, data)
-    onUpdate()
-  }
+  const handleReport = (matchId: number, data: { score_a: number; score_b: number }) =>
+    run(() => tournamentsApi.reportMatch(tournament.id, matchId, data))
 
-  const handleConfirm = async (matchId: number) => {
-    await tournamentsApi.confirmMatch(tournament.id, matchId)
-    onUpdate()
-  }
+  const handleConfirm = (matchId: number) => run(() => tournamentsApi.confirmMatch(tournament.id, matchId))
 
-  const handleReject = async (matchId: number) => {
-    await tournamentsApi.rejectReport(tournament.id, matchId)
-    onUpdate()
-  }
+  const handleReject = (matchId: number) => run(() => tournamentsApi.rejectReport(tournament.id, matchId))
 
   if (tournament.matches.length === 0) {
     return (

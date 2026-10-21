@@ -6,6 +6,7 @@ import { authApi, eventInvitesApi } from '../lib/api'
 import { EventInviteValidation } from '../types'
 import { formatDate } from '../lib/formatDate'
 import { normalizeInviteCode } from '../lib/inviteCode'
+import { apiErrorMessage } from '../lib/apiError'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 import LanguageToggle from '../components/ui/LanguageToggle'
@@ -75,8 +76,8 @@ export default function Register() {
         departure_date: code ? data.departure_date : undefined,
       })
       navigate('/login', { state: { registered: true } })
-    } catch (e: any) {
-      setError(e.response?.data?.detail ?? t('register.registrationFailed'))
+    } catch (e) {
+      setError(apiErrorMessage(e, t))
     }
   }
 

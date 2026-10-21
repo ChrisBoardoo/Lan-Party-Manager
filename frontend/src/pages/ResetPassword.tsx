@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { authApi } from '../lib/api'
+import { apiErrorMessage } from '../lib/apiError'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 import LanguageToggle from '../components/ui/LanguageToggle'
@@ -34,8 +35,8 @@ export default function ResetPassword() {
     try {
       await authApi.resetPassword(token, data.new_password)
       navigate('/login', { state: { passwordReset: true } })
-    } catch (e: any) {
-      setError(e.response?.data?.detail ?? t('resetPassword.resetFailed'))
+    } catch (e) {
+      setError(apiErrorMessage(e, t))
     }
   }
 

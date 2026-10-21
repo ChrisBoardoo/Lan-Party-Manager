@@ -64,10 +64,12 @@ def _lines(ledger, uid):
 
 
 def test_bracket_pays_by_stage_plus_champion_bonus():
-    # 4 teams; team 1 (users 1+2) wins semi + final, team 3 (user 3) wins the other semi.
+    # 4 teams; team 1 (users 1+2) wins semi + final, team 3 (user 3) wins the other semi
+    # against team 4 (user 5). Every team has an account: a win over guests
+    # without one pays nothing since 1.4.1 (test_anti_farming.py).
     t = NS(
         event_id=1, bracket_type="single_elimination", status="completed",
-        teams=[_team(1, 1, 2), _team(2, 4), _team(3, 3), _team(4, None)],
+        teams=[_team(1, 1, 2), _team(2, 4), _team(3, 3), _team(4, 5)],
         matches=[
             _match("semifinal", 1, 2, winner=1),
             _match("semifinal", 3, 4, winner=3),
@@ -80,7 +82,7 @@ def test_bracket_pays_by_stage_plus_champion_bonus():
     assert _lines(ledger, 1) == {"match_semifinal": (1, 60), "match_final": (1, 100), "tournament_win": (1, 50)}
     assert _lines(ledger, 2) == _lines(ledger, 1)
     assert _lines(ledger, 3) == {"match_semifinal": (1, 60)}
-    assert _lines(ledger, 4) == {}
+    assert _lines(ledger, 4) == {} and _lines(ledger, 5) == {}
     assert ledger.summary(1).total == 210
 
 

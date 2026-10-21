@@ -6,7 +6,8 @@
 # une clé d'exemple ou trop courte (< 16 caractères) le fait toujours sortir au
 # démarrage : le conteneur meurt, nginx renvoie 502 sur tout /api, et ça se
 # présente comme un « login failed » alors que la base n'y est pour rien.
-# Utilise md/9.Prod_Pi/portainerStack1.0.0-rc7.md, qui met les valeurs en littéral.
+# Voir « Portainer » dans docs/README.md : valeurs en littéral, et les deux `image:`
+# épinglées à un numéro de version plutôt qu'à :latest.
 services:
   backend:
     # https://hub.docker.com/r/crosswax/lanpartymanager-backend

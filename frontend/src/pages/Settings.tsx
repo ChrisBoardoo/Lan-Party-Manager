@@ -2,12 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppConfig, CURRENCIES } from '../contexts/AppConfigContext'
+import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import AnnouncementsManager from '../components/AnnouncementsManager'
 import KioskManager from '../components/KioskManager'
 import DeletedUsersHistory from '../components/DeletedUsersHistory'
 import TrophiesAdminCard from '../components/trophies/TrophiesAdminCard'
 import BackupModal, { RestoreModal } from '../components/BackupModal'
 import { settingsApi, backupApi } from '../lib/api'
+import { useLoad } from '../hooks/useLoad'
+import LoadError from '../components/ui/LoadError'
 import { AppSetting } from '../types'
 import Button from '../components/ui/Button'
 import { formatBytes } from '../components/ui/Lightbox'
@@ -62,6 +66,7 @@ function SettingRow({
   multiline?: boolean
 }) {
   const { t } = useTranslation()
+  const { push } = useToast()
   const [editing, setEditing] = useState(false)
   const [input, setInput] = useState(value ?? '')
   const [saving, setSaving] = useState(false)
@@ -72,6 +77,8 @@ function SettingRow({
     try {
       await onSave(settingKey, input)
       setEditing(false)
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setSaving(false)
     }
@@ -172,6 +179,7 @@ function CurrencyRow({
   onSave: (key: string, value: string) => Promise<void>
 }) {
   const { t } = useTranslation()
+  const { push } = useToast()
   const { refreshConfig } = useAppConfig()
   const [saving, setSaving] = useState(false)
   const current = value || '€'
@@ -183,6 +191,8 @@ function CurrencyRow({
     try {
       await onSave('currency', next)
       await refreshConfig()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setSaving(false)
     }
@@ -225,6 +235,8 @@ function FeatureToggleRow({
   onToggle: (key: string, value: string) => Promise<void>
   defaultOff?: boolean
 }) {
+  const { t } = useTranslation()
+  const { push } = useToast()
   const { refreshConfig } = useAppConfig()
   const [saving, setSaving] = useState(false)
   // Default-off flags (opt-in, e.g. Discord SSO) are enabled only when explicitly
@@ -236,6 +248,8 @@ function FeatureToggleRow({
     try {
       await onToggle(settingKey, enabled ? 'false' : 'true')
       await refreshConfig()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setSaving(false)
     }
@@ -364,6 +378,7 @@ function WifiSecurityRow({
   onSave: (key: string, value: string) => Promise<void>
 }) {
   const { t } = useTranslation()
+  const { push } = useToast()
   const [saving, setSaving] = useState(false)
   const current = value || 'WPA'
 
@@ -371,6 +386,8 @@ function WifiSecurityRow({
     setSaving(true)
     try {
       await onSave('wifi_security', e.target.value)
+    } catch (err) {
+      push(apiErrorMessage(err, t), 'error')
     } finally {
       setSaving(false)
     }
@@ -614,18 +631,17 @@ export default function Settings() {
   const { prizesEnabled, planningEnabled, trophiesEnabled } = useAppConfig()
   const { t } = useTranslation()
   const [settings, setSettings] = useState<AppSetting[]>([])
-  const [loading, setLoading] = useState(true)
   const [backingUp, setBackingUp] = useState(false)
 
-  if (user?.role !== 'admin') return <Navigate to="/" replace />
-
   const load = async () => {
-    const data = await settingsApi.getAll()
-    setSettings(data)
-    setLoading(false)
+    setSettings(await settingsApi.getAll())
   }
 
-  useEffect(() => { load() }, [])
+  const { loading, error, retry } = useLoad(load, [])
+
+  // After every hook: a return before them broke the rules of hooks (F-10 of
+  // the 2026-10-20 review — harmless only while the role never changes).
+  if (user?.role !== 'admin') return <Navigate to="/" replace />
 
   const handleSave = async (key: string, value: string) => {
     await settingsApi.update(key, value || null)
@@ -709,6 +725,7 @@ export default function Settings() {
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-12">
+      {error && <LoadError message={error} onRetry={retry} />}
       <div className="mb-12">
         <div className="font-mono-label text-accent mb-3">{t('settings.tagline')}</div>
         <h1 className="text-5xl lg:text-6xl font-black tracking-tighter text-foreground leading-none">
@@ -1334,7 +1351,7 @@ export default function Settings() {
               <div>
                 <p className="font-mono-label text-muted-foreground text-[10px] mb-1">{label}</p>
                 <p className="font-mono text-sm text-foreground">{repo}</p>
-                <p className="font-mono-label text-muted-foreground text-[10px] mt-1">:latest · :1.4.0</p>
+                <p className="font-mono-label text-muted-foreground text-[10px] mt-1">:latest · :1.4.1</p>
               </div>
               <ExternalLink size={12} strokeWidth={1.5} className="text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0" />
             </ExternalLinkButton>

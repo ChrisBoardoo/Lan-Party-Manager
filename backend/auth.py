@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import secrets
+import warnings
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -9,7 +10,8 @@ from typing import Optional
 import bcrypt
 from fastapi import Depends, HTTPException, WebSocket, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError as JWTError
 from sqlalchemy.orm import Session
 
 from database import SessionLocal, get_db
@@ -33,6 +35,11 @@ _EXAMPLE_KEYS = {
     "secret",
 }
 MIN_KEY_LENGTH = 16
+# PyJWT 2.10+ warns at a process's first HS256 call when the key is under 32 bytes.
+# _load_secret_key already says so at startup, with the command that fixes it.
+_short_key_warning = getattr(jwt.exceptions, "InsecureKeyLengthWarning", None)
+if _short_key_warning is not None:
+    warnings.filterwarnings("ignore", category=_short_key_warning)
 RECOMMENDED_KEY_LENGTH = 32
 # Next to the database, so it lives on the same persisted volume (./data).
 # Not part of backups (those hold lanparty.db and uploads/ only): an instance

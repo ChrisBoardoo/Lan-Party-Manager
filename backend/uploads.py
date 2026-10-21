@@ -25,6 +25,7 @@ from typing import Optional, Tuple
 
 from fastapi import HTTPException, UploadFile
 from PIL import Image
+from starlette.concurrency import run_in_threadpool
 
 from file_validation import detect_mimes
 
@@ -129,6 +130,18 @@ def copy_upload(url: Optional[str], *, src_subdir: Optional[str], dst_subdir: st
     return _public_url(dst_subdir, filename)
 
 
+def _encode_and_store(content: bytes, subdir: Optional[str], prefix: str, box: Tuple[int, int], quality: int) -> str:
+    """The blocking part of save_image_upload — decode, resize, WebP, write —
+    run in a worker thread."""
+    img = _decode(content)
+    img.thumbnail(box)
+    filename = f"{prefix}_{uuid.uuid4().hex}.webp"
+    target_dir = os.path.join(UPLOAD_DIR, subdir) if subdir else UPLOAD_DIR
+    os.makedirs(target_dir, exist_ok=True)
+    img.save(os.path.join(target_dir, filename), "WEBP", quality=quality)
+    return _public_url(subdir, filename)
+
+
 async def save_image_upload(
     file: UploadFile,
     *,
@@ -145,16 +158,13 @@ async def save_image_upload(
     image the user still has.
     """
     content = await read_capped(file, MAX_IMAGE_BYTES)
-    img = _decode(content)
-    img.thumbnail(box)
-
-    filename = f"{prefix}_{uuid.uuid4().hex}.webp"
-    target_dir = os.path.join(UPLOAD_DIR, subdir) if subdir else UPLOAD_DIR
-    os.makedirs(target_dir, exist_ok=True)
-    img.save(os.path.join(target_dir, filename), "WEBP", quality=quality)
-
+    # Decoding, resizing and WebP-encoding are CPU work — 2 to 5 s for a 12 MP
+    # photo on a Pi 4 — and this is an `async def`: for that long nothing else
+    # on the event loop ran, the chat's and the feed's WebSockets included
+    # (Q-2 of the 2026-10-20 review). Off the loop, like the backup restore.
+    url = await run_in_threadpool(_encode_and_store, content, subdir, prefix, box, quality)
     remove_upload(replaces, subdir)
-    return _public_url(subdir, filename)
+    return url
 
 
 def rotate_image_file(

@@ -5,6 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppConfig } from '../contexts/AppConfigContext'
 import { eventsApi, eventInvitesApi, gearApi } from '../lib/api'
+import { useToast } from '../contexts/ToastContext'
+import { useUpcomingEvent } from '../contexts/UpcomingEventContext'
+import { apiErrorMessage, isApiStatus } from '../lib/apiError'
 import { LanEvent, EventInvite } from '../types'
 import { formatDate } from '../lib/formatDate'
 import Button from '../components/ui/Button'
@@ -668,6 +671,8 @@ function EventCard({
 export default function Events() {
   const { user } = useAuth()
   const { t } = useTranslation()
+  const { push } = useToast()
+  const { refreshUpcomingEvent } = useUpcomingEvent()
   const isAdmin = user?.role === 'admin'
   const [events, setEvents] = useState<LanEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -689,30 +694,60 @@ export default function Events() {
 
   useEffect(() => { load() }, [])
 
+  // A failed action says why (F-2 of the 2026-10-20 review); a 409 on the
+  // RSVP is the first-day lock, worded as on the card.
+  const failed = (e: unknown) =>
+    push(isApiStatus(e, 409) ? t('events.card.lockedHint') : apiErrorMessage(e, t), 'error')
+
   const handleDelete = async (event: LanEvent) => {
     if (!confirm(t('events.deleteConfirm', { title: event.title }))) return
-    await eventsApi.delete(event.id)
-    await load()
+    try {
+      await eventsApi.delete(event.id)
+      await load()
+    } catch (e) {
+      failed(e)
+    }
   }
 
+  // The Navbar's chat icon and the Hub's chat follow the RSVP through
+  // UpcomingEventContext — refreshed here, or they only caught up on a reload
+  // (F-7 of the 2026-10-20 review).
   const handleRsvpJoin = async (event: LanEvent, dates: RsvpDatesForm) => {
-    await eventsApi.rsvpIn(event.id, dates)
-    await load()
+    try {
+      await eventsApi.rsvpIn(event.id, dates)
+      await load()
+      void refreshUpcomingEvent()
+    } catch (e) {
+      failed(e)
+    }
   }
 
   const handleRsvpLeave = async (event: LanEvent) => {
-    await eventsApi.rsvpOut(event.id)
-    await load()
+    try {
+      await eventsApi.rsvpOut(event.id)
+      await load()
+      void refreshUpcomingEvent()
+    } catch (e) {
+      failed(e)
+    }
   }
 
   const handleCoverUpload = async (event: LanEvent, file: File) => {
-    await eventsApi.uploadCover(event.id, file)
-    await load()
+    try {
+      await eventsApi.uploadCover(event.id, file)
+      await load()
+    } catch (e) {
+      failed(e)
+    }
   }
 
   const handleCoverRotate = async (event: LanEvent) => {
-    await eventsApi.rotateCover(event.id)
-    await load()
+    try {
+      await eventsApi.rotateCover(event.id)
+      await load()
+    } catch (e) {
+      failed(e)
+    }
   }
 
   const upcoming = events.filter((e) => isUpcoming(e.end_date))

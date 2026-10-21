@@ -251,7 +251,12 @@ class LanEvent(Base):
     # endpoints. No sa.ForeignKey() enforced at the DB level (see
     # 0027_chat_pinned_message.py), same convention as every other
     # cross-table integer column added post-creation in this app.
-    pinned_message_id = Column(Integer, ForeignKey("chat_messages.id"), nullable=True)
+    # use_alter: lan_events ↔ chat_messages reference each other, and without
+    # it SQLAlchemy warned "Can't sort tables for DROP" at every drop_all (818
+    # times per test run) and could one day refuse to drop them at all.
+    pinned_message_id = Column(
+        Integer, ForeignKey("chat_messages.id", use_alter=True, name="fk_lan_events_pinned_message"), nullable=True,
+    )
 
     creator = relationship("User", foreign_keys=[created_by])
     rsvps = relationship("EventRSVP", back_populates="event", cascade="all, delete-orphan")
@@ -1116,6 +1121,7 @@ class LolMatch(Base):
     event = relationship("LanEvent", back_populates="lol_matches")
     submitter = relationship("User", foreign_keys=[submitted_by])
     players = relationship("LolMatchPlayer", back_populates="match", cascade="all, delete-orphan")
+    submitters = relationship("LolMatchSubmitter", cascade="all, delete-orphan")
 
 
 class LolMatchPlayer(Base):
@@ -1143,6 +1149,20 @@ class LolMatchPlayer(Base):
 
     match = relationship("LolMatch", back_populates="players")
     user = relationship("User")
+
+
+class LolMatchSubmitter(Base):
+    """Which members' apps sent a given game (0038). The game is kept once
+    (riot_game_id is unique), so `submitted_by` only names the first sender;
+    this keeps every one of them. The monthly contract (quests._lol_squad)
+    counts a game for a member only when their own app sent it — a block
+    typed by hand can't fill someone else's objective (D-3 of the 2026-10-20
+    review). Stats stay declarative, as router_lol documents."""
+    __tablename__ = "lol_match_submitters"
+
+    match_id = Column(Integer, ForeignKey("lol_matches.id"), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    created_at = Column(DateTime, server_default=func.now())
 
 
 # ── Cards & boosters (see cards.py) ───────────────────────────────────────────

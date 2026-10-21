@@ -14,25 +14,29 @@ from schemas import BoosterOpenOut, CardsMeOut, CollectionOut
 
 router = APIRouter()
 
+# Attempts on a unique-constraint race (uq_card_face, see _grant_and_commit).
+RETRIES = 4
 
-def _grant_and_commit(db: Session, user: User) -> None:
+
+def _grant_and_commit(db: Session, user: User, ledger=None) -> None:
     """ensure_grants, committed. Two tabs opening LPM at once can race on the
     unique constraints: the loser rolls back and runs again, which then finds
-    the winner's grants and adds nothing."""
-    for attempt in range(2):
+    the winner's grants and adds nothing. Three or four at once (a LAN's first
+    morning) can lose twice in a row on the faces, hence the attempts."""
+    for attempt in range(RETRIES):
         try:
-            cards.ensure_grants(db, user)
+            cards.ensure_grants(db, user, ledger)
             db.commit()
             return
         except IntegrityError:
             db.rollback()
-            if attempt:
+            if attempt == RETRIES - 1:
                 raise
 
 
-def _me(db: Session, user: User) -> CardsMeOut:
+def _me(db: Session, user: User, ledger=None) -> CardsMeOut:
     unopened = cards.unopened_boosters(db, user)
-    balance = cards.xp_balance(db, user)
+    balance = cards.xp_balance(db, user, ledger)
     left, next_at = cards.purchase_allowance(db, user) if balance is not None else (None, None)
     return CardsMeOut(
         boosters=[cards.booster_out(b) for b in unopened],
@@ -48,8 +52,9 @@ def _me(db: Session, user: User) -> CardsMeOut:
 def my_cards(db: Session = Depends(get_db), user: User = Depends(require_feature("cards"))):
     """My unopened boosters, after granting whatever I've earned since my last
     visit. The Hub polls this for its "boosters to open" banner."""
-    _grant_and_commit(db, user)
-    return _me(db, user)
+    ledger = cards.xp_ledger(db)  # one build for the grants and the balance
+    _grant_and_commit(db, user, ledger)
+    return _me(db, user, ledger)
 
 
 @router.post("/boosters/buy", response_model=CardsMeOut)
@@ -57,9 +62,20 @@ def buy(db: Session = Depends(get_db), user: User = Depends(require_feature("car
     """Buy a booster with spendable XP. Doesn't open it."""
     if not is_feature_enabled(db, "cards"):
         raise HTTPException(400, "Cards are not enabled")
-    cards.buy_booster(db, user)
-    db.commit()
-    return _me(db, user)
+    # Same race as _grant_and_commit on the faces (uq_card_face): two purchases
+    # at once that draw a member nobody had drawn yet. The loser runs again and
+    # finds the face — or, more likely, finds its XP already spent (400).
+    ledger = cards.xp_ledger(db)  # earned XP doesn't change with a purchase
+    for attempt in range(RETRIES):
+        try:
+            cards.buy_booster(db, user, ledger)
+            db.commit()
+            break
+        except IntegrityError:
+            db.rollback()
+            if attempt == RETRIES - 1:
+                raise
+    return _me(db, user, ledger)
 
 
 @router.post("/boosters/{booster_id}/open", response_model=BoosterOpenOut)

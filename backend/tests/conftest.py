@@ -28,32 +28,52 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_db_path}"
 _upload_dir = tempfile.mkdtemp(prefix="lpm-test-uploads-")
 os.environ["UPLOAD_DIR"] = _upload_dir
 
+import bcrypt  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 import database  # noqa: E402
 import models  # noqa: E402
+import xp  # noqa: E402
 from limiter import limiter  # noqa: E402
 
 # Rate limiting would make repeated register/login calls flaky (429s), so turn
 # it off for the whole suite — the limiter itself isn't what we're testing.
 limiter.enabled = False
 
+# bcrypt at its production cost (12 rounds, ~0.2 s a hash) made every
+# register + login in the suite cost half a second: ~4 of the 16 minutes
+# (Q-5 of the 2026-10-20 review). Four rounds under test; the format ($2b$)
+# and the verification path are the same, see test_password_hashing.py.
+_real_gensalt = bcrypt.gensalt
+bcrypt.gensalt = lambda rounds=4, prefix=b"2b": _real_gensalt(4, prefix)
+
+# The schema is built once; each test starts from empty tables. A drop_all +
+# create_all of 52 tables on a file database cost 0.6 s per test — 8 of the 16
+# minutes (Q-5) — where deleting their rows costs 20 ms.
+models.Base.metadata.create_all(bind=database.engine)
+_TABLES = list(reversed(models.Base.metadata.sorted_tables))
+
 
 @pytest.fixture(autouse=True)
 def fresh_db():
-    """Drop and recreate every table before each test for full isolation.
+    """Empty every table before each test for full isolation (ids start from 1
+    again: SQLite reuses them without AUTOINCREMENT, as drop/create did).
 
     Uploaded files are cleared alongside the rows that referenced them —
     otherwise a test asserting on the contents of UPLOAD_DIR sees whatever an
     earlier test happened to leave there.
     """
-    models.Base.metadata.drop_all(bind=database.engine)
-    models.Base.metadata.create_all(bind=database.engine)
+    with database.engine.begin() as conn:
+        for table in _TABLES:
+            conn.execute(table.delete())
     shutil.rmtree(_upload_dir, ignore_errors=True)
     os.makedirs(_upload_dir, exist_ok=True)
+    # The XP ledger cache is a process-wide 30 s memo (xp.build_ledger): off
+    # here, or a test would read the previous test's crew.
+    xp.LEDGER_TTL_S = 0
+    xp.invalidate_ledger()
     yield
-    models.Base.metadata.drop_all(bind=database.engine)
 
 
 @pytest.fixture
@@ -114,3 +134,45 @@ def make_user(username, role="user", password="password123"):
         return user.id
     finally:
         session.close()
+
+
+def run_concurrently(*fns):
+    """Call each function in its own thread, all released at the same instant
+    by a barrier, and return their results in order (an exception in one is
+    re-raised here). For the double-click races: two requests that both pass
+    their checks before either one writes."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    barrier = threading.Barrier(len(fns))
+
+    def run(fn):
+        barrier.wait()
+        return fn()
+
+    with ThreadPoolExecutor(max_workers=len(fns)) as pool:
+        return [f.result() for f in [pool.submit(run, fn) for fn in fns]]
+
+
+class count_queries:
+    """`with count_queries() as q:` — q.n is the number of SQL statements the
+    engine ran inside the block, whatever thread ran them (the TestClient's
+    included). For the N+1 regressions: compare q.n for 2 and for 8 rows."""
+
+    def __enter__(self):
+        from sqlalchemy import event
+
+        self.n = 0
+
+        def before(*_args, **_kwargs):
+            self.n += 1
+
+        self._listener = before
+        event.listen(database.engine, "before_cursor_execute", before)
+        return self
+
+    def __exit__(self, *exc):
+        from sqlalchemy import event
+
+        event.remove(database.engine, "before_cursor_execute", self._listener)
+        return False

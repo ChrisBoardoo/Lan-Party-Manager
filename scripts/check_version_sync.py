@@ -43,6 +43,21 @@ CHECKS = [
     # the badge still read 1.0.0--rc1, two releases stale.
     ("README.md", BADGE),
     ("CLAUDE.md", f"`{full}`"),
+    # The badges bumped "by hand" until 1.4.1, and the lockfile next to package.json.
+    ("README_FR.md", BADGE),
+    ("docs/README.md", BADGE),
+    ("docs/README_FR.md", BADGE),
+    ("frontend/package-lock.json", f'"version": "{full}"'),
+    # The desktop app, kept at the server's number since 1.3.4: the 1.3.5
+    # desktop release failed because these were bumped after the tag. Checked
+    # here, before the commit, not by desktop-release.yml after it (O-5).
+    ("desktopapp/package.json", f'"version": "{full}"'),
+    ("desktopapp/package-lock.json", f'"version": "{full}"'),
+    ("desktopapp/src-tauri/tauri.conf.json", f'"version": "{full}"'),
+    ("desktopapp/src-tauri/Cargo.toml", f'version = "{full}"'),
+    # The [[package]] block of the app itself: `name = "lpm-desktop"` on one line,
+    # `version = "x.y.z"` on the next (a literal newline in the pattern).
+    ("desktopapp/src-tauri/Cargo.lock", re.compile('name = "lpm-desktop"' + chr(10) + 'version = "' + re.escape(full) + '"')),
 ]
 
 # Gitignored on purpose (the `*.md` rule in .gitignore keeps internal docs out

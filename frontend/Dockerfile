@@ -1,4 +1,13 @@
-FROM node:20-alpine AS builder
+# Node 22 (node 20 reached end of life on 2026-04-30, O-7 of the 2026-10-20
+# review). Build stage only: the runtime below is nginx.
+# --platform=$BUILDPLATFORM: the build stage runs on the machine doing the build
+# (amd64), never under QEMU. Its output (dist/) is static files, the same for
+# every target; only the nginx stage below is per-platform, so multi-arch builds
+# emulate one tiny step instead of npm + Vite. (The 1.4.1 arm64 build's
+# "exit code: 255" was the default buildx builder having no arm64 emulation at
+# all, "exec format error", not node: build with a docker-container builder,
+# which ships its own QEMU. See the per-version build notes.)
+FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
 
 WORKDIR /app
 

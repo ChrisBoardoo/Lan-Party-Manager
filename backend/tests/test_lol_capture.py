@@ -1,8 +1,9 @@
 """lol_capture.parse_end_of_game — reading the League Client's end-of-game block."""
 import pytest
 
-from lol_capture import CaptureError, parse_end_of_game
+from lol_capture import MAX_DAMAGE, MAX_DURATION_S, MAX_KDA, CaptureError, parse_end_of_game
 from lol_payloads import eog, player, session
+from riot_id import riot_id_key
 
 
 def _by_id(game):
@@ -105,3 +106,35 @@ def test_remakes_are_flagged():
     block = eog(1, [player("Cross")], [player("Bob")])
     assert parse_end_of_game(block).is_remake is False
     assert parse_end_of_game({**block, "gameEndedInEarlySurrender": True}).is_remake is True
+
+
+# ── Bounds (D-3 of the 2026-10-20 review) ─────────────────────────────────────
+
+def test_absurd_stats_are_clamped_not_stored():
+    game = parse_end_of_game(
+        eog(1, [player("Cross", kills=10**30, deaths=-5, assists=250, damage=10**12)], [player("Bob")],
+            game_length=10**9),
+    )
+    cross = _by_id(game)["Cross#EUW"]
+    assert (cross.kills, cross.deaths, cross.assists, cross.damage) == (MAX_KDA, 0, MAX_KDA, MAX_DAMAGE)
+    assert game.duration_s == MAX_DURATION_S
+
+
+def test_long_names_are_cut_and_still_match():
+    game = parse_end_of_game(eog(1, [player("x" * 300, tag="y" * 40, champion="z" * 300)], [player("Bob")]))
+    p = next(q for q in game.players if q.riot_id != "Bob#EUW")
+    assert p.riot_id == "x" * 64 + "#" + "y" * 16 and p.champion == "z" * 64
+    assert p.riot_id_key == riot_id_key("x" * 64, "y" * 16)
+
+
+def test_more_than_ten_players_is_not_a_game():
+    with pytest.raises(CaptureError):
+        parse_end_of_game(eog(1, [player(f"W{i}xx") for i in range(6)], [player(f"L{i}xx") for i in range(5)]))
+
+
+def test_numbers_beyond_64_bits_are_not_ids():
+    with pytest.raises(CaptureError):
+        parse_end_of_game(eog(10**30, [player("Cross")], [player("Bob")]))
+    block = eog(1, [player("Cross")], [player("Bob")])
+    block["teams"][0]["teamId"] = 10**30
+    assert _by_id(parse_end_of_game(block))["Cross#EUW"].team_id is None

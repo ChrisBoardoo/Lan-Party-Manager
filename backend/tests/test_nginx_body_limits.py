@@ -77,3 +77,19 @@ def test_backup_restore_has_its_own_uncapped_streamed_location():
     # is parsed before require_admin runs, so anyone could fill the disk.
     assert "/api/backup/import" not in _upload_routes()
     assert not _upload_location().fullmatch("/api/backup/import")
+
+
+# ── Compression and caching (F-4 of the 2026-10-20 review) ────────────────────
+
+def test_the_bundle_is_compressed_and_cached_but_the_shell_is_not():
+    conf = _conf()
+    assert re.search(r"^\s*gzip on;", conf, re.MULTILINE)
+    assert "application/javascript" in re.search(r"gzip_types ([^;]+);", conf).group(1)
+    assert re.search(r"^\s*server_tokens off;", conf, re.MULTILINE)
+    assets = re.search(r"location /assets/ \{(.*?)\}", conf, re.DOTALL).group(1)
+    assert "max-age=31536000, immutable" in assets
+    shell = re.search(r"location / \{(.*?)\}", conf, re.DOTALL).group(1)
+    assert 'Cache-Control "no-cache"' in shell
+    assert "Content-Security-Policy $frame_policy" in shell
+    for name in ("Referrer-Policy", "X-Content-Type-Options"):
+        assert name in shell, name

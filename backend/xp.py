@@ -9,6 +9,7 @@ retroactive: matches played before the feature was switched on count too.
 The breakdown carries codes, not labels — the strings live in the frontend's
 i18n bundles as `xp.source.<code>`, same as `badges.<code>.label`.
 """
+import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -194,7 +195,11 @@ def add_tournament_xp(ledger: _Ledger, tournaments: Sequence[Any], windows: Dict
     nothing — there is nobody to credit. Only what was decided at a LAN counts
     (`decided_at_a_lan`): a tournament made up between two LANs earns nothing.
     An account on both sides of a match (teams edited before the one-team rule)
-    earns nothing from it either."""
+    earns nothing from it either. And both sides must have an account: a win
+    over a team of made-up names is how a fake tournament paid its organizer
+    during a LAN (D-2 of the 2026-10-20 review) — with a real opponent, who lost
+    is on record too. The champion bonus follows the same rule: at least two
+    teams with an account."""
     for t in tournaments:
         event_id = getattr(t, "event_id", None)
         roster = {tm.id: list(dict.fromkeys(m.user_id for m in tm.members if m.user_id)) for tm in t.teams}
@@ -202,15 +207,16 @@ def add_tournament_xp(ledger: _Ledger, tournaments: Sequence[Any], windows: Dict
             if not decided_at_a_lan(event_id, m.played_at, windows):
                 continue
             winner, loser = match_result(m)
-            if winner is None:
+            if winner is None or not roster.get(winner) or not roster.get(loser):
                 continue
-            both_sides = set(roster.get(winner, [])) & set(roster.get(loser, []))
+            both_sides = set(roster[winner]) & set(roster[loser])
             stage = m.round if m.round in MATCH_WIN_XP else "other"
             xp = MATCH_WIN_XP.get(m.round, OTHER_MATCH_WIN_XP)
-            for uid in roster.get(winner, []):
+            for uid in roster[winner]:
                 if uid not in both_sides:
                     ledger.add(uid, f"match_{stage}", xp)
-        if t.status == "completed" and decided_at_a_lan(event_id, decided_at(t), windows):
+        linked_teams = sum(1 for ids in roster.values() if ids)
+        if t.status == "completed" and linked_teams >= 2 and decided_at_a_lan(event_id, decided_at(t), windows):
             for uid in dict.fromkeys(winning_user_ids(t)):
                 ledger.add(uid, "tournament_win", TOURNAMENT_WIN_XP)
 
@@ -309,15 +315,53 @@ def _build_ledger(db: Session) -> _Ledger:
     return ledger
 
 
-def user_xp(db: Session, user_id: int) -> XpSummary:
+# ── Cache ─────────────────────────────────────────────────────────────────────
+# Building the ledger reads every tournament, photo and chat message: 0.5–2 s on
+# a PC with three years of data, several seconds on the Pi — and GET /cards/me
+# built it two to three times per Hub visit (Q-1 of the 2026-10-20 review). One
+# worker process, so a module-level cache is the whole crew's: kept LEDGER_TTL_S,
+# dropped early by `invalidate_ledger()` (activity.add_activity, the settings) or
+# when the chat changed (the one XP source with no activity row), via a cheap
+# (max id, count) key. 0 disables it (the tests).
+LEDGER_TTL_S = 30.0
+_cache: Optional[Tuple[float, Tuple[Any, Any], _Ledger]] = None
+
+
+def invalidate_ledger() -> None:
+    """Forget the cached ledger: the next read rebuilds it."""
+    global _cache
+    _cache = None
+
+
+def _chat_key(db: Session) -> Tuple[Any, Any]:
+    return db.query(func.max(ChatMessage.id), func.count(ChatMessage.id)).one()
+
+
+def build_ledger(db: Session) -> _Ledger:
+    """The crew's XP ledger, from the cache when it is fresh. Callers that need
+    it more than once in a request pass it along (cards.ensure_grants,
+    xp_balance): that is what makes a request cost one build, cache or not."""
+    global _cache
+    if LEDGER_TTL_S <= 0:
+        return _build_ledger(db)
+    now = time.monotonic()
+    key = _chat_key(db)
+    if _cache is not None and now - _cache[0] < LEDGER_TTL_S and _cache[1] == key:
+        return _cache[2]
+    ledger = _build_ledger(db)
+    _cache = (now, key, ledger)
+    return ledger
+
+
+def user_xp(db: Session, user_id: int, ledger: Optional[_Ledger] = None) -> XpSummary:
     """One member's XP with its breakdown, for their profile."""
-    return _build_ledger(db).summary(user_id)
+    return (ledger if ledger is not None else build_ledger(db)).summary(user_id)
 
 
-def crew_xp(db: Session, users: Sequence[User]) -> List[XpSummary]:
+def crew_xp(db: Session, users: Sequence[User], ledger: Optional[_Ledger] = None) -> List[XpSummary]:
     """Everyone's XP in one pass (one query per source, not one per member),
     best first. Ties keep the order of `users`."""
-    ledger = _build_ledger(db)
+    ledger = ledger if ledger is not None else build_ledger(db)
     summaries = [ledger.summary(u.id) for u in users]
     summaries.sort(key=lambda s: -s.total)
     return summaries

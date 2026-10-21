@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 from typing import Optional, List, Sequence
 from pydantic import BaseModel
-import asyncio, os, uuid
+import asyncio
+import os
+import uuid
 
 from database import get_db
 from models import LanEvent, MediaItem, MediaReaction, User
@@ -37,6 +40,11 @@ _MIME_TO_EXT = {
     "video/quicktime": "mov",
     "video/x-msvideo": "avi",
 }
+
+
+def _write_bytes(path: str, content: bytes) -> None:
+    with open(path, "wb") as f:
+        f.write(content)
 
 
 async def _generate_video_thumbnail(video_path: str, upload_dir: str, base_name: str) -> Optional[str]:
@@ -184,8 +192,9 @@ async def upload_media(
     os.makedirs(media_dir, exist_ok=True)
 
     file_path = os.path.join(media_dir, filename)
-    with open(file_path, "wb") as f:
-        f.write(content)
+    # Up to 100 MB to the SD card: in a worker thread, not on the event loop
+    # (Q-2 of the 2026-10-20 review).
+    await run_in_threadpool(_write_bytes, file_path, content)
 
     thumbnail_url = None
     if file_type == "video":

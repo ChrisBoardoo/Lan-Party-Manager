@@ -17,7 +17,7 @@ import pytest
 
 import database
 import models
-from conftest import auth_header, login, make_user
+from conftest import auth_header, login, make_user, run_concurrently
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -376,5 +376,23 @@ def test_deleting_the_event_removes_its_editions(client, crew):
         assert s.query(models.EventTrophy).count() == 0
         assert s.query(models.EventTrophyWinner).count() == 0
         assert s.query(models.Trophy).count() == 1  # the definition stays in the cabinet
+    finally:
+        s.close()
+
+
+def test_two_votes_at_once_leave_one_ballot(client, crew):
+    # A double click (or two tabs): both requests find no ballot yet; the
+    # second insert breaks uq_trophy_vote and used to be a 500 (Q-10 of the
+    # 2026-10-20 review). It now changes the ballot the first one created.
+    eid = _voting_edition(client, crew)
+    results = run_concurrently(
+        lambda: _vote(client, crew, eid, "alice", "bob"), lambda: _vote(client, crew, eid, "alice", "carol"),
+    )
+    assert [r.status_code for r in results] == [200, 200], [r.text for r in results]
+    s = database.SessionLocal()
+    try:
+        votes = s.query(models.TrophyVote).filter(models.TrophyVote.event_trophy_id == eid).all()
+        assert len(votes) == 1 and votes[0].voter_id == crew["ids"]["alice"]
+        assert votes[0].nominee_id in (crew["ids"]["bob"], crew["ids"]["carol"])
     finally:
         s.close()

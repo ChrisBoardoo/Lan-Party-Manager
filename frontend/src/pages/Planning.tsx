@@ -2,6 +2,8 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { planningApi, eventsApi } from '../lib/api'
+import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import { LanEvent, PlanningEvent, PlanningScheduleView, ScheduleBlock } from '../types'
 import { formatDate } from '../lib/formatDate'
 import { CALENDAR_PALETTE, defaultColorKeyFor, swatchFor } from '../lib/calendarColors'
@@ -57,6 +59,7 @@ export function dayHeader(day: string): string {
 export default function Planning() {
   const { user } = useAuth()
   const { t } = useTranslation()
+  const { push } = useToast()
   const isAdmin = user?.role === 'admin'
 
   const [events, setEvents] = useState<LanEvent[]>([])
@@ -156,7 +159,12 @@ export default function Planning() {
 
   const handleDelete = async (block: ScheduleBlock) => {
     if (!confirm(t('planning.deleteConfirm', { game: block.game }))) return
-    await planningApi.deleteBlock(block.id)
+    try {
+      await planningApi.deleteBlock(block.id)
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+      return
+    }
     setData((d) => (d ? { ...d, blocks: d.blocks.filter((b) => b.id !== block.id) } : d))
   }
 
@@ -523,6 +531,7 @@ function ScheduleView({
   onChange: (updated: ScheduleBlock) => void
 }) {
   const { t } = useTranslation()
+  const { push } = useToast()
 
   if (blocks.length === 0) {
     return (
@@ -535,8 +544,11 @@ function ScheduleView({
   const sorted = [...blocks].sort((a, b) => (a.locked_start ?? '').localeCompare(b.locked_start ?? ''))
 
   const unlock = async (block: ScheduleBlock) => {
-    const updated = await planningApi.unlockBlock(block.id)
-    onChange(updated)
+    try {
+      onChange(await planningApi.unlockBlock(block.id))
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+    }
   }
 
   return (
@@ -587,6 +599,7 @@ function CalendarView({
   onChange: (updated: ScheduleBlock) => void
 }) {
   const { t } = useTranslation()
+  const { push } = useToast()
   const [now, setNow] = useState(() => new Date())
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
@@ -624,9 +637,12 @@ function CalendarView({
   const selected = entries.find((e) => e.block.id === selectedId)?.block ?? null
 
   const unlock = async (block: ScheduleBlock) => {
-    const updated = await planningApi.unlockBlock(block.id)
-    onChange(updated)
-    setSelectedId(null)
+    try {
+      onChange(await planningApi.unlockBlock(block.id))
+      setSelectedId(null)
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+    }
   }
 
   if (blocks.length === 0) {

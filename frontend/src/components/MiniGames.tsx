@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { miniGamesApi } from '../lib/api'
 import { formatDate } from '../lib/formatDate'
+import { apiErrorMessage } from '../lib/apiError'
 import { MiniGameInfo, MiniGameScore } from '../types'
 
 /** Format a raw score for display, driven by the game's declared metric rather
@@ -139,11 +140,11 @@ export default function MiniGames() {
               'success',
             )
           }
-        } catch (err: any) {
+        } catch (err) {
           reply(null)
           // A rejected run is the anti-cheat validation doing its job, or a genuine
           // network failure — either way the player deserves to know it didn't count.
-          push(err?.response?.data?.detail || t('minigames.submitFailed'), 'error')
+          push(apiErrorMessage(err, t), 'error')
         }
       }
     }

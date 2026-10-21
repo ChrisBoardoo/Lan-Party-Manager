@@ -24,6 +24,7 @@ import time
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
+from starlette.concurrency import run_in_threadpool
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session, selectinload
 
@@ -533,6 +534,49 @@ def _may_stay_connected(db: Session, event_id: int, user_id: int, token_version:
     return _window_open(db, event) and _is_attendee(db, event_id, user_id)
 
 
+def _pinned_id(event_id: int):
+    db = SessionLocal()
+    try:
+        return db.query(LanEvent.pinned_message_id).filter(LanEvent.id == event_id).scalar()
+    finally:
+        db.close()
+
+
+def _poll_chat(event_id: int, user_id: int, token_version: int, last_seen_time, last_pinned_id, tick: int):
+    """One tick of _push_loop, synchronous and in a worker thread (Q-8 of the
+    2026-10-20 review): (session still valid, this tick's watermark, changed
+    messages to push or None, (pinned id, payload) when the pin changed else None)."""
+    db = SessionLocal()
+    try:
+        if tick % WS_RECHECK_EVERY == 0 and not _may_stay_connected(db, event_id, user_id, token_version):
+            return False, None, None, None
+        tick_time = datetime.utcnow()
+        changed = (
+            db.query(ChatMessage)
+            .options(*_MESSAGE_LOAD_OPTIONS)
+            .filter(ChatMessage.event_id == event_id, ChatMessage.updated_at > last_seen_time)
+            .order_by(ChatMessage.id.asc())
+            .all()
+        )
+        items = [_serialize(m, user_id).model_dump(mode="json") for m in changed] if changed else None
+        pinned = None
+        pinned_id = db.query(LanEvent.pinned_message_id).filter(LanEvent.id == event_id).scalar()
+        if pinned_id != last_pinned_id:
+            payload = None
+            if pinned_id is not None:
+                msg = (
+                    db.query(ChatMessage)
+                    .options(selectinload(ChatMessage.user))
+                    .filter(ChatMessage.id == pinned_id)
+                    .first()
+                )
+                payload = _pinned_out(msg).model_dump(mode="json") if msg else None
+            pinned = (pinned_id, payload)
+        return True, tick_time, items, pinned
+    finally:
+        db.close()
+
+
 async def _push_loop(websocket: WebSocket, event_id: int, user_id: int, token_version: int) -> None:
     """Polls for anything a connected client needs pushed to it: changed
     messages (watermark, not an id — a message can change via edit/reaction
@@ -542,48 +586,23 @@ async def _push_loop(websocket: WebSocket, event_id: int, user_id: int, token_ve
     message pointer. One extra cheap column read per tick beats a second poll
     loop for something that changes this infrequently."""
     last_seen_time = datetime.utcnow()
-    db = SessionLocal()
-    try:
-        last_pinned_id = db.query(LanEvent.pinned_message_id).filter(LanEvent.id == event_id).scalar()
-    finally:
-        db.close()
+    last_pinned_id = await run_in_threadpool(_pinned_id, event_id)
 
     tick = 0
     while True:
-        db = SessionLocal()
-        try:
-            tick += 1
-            if tick % WS_RECHECK_EVERY == 0 and not _may_stay_connected(db, event_id, user_id, token_version):
-                await close_unauthorized(websocket)
-                return
-            tick_time = datetime.utcnow()
-            changed = (
-                db.query(ChatMessage)
-                .options(*_MESSAGE_LOAD_OPTIONS)
-                .filter(ChatMessage.event_id == event_id, ChatMessage.updated_at > last_seen_time)
-                .order_by(ChatMessage.id.asc())
-                .all()
-            )
-            if changed:
-                items = [_serialize(m, user_id).model_dump(mode="json") for m in changed]
-                await websocket.send_json({"type": "messages", "items": items})
-            last_seen_time = tick_time
-
-            pinned_id = db.query(LanEvent.pinned_message_id).filter(LanEvent.id == event_id).scalar()
-            if pinned_id != last_pinned_id:
-                pinned_payload = None
-                if pinned_id is not None:
-                    msg = (
-                        db.query(ChatMessage)
-                        .options(selectinload(ChatMessage.user))
-                        .filter(ChatMessage.id == pinned_id)
-                        .first()
-                    )
-                    pinned_payload = _pinned_out(msg).model_dump(mode="json") if msg else None
-                await websocket.send_json({"type": "pinned", "message": pinned_payload})
-                last_pinned_id = pinned_id
-        finally:
-            db.close()
+        tick += 1
+        ok, tick_time, items, pinned = await run_in_threadpool(
+            _poll_chat, event_id, user_id, token_version, last_seen_time, last_pinned_id, tick,
+        )
+        if not ok:
+            await close_unauthorized(websocket)
+            return
+        if items:
+            await websocket.send_json({"type": "messages", "items": items})
+        last_seen_time = tick_time
+        if pinned is not None:
+            last_pinned_id, payload = pinned
+            await websocket.send_json({"type": "pinned", "message": payload})
         await asyncio.sleep(2)
 
 

@@ -4,6 +4,7 @@ import { ProRataResult, User } from '../types'
 import { useAppConfig } from '../contexts/AppConfigContext'
 import { useAuth } from '../contexts/AuthContext'
 import { eventsApi, expensesApi, usersApi } from '../lib/api'
+import { apiErrorMessage } from '../lib/apiError'
 import { Check, ArrowRight, Wallet, Phone, Pencil, UserPlus } from 'lucide-react'
 
 interface ProRataTableProps {
@@ -52,8 +53,8 @@ function StayEditor({
         status === 'in' ? { status, arrival_date: arrival, departure_date: departure } : { status }
       )
       onDone()
-    } catch (e: any) {
-      setError(t('finances.adjust.failed', { detail: e.response?.data?.detail ?? '' }))
+    } catch (e) {
+      setError(t('finances.adjust.failed', { detail: apiErrorMessage(e, t) }))
     } finally {
       setBusy(false)
     }

@@ -12,7 +12,7 @@ API and keeps the EN/FR parity check meaningful.
 Ties award everyone tied — a LAN badge is bragging rights, not a prize.
 """
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
@@ -26,7 +26,6 @@ from models import (
     MediaReaction,
     MiniGameScore,
     Team,
-    TeamMember,
     Tournament,
     User,
 )

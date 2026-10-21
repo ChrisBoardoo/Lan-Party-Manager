@@ -24,14 +24,13 @@ from sqlalchemy.orm import Session, selectinload
 
 from database import get_db
 from models import (
-    AppSetting, LanEvent, EventRSVP, User, Tournament, Team, Match,
-    ScheduleBlock, MediaItem, MediaReaction, Announcement, GearItem,
+    AppSetting, EventRSVP, User, Tournament, Team, ScheduleBlock, MediaItem, MediaReaction, Announcement, GearItem,
 )
 from auth import require_admin
 from router_settings import get_setting, is_feature_enabled, wifi_config
 from router_presence import is_user_online
 from event_utils import current_event
-from tournament_stats import decided_at, team_records, winning_team_id
+from tournament_stats import decided_at, team_records, tournament_load_options, winning_team_id
 from router_trophies import revealed_editions, vote_turnout
 from router_media import best_media_query, hydrate_reactions
 
@@ -349,11 +348,12 @@ def kiosk_summary(
     if event:
         tournaments = (
             db.query(Tournament)
+            .options(*tournament_load_options())
             .filter((Tournament.event_id == event.id) | (Tournament.event_id.is_(None)))
             .all()
         )
     else:
-        tournaments = db.query(Tournament).all()
+        tournaments = db.query(Tournament).options(*tournament_load_options()).all()
 
     # Matches: live ones first, then the next pending matches with both teams set.
     live: list[KioskMatch] = []

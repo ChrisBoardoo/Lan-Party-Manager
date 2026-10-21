@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
-import math, random
+import math
+import random
 
 from database import get_db
 from models import (
@@ -20,6 +21,7 @@ from auth import get_current_user, require_admin
 from activity import add_activity, add_audit
 from games_catalog import resolve_game
 from router_settings import is_feature_enabled
+from tournament_stats import tournament_load_options
 from tournament_stats import (
     decided_matches, leaderboard_key, linked_tournaments, player_game_records,
     team_records, winning_user_ids,
@@ -135,12 +137,7 @@ def _generate_round_robin(teams: list) -> list:
 
 
 def _tournament_options():
-    return [
-        selectinload(Tournament.organizer),
-        selectinload(Tournament.teams).selectinload(Team.members),
-        selectinload(Tournament.matches).selectinload(Match.team_a).selectinload(Team.members),
-        selectinload(Tournament.matches).selectinload(Match.team_b).selectinload(Team.members),
-    ]
+    return tournament_load_options()
 
 
 # ── Hall of Fame ───────────────────────────────────────────────────────────────
@@ -167,9 +164,10 @@ def hall_of_fame(db: Session = Depends(get_db), _: User = Depends(get_current_us
                     user_participations[member.user_id] = user_participations.get(member.user_id, 0) + 1
 
     all_ids = set(user_wins) | set(user_participations)
+    users = _users_by_id(db, all_ids)  # one query, not one per member (Q-7)
     result = []
     for uid in all_ids:
-        u = db.query(User).filter(User.id == uid).first()
+        u = users.get(uid)
         if u:
             result.append(HallOfFameEntry(
                 user_id=uid,
@@ -503,6 +501,23 @@ def _one_team_per_player(db: Session, tid: int, members, team_id: Optional[int] 
         raise HTTPException(400, "A player can only be on one team")
 
 
+def _require_known_members(db: Session, members) -> None:
+    """Every linked account named in a team exists, is active and not deleted:
+    a made-up user_id credited XP, Hall of Fame and stats to nobody, and a
+    member can't be entered without an account that will see it (D-2 of the
+    2026-10-20 review). Guests without an account stay free-text names."""
+    ids = {m.user_id for m in members if m.user_id is not None}
+    if not ids:
+        return
+    known = {
+        uid for (uid,) in db.query(User.id).filter(
+            User.id.in_(ids), User.is_active == True, User.deleted_at.is_(None),  # noqa: E712
+        ).all()
+    }
+    if ids - known:
+        raise HTTPException(400, "Unknown or inactive member on this team")
+
+
 @router.post("/{tid}/teams", response_model=TeamOut, status_code=201)
 def add_team(
     tid: int,
@@ -512,6 +527,7 @@ def add_team(
 ):
     _editable_teams_tournament(db, tid, current_user)
     _one_team_per_player(db, tid, data.members)
+    _require_known_members(db, data.members)
 
     team = Team(tournament_id=tid, team_name=data.team_name, color=data.color, seed=data.seed)
     db.add(team)
@@ -539,6 +555,7 @@ def replace_teams(
     picked = [m.user_id for spec in data.teams for m in spec.members if m.user_id is not None]
     if len(picked) != len(set(picked)):
         raise HTTPException(400, "A player can only be on one team")
+    _require_known_members(db, [m for spec in data.teams for m in spec.members])
 
     for team in db.query(Team).filter(Team.tournament_id == tid).all():
         db.delete(team)
@@ -572,6 +589,7 @@ def update_team(
     if not team:
         raise HTTPException(404, "Team not found")
     _one_team_per_player(db, tid, data.members, team_id=team.id)
+    _require_known_members(db, data.members)
 
     team.team_name = data.team_name
     if data.color is not None:
@@ -638,6 +656,12 @@ def generate_brackets(
         raise HTTPException(404, "Tournament not found")
     if t.organizer_id != current_user.id and current_user.role != "admin":
         raise HTTPException(403, "Forbidden")
+    # Same lock as the teams (1.3.2) and the format: once brackets exist the
+    # tournament has left `pending`, and regenerating would wipe every match,
+    # score and played_at — the XP, badges and Hall of Fame with them (Q-6 of
+    # the 2026-10-20 review). The UI hides the button; the API refused nothing.
+    if t.status != "pending":
+        raise HTTPException(409, "Brackets can only be generated while the tournament is pending")
 
     teams = db.query(Team).filter(Team.tournament_id == tid).all()
     if len(teams) < 2:

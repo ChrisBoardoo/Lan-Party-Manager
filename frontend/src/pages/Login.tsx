@@ -8,6 +8,7 @@ import Button from '../components/ui/Button'
 import LanguageToggle from '../components/ui/LanguageToggle'
 import DiscordButton from '../components/ui/DiscordButton'
 import { normalizeInviteCode } from '../lib/inviteCode'
+import { apiErrorMessage, isApiStatus } from '../lib/apiError'
 import { ArrowRight, Wifi, Ticket } from 'lucide-react'
 
 interface FormData {
@@ -34,12 +35,8 @@ export default function Login() {
     try {
       await login(data.identifier, data.password)
       navigate('/')
-    } catch (e: any) {
-      if (e.response?.status === 403) {
-        setError(t('login.accountDeactivated'))
-      } else {
-        setError(e.response?.data?.detail ?? t('login.loginFailed'))
-      }
+    } catch (e) {
+      setError(isApiStatus(e, 403) ? t('login.accountDeactivated') : apiErrorMessage(e, t))
     }
   }
 

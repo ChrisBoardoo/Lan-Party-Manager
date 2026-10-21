@@ -21,8 +21,10 @@ RUN useradd --uid 1000 --user-group --no-create-home --shell /usr/sbin/nologin l
 # try (and fail) to write __pycache__ next to the sources.
 ENV PYTHONDONTWRITEBYTECODE=1
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# requirements.lock pins the transitive tree too (pip freeze from this very base
+# image); requirements.txt is the readable list it was generated from.
+COPY requirements.txt requirements.lock ./
+RUN pip install --no-cache-dir -r requirements.lock
 
 COPY . .
 

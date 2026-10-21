@@ -130,6 +130,7 @@ def test_simultaneous_sends_do_not_fail(client, crew, monkeypatch):
     r = _post(client, crew.tokens["cross"], _custom_5v5(9001))
     assert r.status_code == 200
     assert r.json()["created"] is False
+    assert _submitters(9001) == [crew.ids["cross"]]  # recorded on that path too
 
 
 def test_sender_needs_a_riot_id(client, crew):
@@ -366,3 +367,44 @@ def test_remakes_are_not_counted(client, crew):
     r = _post(client, crew.tokens["cross"], body)
     assert r.status_code == 422
     assert _stats(client, crew.tokens["bob"])["matches"] == 0
+
+
+# ── Bounds and who sent what (D-3 of the 2026-10-20 review) ───────────────────
+
+def _submitters(game_id):
+    s = database.SessionLocal()
+    try:
+        m = s.query(models.LolMatch).filter_by(riot_game_id=str(game_id)).one()
+        return sorted(r.user_id for r in s.query(models.LolMatchSubmitter).filter_by(match_id=m.id).all())
+    finally:
+        s.close()
+
+
+def test_a_forged_kill_count_is_clamped_not_a_500(client, crew):
+    body = capture(9100, [player("Cross", kills=10**30, damage=10**15)], [player("Bob")])
+    r = _post(client, crew.tokens["cross"], body)
+    assert r.status_code == 201, r.text
+    s = database.SessionLocal()
+    try:
+        row = s.query(models.LolMatchPlayer).filter_by(riot_id_key="cross#euw").one()
+        assert (row.kills, row.damage) == (200, 10_000_000)
+    finally:
+        s.close()
+
+
+def test_every_sender_is_recorded_even_when_the_game_is_already_kept(client, crew):
+    assert _post(client, crew.tokens["cross"], _custom_5v5(9200)).status_code == 201
+    assert _submitters(9200) == [crew.ids["cross"]]
+    r = _post(client, crew.tokens["bob"], _custom_5v5(9200))
+    assert r.status_code == 200 and r.json()["created"] is False
+    assert _submitters(9200) == sorted([crew.ids["cross"], crew.ids["bob"]])
+    _post(client, crew.tokens["bob"], _custom_5v5(9200))  # again: still one row each
+    assert _submitters(9200) == sorted([crew.ids["cross"], crew.ids["bob"]])
+    # Deleting the game takes its sender rows with it.
+    mid = client.get("/api/lol/matches", headers=auth_header(crew.admin)).json()[0]["id"]
+    client.delete(f"/api/lol/matches/{mid}", headers=auth_header(crew.admin)).raise_for_status()
+    s = database.SessionLocal()
+    try:
+        assert s.query(models.LolMatchSubmitter).filter_by(match_id=mid).count() == 0
+    finally:
+        s.close()

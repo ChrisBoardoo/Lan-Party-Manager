@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
-import type { ChatMention } from '../types'
-import { renderMessageContent, colorForUser } from './CravingChatSection'
+import type { ChatMention, ChatMessage } from '../types'
+import { renderMessageContent, colorForUser, mergeMessages } from './CravingChatSection'
 
 // renderMessageContent is the one-pass URL + @mention highlighter for chat
 // bubbles (router_chat.py's _resolve_mentions is the actual security
@@ -148,5 +148,28 @@ describe('colorForUser', () => {
     for (let id = 0; id < 50; id++) {
       expect(colorForUser(id, false)).not.toBe('#FF3D00')
     }
+  })
+})
+
+describe('mergeMessages', () => {
+  const msg = (id: number, content = `m${id}`) => ({ id, content }) as ChatMessage
+
+  it('keeps a message I sent once when the socket pushed it before the POST answered', () => {
+    const pushed = mergeMessages([msg(1)], [msg(2, 'test')])
+    const answered = mergeMessages(pushed, [msg(2, 'test')], true)
+    expect(answered.map((m) => m.id)).toEqual([1, 2])
+  })
+
+  it("doesn't let the POST's older copy overwrite what the socket pushed", () => {
+    const pushed = mergeMessages([], [msg(2, 'with its link preview')])
+    expect(mergeMessages(pushed, [msg(2, 'as posted')], true)[0].content).toBe('with its link preview')
+  })
+
+  it('lets the socket update a message in place (an edit, a reaction)', () => {
+    expect(mergeMessages([msg(1, 'before')], [msg(1, 'after')])[0].content).toBe('after')
+  })
+
+  it('keeps the list in id order', () => {
+    expect(mergeMessages([msg(3)], [msg(1), msg(2)]).map((m) => m.id)).toEqual([1, 2, 3])
   })
 })

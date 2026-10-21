@@ -18,7 +18,7 @@ from typing import Any, List, Optional, Sequence
 
 from sqlalchemy.orm import Session, selectinload
 
-from models import Team, TeamMember, Tournament
+from models import Match, Team, TeamMember, Tournament
 
 
 @dataclass(frozen=True)
@@ -254,3 +254,17 @@ def tournaments_for_event(db: Session, event_id: int, *, options: Sequence = ())
     if options:
         q = q.options(*options)
     return q.all()
+
+
+def tournament_load_options():
+    """The eager loads a tournament needs to be read without a query per team
+    or per match: organizer, teams and their members, both sides of every
+    match. Shared by the tournaments router and the kiosk, whose summary
+    (polled every 10 s by the projector) used to lazy-load its way to 84
+    queries for 8 tournaments (Q-7 of the 2026-10-20 review)."""
+    return [
+        selectinload(Tournament.organizer),
+        selectinload(Tournament.teams).selectinload(Team.members),
+        selectinload(Tournament.matches).selectinload(Match.team_a).selectinload(Team.members),
+        selectinload(Tournament.matches).selectinload(Match.team_b).selectinload(Team.members),
+    ]

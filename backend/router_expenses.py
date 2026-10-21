@@ -2,10 +2,12 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import User, Expense, LanEvent, EventRSVP, SettlementPayment
+from models import User, Expense, LanEvent, SettlementPayment
 from schemas import ExpenseCreate, ExpenseOut
 from activity import add_audit
 from auth import require_treasurer as _require_treasurer_role
@@ -220,6 +222,13 @@ def mark_settlement(
     event = db.query(LanEvent).filter(LanEvent.id == data.event_id).first()
     if not event:
         raise HTTPException(404, "Event not found")
+    # Take the write lock before reading what is owed: two clicks at once
+    # otherwise both see the line unpaid, and the second one either breaks on
+    # the unique pair (500) or adds the amount a second time. Serialized, the
+    # second computes the split after the first committed and finds the line
+    # paid (400). SQLite only; another engine keeps its default isolation.
+    if db.bind.dialect.name == "sqlite":
+        db.execute(text("BEGIN IMMEDIATE"))
     rsvps, expenses, payments = event_prorata_inputs(db, event)
     result = calculate_prorata(event, rsvps, expenses, payments, current_user.id)
     line = next(
@@ -253,7 +262,11 @@ def mark_settlement(
             amount=line["amount"],
         ))
     _audit_on_behalf(db, current_user, debtor, data, f"payment of {line['amount']:.2f} € recorded")
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "This payment was just recorded")
     return {"ok": True, "paid": True, "amount": line["amount"]}
 
 

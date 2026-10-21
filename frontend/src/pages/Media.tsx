@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { mediaApi, eventsApi } from '../lib/api'
+import { useLoad } from '../hooks/useLoad'
+import LoadError from '../components/ui/LoadError'
+import { apiErrorMessage } from '../lib/apiError'
 import { useToast } from '../contexts/ToastContext'
 import { MediaItem, LanEvent } from '../types'
 import { Upload, X, Trash2, Play, ImageIcon, Video, Loader2, Filter, CheckSquare, Square } from 'lucide-react'
@@ -40,6 +43,8 @@ function MediaCard({
         <img
           src={item.url}
           alt={item.original_name}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           onClick={bulkMode ? onToggleSelect : onClick}
         />
@@ -47,6 +52,8 @@ function MediaCard({
         <img
           src={thumb}
           alt={item.original_name}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           onClick={bulkMode ? onToggleSelect : onClick}
         />
@@ -138,9 +145,8 @@ function UploadButton({ onUploaded, selectedEventId }: { onUploaded: () => void;
     try {
       await mediaApi.upload(file, undefined, selectedEventId)
       onUploaded()
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setError(msg ?? t('media.uploadFailed'))
+    } catch (err) {
+      setError(apiErrorMessage(err, t))
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -166,7 +172,6 @@ export default function Media() {
   const { push } = useToast()
   const [items, setItems] = useState<MediaItem[]>([])
   const [events, setEvents] = useState<LanEvent[]>([])
-  const [loading, setLoading] = useState(true)
   const [viewer, setViewer] = useState<{ items: MediaItem[]; index: number } | null>(null)
   const [filterEventId, setFilterEventId] = useState<number | undefined>(undefined)
   const [bulkMode, setBulkMode] = useState(false)
@@ -180,10 +185,9 @@ export default function Media() {
     ])
     setItems(mediaData)
     setEvents(eventsData)
-    setLoading(false)
   }
 
-  useEffect(() => { load() }, [filterEventId])
+  const { loading, error, retry } = useLoad(load, [filterEventId])
 
   // The lightbox holds its own copy of the list it was opened with (the images
   // or videos slice), so a reaction/caption edit has to land in both.
@@ -195,7 +199,12 @@ export default function Media() {
 
   const handleDelete = async (item: MediaItem) => {
     if (!confirm(t('media.deleteConfirm', { name: item.original_name }))) return
-    await mediaApi.delete(item.id)
+    try {
+      await mediaApi.delete(item.id)
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+      return
+    }
     setItems((prev) => prev.filter((i) => i.id !== item.id))
     push(t('media.mediaDeleted'))
   }
@@ -209,6 +218,8 @@ export default function Media() {
       setSelected(new Set())
       setBulkMode(false)
       await load()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setBulkDeleting(false)
     }
@@ -228,6 +239,7 @@ export default function Media() {
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-12">
+      {error && <LoadError message={error} onRetry={retry} />}
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>

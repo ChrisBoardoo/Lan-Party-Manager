@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { sponsorsApi } from '../lib/api'
+import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import { Sponsor } from '../types'
 import Button from './ui/Button'
 import ExternalLinkButton from './ui/ExternalLink'
@@ -16,6 +18,7 @@ export default function SponsorsAdminCard({ eventId }: { eventId: number }) {
   const [saving, setSaving] = useState(false)
   const [uploadingId, setUploadingId] = useState<number | null>(null)
   const bannerInputs = useRef<Record<number, HTMLInputElement | null>>({})
+  const { push } = useToast()
 
   const load = () => { sponsorsApi.getForEvent(eventId).then(setSponsors).catch(() => {}) }
   useEffect(() => { load() }, [eventId])
@@ -27,6 +30,8 @@ export default function SponsorsAdminCard({ eventId }: { eventId: number }) {
       await sponsorsApi.create({ event_id: eventId, name: name.trim(), link_url: link.trim() || null })
       setName(''); setLink(''); setShowForm(false)
       load()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setSaving(false)
     }
@@ -38,6 +43,8 @@ export default function SponsorsAdminCard({ eventId }: { eventId: number }) {
     try {
       await sponsorsApi.uploadBanner(id, file)
       load()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setUploadingId(null)
     }
@@ -45,7 +52,12 @@ export default function SponsorsAdminCard({ eventId }: { eventId: number }) {
 
   const handleDelete = async (id: number) => {
     if (!confirm(t('sponsors.deleteConfirm'))) return
-    await sponsorsApi.delete(id)
+    try {
+      await sponsorsApi.delete(id)
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+      return
+    }
     load()
   }
 

@@ -1,5 +1,7 @@
 import asyncio
 
+from starlette.concurrency import run_in_threadpool
+
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, selectinload
@@ -191,6 +193,32 @@ def react_to_activity(
     return entry
 
 
+def _poll_activity(user_id: int, token_version: int, last_seen_id, tick: int):
+    """One tick of activity_ws, synchronous and in a worker thread: (session
+    still valid, newest activity id, the new entries to push or None)."""
+    db = SessionLocal()
+    try:
+        if tick % WS_RECHECK_EVERY == 0 and not session_still_valid(db, user_id, token_version):
+            return False, None, None
+        newest = db.query(ActivityLog.id).order_by(ActivityLog.id.desc()).first()
+        newest_id = newest[0] if newest else None
+        items = None
+        if newest_id is not None and newest_id != last_seen_id and last_seen_id is not None:
+            new_entries = (
+                _visible_to(db.query(ActivityLog), user_id)
+                .options(selectinload(ActivityLog.user))
+                .filter(ActivityLog.id > last_seen_id)
+                .order_by(ActivityLog.id.asc())
+                .all()
+            )
+            _hydrate_media(db, new_entries, user_id)
+            _hydrate_activity_reactions(db, new_entries, user_id)
+            items = [ActivityLogOut.model_validate(e).model_dump(mode="json") for e in new_entries]
+        return True, newest_id, items
+    finally:
+        db.close()
+
+
 @router.websocket("/ws")
 async def activity_ws(websocket: WebSocket):
     """Live push for the activity feed, replacing what would otherwise be every
@@ -215,33 +243,18 @@ async def activity_ws(websocket: WebSocket):
     tick = 0
     try:
         while True:
-            db = SessionLocal()
-            try:
-                tick += 1
-                if tick % WS_RECHECK_EVERY == 0 and not session_still_valid(db, user_id, token_version):
-                    await close_unauthorized(websocket)
-                    return
-                newest = db.query(ActivityLog.id).order_by(ActivityLog.id.desc()).first()
-                newest_id = newest[0] if newest else None
-                if newest_id is not None and newest_id != last_seen_id:
-                    if last_seen_id is not None:
-                        new_entries = (
-                            _visible_to(db.query(ActivityLog), user_id)
-                            .options(selectinload(ActivityLog.user))
-                            .filter(ActivityLog.id > last_seen_id)
-                            .order_by(ActivityLog.id.asc())
-                            .all()
-                        )
-                        _hydrate_media(db, new_entries, user_id)
-                        _hydrate_activity_reactions(db, new_entries, user_id)
-                        items = [
-                            ActivityLogOut.model_validate(e).model_dump(mode="json")
-                            for e in new_entries
-                        ]
-                        await websocket.send_json({"type": "activity", "items": items})
-                    last_seen_id = newest_id
-            finally:
-                db.close()
+            tick += 1
+            # The tick's queries run in a worker thread: on the event loop they
+            # stalled every other coroutine, forty sockets at a time at a LAN
+            # (Q-8 of the 2026-10-20 review).
+            ok, newest_id, items = await run_in_threadpool(_poll_activity, user_id, token_version, last_seen_id, tick)
+            if not ok:
+                await close_unauthorized(websocket)
+                return
+            if items:
+                await websocket.send_json({"type": "activity", "items": items})
+            if newest_id is not None:
+                last_seen_id = newest_id
             await asyncio.sleep(2)
     except WebSocketDisconnect:
         pass

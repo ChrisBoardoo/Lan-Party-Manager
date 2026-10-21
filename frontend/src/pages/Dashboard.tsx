@@ -4,7 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppConfig } from '../contexts/AppConfigContext'
 import { useUpcomingEvent } from '../contexts/UpcomingEventContext'
+import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import { usersApi, expensesApi, tournamentsApi, activityApi, mediaApi, miniGamesApi, xpApi } from '../lib/api'
+import { useLoad } from '../hooks/useLoad'
+import LoadError from '../components/ui/LoadError'
 import { useActivityFeed } from '../hooks/useActivityFeed'
 import { User, Tournament, ActivityLogEntry, HallOfFameEntry, MediaItem, MiniGameInfo, MiniGameScore, XpCrewEntry } from '../types'
 import { timeAgo, formatDate } from '../lib/formatDate'
@@ -55,7 +59,6 @@ export default function Dashboard() {
   const [hallOfFame, setHallOfFame] = useState<HallOfFameEntry[]>([])
   const [recentMedia, setRecentMedia] = useState<MediaItem[]>([])
   const [viewer, setViewer] = useState<{ items: MediaItem[]; index: number } | null>(null)
-  const [loading, setLoading] = useState(true)
   const [reactingActivityId, setReactingActivityId] = useState<number | null>(null)
   const [activityExpanded, setActivityExpanded] = useState(false)
   // The Hub is where people land between two LANs, which is exactly when a mini-game
@@ -65,20 +68,21 @@ export default function Dashboard() {
   const [featuredMine, setFeaturedMine] = useState<MiniGameScore | null>(null)
   const [crewXp, setCrewXp] = useState<XpCrewEntry[]>([])
 
-  useEffect(() => {
-    Promise.all([
+  // useLoad: a backend that doesn't answer ends the skeleton with a message
+  // and a retry, instead of pulsing for ever (F-1 of the 2026-10-20 review).
+  const { loading, error, retry } = useLoad(async () => {
+    const [u, tour, act, hof, media] = await Promise.all([
       usersApi.getAll(),
       tournamentsApi.getAll(),
       activityApi.getAll(20),
       tournamentsApi.getHallOfFame(),
       mediaApi.getAll(),
-    ]).then(([u, tour, act, hof, media]) => {
-      setUsers(u)
-      setTournaments(tour)
-      setActivity(act)
-      setHallOfFame(hof)
-      setRecentMedia(media.slice(0, RECENT_MEDIA_COUNT))
-    }).finally(() => setLoading(false))
+    ])
+    setUsers(u)
+    setTournaments(tour)
+    setActivity(act)
+    setHallOfFame(hof)
+    setRecentMedia(media.slice(0, RECENT_MEDIA_COUNT))
   }, [])
 
   // Separate from the main load: mini-games are opt-in, so this only runs when the
@@ -116,6 +120,8 @@ export default function Dashboard() {
     xpApi.crew().then(setCrewXp).catch(() => setCrewXp([]))
   }, [xpEnabled])
   const xpByUser = new Map(crewXp.map((e) => [e.user_id, e]))
+
+  const { push } = useToast()
 
   useActivityFeed(!loading, (newItems) => {
     setActivity((prev) => {
@@ -164,13 +170,16 @@ export default function Dashboard() {
     e.preventDefault()
     e.stopPropagation()
     if (target.is_active && !confirm(t('players.deactivateConfirm', { username: target.username }))) return
-    if (target.is_active) {
-      await usersApi.deactivate(target.id)
-    } else {
-      await usersApi.reactivate(target.id)
+    try {
+      if (target.is_active) {
+        await usersApi.deactivate(target.id)
+      } else {
+        await usersApi.reactivate(target.id)
+      }
+      setUsers(await usersApi.getAll())
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     }
-    const updated = await usersApi.getAll()
-    setUsers(updated)
   }
 
   // Client-side CSV (lib/csv.ts), no backend endpoint. Sizes were pulled off
@@ -184,6 +193,7 @@ export default function Dashboard() {
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-12">
+      {error && <LoadError message={error} onRetry={retry} />}
       {/* Header */}
       <div className="mb-12">
         <div className="font-mono-label text-accent mb-3">{t('dashboard.tagline')}</div>
@@ -412,12 +422,16 @@ export default function Dashboard() {
                             <img
                               src={entry.media.url}
                               alt={entry.media.original_name}
+                              loading="lazy"
+                              decoding="async"
                               className="w-full h-full object-cover"
                             />
                           ) : entry.media.thumbnail_url ? (
                             <img
                               src={entry.media.thumbnail_url}
                               alt={entry.media.original_name}
+                              loading="lazy"
+                              decoding="async"
                               className="w-full h-full object-cover"
                             />
                           ) : (
@@ -604,12 +618,16 @@ export default function Dashboard() {
                       <img
                         src={item.url}
                         alt={item.original_name}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : item.thumbnail_url ? (
                       <img
                         src={item.thumbnail_url}
                         alt={item.original_name}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (

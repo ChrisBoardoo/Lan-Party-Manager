@@ -19,11 +19,13 @@ import RiotIdCard from '../components/RiotIdCard'
 import { CLOTHING_SIZES, LanEvent, BadgeAward } from '../types'
 import { Camera, Check, Shield, CalendarDays, RotateCw, KeyRound, Phone, Pencil, X, Link2, Unlink } from 'lucide-react'
 
+// The organizer role isn't here: an admin grants it from the member's player
+// page (PlayerProfile.tsx) — self-service let a member run a fake tournament
+// during a LAN and pay himself the XP (D-2 of the 2026-10-20 review).
 interface ProfileForm {
   clothing_size: string
   phone: string
   is_meal_prep_volunteer: boolean
-  is_tournament_organizer: boolean
 }
 
 interface PasswordChangeForm {
@@ -228,13 +230,11 @@ export default function Profile() {
       clothing_size: user?.clothing_size ?? '',
       phone: user?.phone ?? '',
       is_meal_prep_volunteer: user?.is_meal_prep_volunteer ?? false,
-      is_tournament_organizer: user?.is_tournament_organizer ?? false,
     },
   })
 
   const clothingSize = watch('clothing_size')
   const isMealPrep = watch('is_meal_prep_volunteer')
-  const isTournOrg = watch('is_tournament_organizer')
 
   const onSubmit = async (data: ProfileForm) => {
     if (!user) return
@@ -474,12 +474,6 @@ export default function Profile() {
                 active: isMealPrep,
                 label: t('profile.mealPrepLabel'),
                 desc: t('profile.mealPrepDesc'),
-              },
-              {
-                key: 'is_tournament_organizer' as const,
-                active: isTournOrg,
-                label: t('profile.organizerLabel'),
-                desc: t('profile.organizerDesc'),
               },
             ].map(({ key, active, label, desc }) => (
               <button

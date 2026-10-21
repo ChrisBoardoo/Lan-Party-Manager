@@ -14,14 +14,11 @@ import os
 from database import SessionLocal, get_db
 from db_migrate import run_migrations
 from limiter import limiter
-import models
 from router_settings import get_setting
 from discord_notify import send_event_reminders
 from backup_scheduler import run_scheduled_backup
 from lan_reminders import send_lan_countdown_reminders
 from quests import announce_monthly_contract
-
-logger = logging.getLogger(__name__)
 from router_auth import router as auth_router
 from router_users import router as users_router
 from router_expenses import router as expenses_router
@@ -52,6 +49,8 @@ from router_lol import router as lol_router
 from router_xp import router as xp_router
 from router_cards import router as cards_router
 from router_quests import router as quests_router
+
+logger = logging.getLogger(__name__)
 
 # Ensure required directories exist
 os.makedirs("data", exist_ok=True)
@@ -97,7 +96,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="LAN Party Manager API", version="1.4.0", lifespan=lifespan)
+app = FastAPI(title="LAN Party Manager API", version="1.4.1", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

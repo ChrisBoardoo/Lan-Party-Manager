@@ -19,6 +19,11 @@ def add_activity(
         entity_id=entity_id,
         recipient_user_id=recipient_user_id,
     ))
+    # Most writes that change someone's XP come through here (a match decided,
+    # a photo, a trophy revealed, an RSVP adjusted): drop the cached ledger.
+    from xp import invalidate_ledger  # lazy: xp imports router_settings
+
+    invalidate_ledger()
 
 
 def add_audit(db: Session, admin_id: int, action: str, details: str = None):

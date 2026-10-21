@@ -189,3 +189,95 @@ def shutil_usage(free):
     from collections import namedtuple
 
     return namedtuple("usage", "total used free")(free, 0, free)
+
+
+# ── Export is a consistent snapshot (Q-4 of the 2026-10-20 review) ────────────
+
+def _real_db(path, rows=500):
+    """A real SQLite database in WAL mode with `rows` committed rows still in
+    the -wal file (never checkpointed): what a Pi looks like between two
+    checkpoints. A plain copy of the main file alone would hold none of them."""
+    import sqlite3
+
+    conn = sqlite3.connect(str(path))
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("CREATE TABLE rows(id INTEGER PRIMARY KEY, payload TEXT)")
+    conn.executemany("INSERT INTO rows(payload) VALUES (?)", [(f"row {i}" * 10,) for i in range(rows)])
+    conn.commit()
+    return conn  # kept open: closing the last connection would checkpoint
+
+
+def _restored_db(body, tmp_path):
+    import sqlite3
+
+    dest = tmp_path / "restored"
+    dest.mkdir(exist_ok=True)
+    with tarfile.open(fileobj=io.BytesIO(body), mode="r:gz") as tar:
+        _extract_safely(tar, str(dest))
+    return sqlite3.connect(str(dest / "lanparty.db"))
+
+
+def test_export_is_a_consistent_snapshot_while_writes_happen(client, tmp_path, monkeypatch):
+    import threading
+    import time
+
+    import router_backup
+    from conftest import auth_header, login, make_user
+
+    db = tmp_path / "lanparty.db"
+    keeper = _real_db(db)
+    (tmp_path / "uploads").mkdir()
+    monkeypatch.setattr(router_backup, "DB_PATH", str(db))
+    monkeypatch.setattr(router_backup, "UPLOAD_DIR", str(tmp_path / "uploads"))
+    make_user("boss", role="admin")
+    token = login(client, "boss")
+
+    stop = threading.Event()
+
+    def writer():
+        import sqlite3
+
+        conn = sqlite3.connect(str(db))
+        n = 0
+        while not stop.is_set():
+            conn.execute("INSERT INTO rows(payload) VALUES (?)", (f"late {n}",))
+            conn.commit()
+            n += 1
+            time.sleep(0.001)
+        conn.close()
+
+    t = threading.Thread(target=writer)
+    t.start()
+    try:
+        resp = client.get("/api/backup/export", headers=auth_header(token))
+    finally:
+        stop.set()
+        t.join()
+    assert resp.status_code == 200
+    restored = _restored_db(resp.content, tmp_path)
+    try:
+        assert restored.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert restored.execute("SELECT count(*) FROM rows").fetchone()[0] >= 500  # the -wal rows are in
+    finally:
+        restored.close()
+    # The estimate measures the snapshot, not the checkpointed main file.
+    assert int(resp.headers["X-Backup-Estimate"]) > 20_000
+    assert not [p for p in tmp_path.iterdir() if p.name.startswith("lanparty_snapshot_")]  # cleaned up
+    keeper.close()
+
+
+def test_export_of_a_file_sqlite_cannot_read_still_ships_it(client, tmp_path, monkeypatch):
+    """A corrupted database is exactly what an admin may want to get off the Pi."""
+    import router_backup
+    from conftest import auth_header, login, make_user
+
+    db = tmp_path / "lanparty.db"
+    db.write_bytes(router_backup.SQLITE_MAGIC + b"\x00" * 100)
+    (tmp_path / "uploads").mkdir()
+    monkeypatch.setattr(router_backup, "DB_PATH", str(db))
+    monkeypatch.setattr(router_backup, "UPLOAD_DIR", str(tmp_path / "uploads"))
+    make_user("boss", role="admin")
+    resp = client.get("/api/backup/export", headers=auth_header(login(client, "boss")))
+    assert resp.status_code == 200 and int(resp.headers["X-Backup-Estimate"]) == 116
+    with tarfile.open(fileobj=io.BytesIO(resp.content), mode="r:gz") as tar:
+        assert tar.extractfile("lanparty.db").read() == db.read_bytes()

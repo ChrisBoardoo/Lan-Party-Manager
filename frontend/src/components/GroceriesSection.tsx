@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ShoppingCart, Plus, Trash2, Download, Upload } from 'lucide-react'
 import { groceriesApi } from '../lib/api'
+import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import type { GroceryEvent, GroceryItem, GroceryImportResult, EventAttendee } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 import Button from './ui/Button'
@@ -17,6 +19,7 @@ const TRUTHY = new Set(['oui', 'yes', 'true', '1', 'x'])
 // feature never takes the event page down.
 export default function GroceriesSection({ eventId, attendees }: { eventId: number; attendees: EventAttendee[] }) {
   const { t, i18n } = useTranslation()
+  const { push } = useToast()
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
 
@@ -44,7 +47,14 @@ export default function GroceriesSection({ eventId, attendees }: { eventId: numb
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true)
-    try { await fn(); load() } finally { setBusy(false) }
+    try {
+      await fn()
+      load()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const addItem = () => {
@@ -115,6 +125,8 @@ export default function GroceriesSection({ eventId, attendees }: { eventId: numb
       const result = await groceriesApi.import(eventId, parsed)
       setImportResult(result)
       load()
+    } catch (err) {
+      push(apiErrorMessage(err, t), 'error')
     } finally {
       setImporting(false)
     }

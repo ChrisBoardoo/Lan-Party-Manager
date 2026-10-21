@@ -106,7 +106,8 @@ export default function GameFinderTab() {
   const toggleSelected = (userId: number) => {
     setSelected((prev) => {
       const next = new Set(prev)
-      next.has(userId) ? next.delete(userId) : next.add(userId)
+      if (next.has(userId)) next.delete(userId)
+      else next.add(userId)
       return next
     })
   }

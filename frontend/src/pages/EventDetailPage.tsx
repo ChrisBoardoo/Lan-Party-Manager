@@ -222,9 +222,9 @@ export default function EventDetailPage() {
                 className="aspect-square border border-border bg-muted overflow-hidden group relative"
               >
                 {item.file_type === 'image' ? (
-                  <img src={item.url} alt={item.original_name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                  <img src={item.url} alt={item.original_name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                 ) : item.thumbnail_url ? (
-                  <img src={item.thumbnail_url} alt={item.original_name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                  <img src={item.thumbnail_url} alt={item.original_name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <Play size={14} strokeWidth={1.5} className="text-muted-foreground" />

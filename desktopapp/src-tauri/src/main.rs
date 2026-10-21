@@ -156,7 +156,7 @@ fn setup_tray_and_window(app: &tauri::App) -> tauri::Result<()> {
             let _ = hide_target.hide();
         }
         WindowEvent::Focused(true) => {
-            reset_unseen(&hide_target.app_handle());
+            reset_unseen(hide_target.app_handle());
         }
         _ => {}
     });

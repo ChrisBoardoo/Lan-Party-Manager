@@ -17,6 +17,14 @@ Capture rules (POST /matches):
 - the same game sent again (every player's app sends it) is not an error:
   it answers 200 with the existing match, `created: false`;
 - a remake (early surrender vote) is refused — nobody played that game;
+- the block is bounded (lol_capture: kills/deaths/assists ≤ 200, damage ≤ 10M,
+  duration ≤ 6 h, ≤ 10 players, names cut) and a member may send 30 games an
+  hour at most: a forged block stays a forged block (the capture is
+  declarative, see below), but it can't break anything;
+- every app that sends a game is recorded (lol_match_submitters), even when the
+  game is already kept: the monthly contract counts a game for a member only if
+  their own app sent it (quests._lol_squad), so nobody fills someone else's
+  objective with a block they typed by hand;
 - players are matched to members by Riot ID. In a custom game every player is
   kept, so someone who sets their Riot ID later still gets their games; in a
   matchmade game (ARAM, normals) only members are kept — strangers met in
@@ -28,7 +36,7 @@ from datetime import date, datetime
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -36,12 +44,13 @@ from activity import add_audit
 from auth import get_current_user, require_admin
 from database import get_db
 from games_catalog import resolve_game
+from limiter import limiter
 from lol_capture import CaptureError, parse_end_of_game
 from lol_stats import (
     LOL_CATALOG_NAME, all_lines, captured_matches, category_of, game_records,
     lol_catalog_game, player_records,
 )
-from models import EventRSVP, LanEvent, LolMatch, LolMatchPlayer, User
+from models import EventRSVP, LanEvent, LolMatch, LolMatchPlayer, LolMatchSubmitter, User
 from router_settings import get_setting, is_feature_enabled, require_feature
 from schemas import (
     LolCaptureIn, LolCaptureResultOut, LolCaptureStatusOut, LolCategory, LolMatchOut,
@@ -92,8 +101,22 @@ def link_captured_players(db: Session, user: User) -> None:
 
 # ── Capture ──────────────────────────────────────────────────────────────────
 
+def _note_submitter(db: Session, match_id: int, user_id: int) -> None:
+    """This member's app sent this game too. The game itself is kept once;
+    who sent it is what quests._lol_squad trusts."""
+    if db.query(LolMatchSubmitter.match_id).filter_by(match_id=match_id, user_id=user_id).first():
+        return
+    db.add(LolMatchSubmitter(match_id=match_id, user_id=user_id))
+    try:
+        db.commit()
+    except IntegrityError:  # the same app, twice at once
+        db.rollback()
+
+
 @router.post("/matches", response_model=LolCaptureResultOut, status_code=201)
+@limiter.limit("30/hour")
 def submit_match(
+    request: Request,
     data: LolCaptureIn,
     response: Response,
     db: Session = Depends(get_db),
@@ -116,6 +139,7 @@ def submit_match(
     # must not re-file it.
     existing = db.query(LolMatch).filter(LolMatch.riot_game_id == game.riot_game_id).first()
     if existing:
+        _note_submitter(db, existing.id, user.id)
         response.status_code = 200
         return LolCaptureResultOut(match_id=existing.id, created=False)
 
@@ -149,6 +173,8 @@ def submit_match(
     resolve_game(db, LOL_CATALOG_NAME, user.id)
     db.add(match)
     try:
+        db.flush()
+        db.add(LolMatchSubmitter(match_id=match.id, user_id=user.id))
         db.commit()
     except IntegrityError:
         # Every player's app sends the game at the same moment — another one
@@ -157,6 +183,7 @@ def submit_match(
         existing = db.query(LolMatch).filter(LolMatch.riot_game_id == game.riot_game_id).first()
         if not existing:
             raise
+        _note_submitter(db, existing.id, user.id)
         response.status_code = 200
         return LolCaptureResultOut(match_id=existing.id, created=False)
     return LolCaptureResultOut(match_id=match.id, created=True)

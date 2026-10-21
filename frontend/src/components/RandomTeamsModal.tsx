@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { eventsApi, tournamentsApi } from '../lib/api'
 import { Draw, drawTeams, maxTeams } from '../lib/randomTeams'
+import { apiErrorMessage } from '../lib/apiError'
 import { Tournament, User } from '../types'
 import Button from './ui/Button'
 import Input from './ui/Input'
@@ -118,8 +119,8 @@ export default function RandomTeamsModal({
         }))
       )
       onClose()
-    } catch (e: any) {
-      setError(t('tournaments.draw.failed', { detail: e.response?.data?.detail ?? '' }))
+    } catch (e) {
+      setError(t('tournaments.draw.failed', { detail: apiErrorMessage(e, t) }))
     } finally {
       setBusy(false)
       // Also after a failure: the format may have been saved before the teams were refused.

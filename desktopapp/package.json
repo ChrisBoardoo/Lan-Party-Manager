@@ -1,6 +1,6 @@
 {
   "name": "lpm-desktop",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "description": "LAN Party Manager desktop client (Windows/Linux) — see desktopplan_windows.md",
   "type": "module",

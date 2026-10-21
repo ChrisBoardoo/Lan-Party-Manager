@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Gamepad2, Plus, Trash2, Check, X, Users, Download, Star, RotateCcw } from 'lucide-react'
 import { gamesApi } from '../lib/api'
+import { useToast } from '../contexts/ToastContext'
+import { apiErrorMessage } from '../lib/apiError'
 import { useAuth } from '../contexts/AuthContext'
 import {
   DEFAULT_LIBRARY_FILTERS, applyLibraryFilters, hasActiveFilters, parsePlayerBound,
@@ -28,6 +30,7 @@ const filtersKey = (f: GameLibraryFilters) =>
 
 export default function GamesLibraryCard() {
   const { t } = useTranslation()
+  const { push } = useToast()
   const { user } = useAuth()
   const [catalog, setCatalog] = useState<Game[]>([])
   const [library, setLibrary] = useState<GameLibraryEntry[]>([])
@@ -148,7 +151,14 @@ export default function GamesLibraryCard() {
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true)
-    try { await fn(); load() } finally { setBusy(false) }
+    try {
+      await fn()
+      load()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const addToLibrary = () => {
@@ -185,8 +195,9 @@ export default function GamesLibraryCard() {
     setStar(next)
     try {
       await gamesApi.setFavorite(row.game_id, next)
-    } catch {
+    } catch (e) {
       setStar(!next)
+      push(apiErrorMessage(e, t), 'error')
     }
   }
 
@@ -210,6 +221,8 @@ export default function GamesLibraryCard() {
       const result = await gamesApi.importSteam()
       setImportResult(result)
       if (result.games_visible) load()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setImporting(false)
     }

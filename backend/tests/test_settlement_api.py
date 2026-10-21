@@ -7,7 +7,7 @@ from datetime import date
 
 import database
 import models
-from conftest import login, auth_header, make_user
+from conftest import login, auth_header, make_user, run_concurrently
 
 
 def _seed_event_with_debt(founder_id, bob_id):
@@ -126,3 +126,32 @@ def test_mark_requires_auth(client):
         json={"event_id": 1, "to_user_id": 2},
     )
     assert r.status_code == 401
+
+
+def test_two_marks_at_once_record_the_payment_once(client):
+    """A double click on "payment sent": both requests used to see the line
+    unpaid; the second then broke on the unique pair (500) or, reading the
+    first one's row, added the amount a second time (Q-10 of the 2026-10-20
+    review). Serialized on the write lock, the second finds the line paid."""
+    founder_id = make_user("founder", role="admin")
+    bob_id = make_user("bob")
+    event_id = _seed_event_with_debt(founder_id, bob_id)
+    bob = login(client, "bob")
+
+    def mark():
+        return client.post(
+            "/api/expenses/settlements/mark", json={"event_id": event_id, "to_user_id": founder_id},
+            headers=auth_header(bob),
+        )
+
+    statuses = sorted(r.status_code for r in run_concurrently(mark, mark))
+    assert statuses[0] == 200 and statuses[1] in (400, 409), statuses
+    s = database.SessionLocal()
+    try:
+        rows = s.query(models.SettlementPayment).filter_by(
+            event_id=event_id, from_user_id=bob_id, to_user_id=founder_id,
+        ).all()
+        assert len(rows) == 1 and rows[0].amount == 50.0
+    finally:
+        s.close()
+    assert _line(client, bob, event_id, bob_id, founder_id)["paid"] is True

@@ -7,7 +7,7 @@
 **Self-hosted event management for LAN parties** — crew invites, tournaments, treasury,
 media, and live streams, all running on hardware you own. From a Raspberry Pi to a NUC.
 
-[![Version](https://img.shields.io/badge/version-1.4.0-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.4.1-FF3D00?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-4C566A?style=flat-square)](../LICENSE)
 [![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -55,11 +55,20 @@ no telemetry, no subscription. Your crew's data stays on your box.
 | **Flexible Sign-In** | Log in with **either your nickname or your email**; optional **Discord SSO** for one-click sign-in and registration; self-service **forgot/reset password** by email (SMTP). Players link/unlink Discord from their profile; admins configure it in Settings. |
 | **Crew Management** | Registration gated by a per-event invite code (6-char, seats tied to event capacity); user profiles, t-shirt sizes, WebP avatar uploads, public player profile pages. |
 | **LAN Party Calendar** | Schedule events with dates, location, description, and optional capacity cap; RSVP with arrival/departure dates bounded to the event window and a live attendee count; QR-shareable invite code per event; **add-to-calendar** (Google Calendar link or `.ics` download) per event. |
-| **Craving Chat** | A lightweight per-event group chat, open only to confirmed attendees, from 30 days before the event through 15 days after. Replies, a 10-minute self-edit window, one emoji reaction per person, @mention autocomplete, link previews, an admin-pinned message, a live "typing…" indicator, and message search. Typed shortcuts like `<3`, `:)`, `xD`, and `:rofl:` render as emoji. Opt-in. |
+| **Craving Chat** | A lightweight per-event group chat, open only to confirmed attendees, from 30 days before the event through 15 days after. Replies, a 10-minute self-edit window, one emoji reaction per person, @mention autocomplete, link previews, an admin-pinned message, a live "typing…" indicator, and message search. Typed shortcuts like `<3`, `:)`, `xD`, and `:rofl:` render as emoji. On by default; admins can turn it off and tune the window. |
 | **Planning (Calendar View)** | Propose games for an event and **approval-vote on the hours** to play them on a day × hour heatmap — bounded by each player's RSVP window — then an organizer **locks** the schedule. Two independent toggles (members can propose / vote). Opt-in. |
 | **Gear / BYO** | Per-event "who's bringing what": members **pledge** kit they're hauling in, admins post **requests** ("need a 4th monitor") a member can **claim**, and a personal gear locker carries a member's usual kit into the next event in one tap. Opt-in. |
 | **Packing Checklist** | A **private**, per-member packing checklist for each event — 9 pre-filled items (computer, screen, cables, headset, …) plus up to 10 custom fields, with one-tap carryover of "your usual list" from the last event. Nobody but the owner can ever see it, not even an admin. Opt-in. |
 | **Mini-Games** | Embedded arcade games with a **persistent per-player leaderboard**, to keep the crew coming back between two LANs. Ships with *Neon Survivor* (a roguelite); the schema is multi-game, so more can be added without a migration. Solo runs only are ranked — a 2-player co-op run lasts mechanically longer. Scores are checked server-side against a run token and real elapsed time. Opt-in. |
+| **Games Library & Finder** | Each member keeps a game library (favorites, player counts, a wishlist), optionally imported from a linked Steam account. The finder ranks crewmates by the games they share with you and lists what a whole group owns, for a session that starts without a "who has it?" round. Opt-in. |
+| **Riot ID & LoL Stats** | Members set their Riot ID; the desktop app captures the League of Legends games played during a LAN and the Games page shows per-event and all-time stats. Submissions are rate-limited and bounded, a game counts for a member only if their own app sent it, and an admin can remove one that shouldn't count. Opt-in. |
+| **XP & Levels** | Crew XP and levels derived on read from tournaments, attendance, chat and media — nothing stored, nothing to migrate — with a Hub leaderboard and a per-profile breakdown. A tournament pays XP only when both sides have linked accounts. Opt-in. |
+| **Collectible Cards & Boosters** | Spend XP on boosters that reveal crew cards (the Epic always last); every member's collection is a showcase the whole crew can browse. Buying and opening are atomic — a double click never spends twice. Opt-in, needs XP. |
+| **Monthly Contract** | A set of objectives for the month, worth XP once the required number is met, with each member's progress computed from what they already do. Opt-in, needs XP. |
+| **Trophies & Votes** | Crew-defined trophies awarded per event — by attendee vote (open, close, nudge the stragglers, reveal) or by an admin. Drafts stay admin-only until revealed; a member's trophies make their showcase. Opt-in. |
+| **Groceries** | A per-event food & drink list: attendees add items, assign a buyer, tick them off as bought, or import a whole list at once. Opt-in. |
+| **Guest WiFi (QR)** | Admins enter the venue's SSID, security and password once; the event page and the kiosk show a scannable WiFi QR code. An empty SSID hides it. |
+| **Attendance Lock** | From an event's first day, members can no longer change their RSVP (409 with a clear message); a treasurer or admin sets attendance for them, audited and notified — so the pro-rata split rests on real nights. |
 | **Treasury** | Expense tracking by category, automatic **pro-rata cost splitting** based on attendance nights, P2P settlement, and one-click CSV export. |
 | **Prizes** | Showcase per-event prizes (photo + description) for tournament winners. Enabling Prizes hides Treasury — crews giving out prizes don't usually split expenses. Opt-in. |
 | **Sponsors** | Sponsor banners (image or video) with a click-through link, shown on the event, tournaments, and player profile pages. Opt-in. |
@@ -71,9 +80,26 @@ no telemetry, no subscription. Your crew's data stays on your box.
 | **Kiosk / Big Screen** | An ambient, read-only projector display for the LAN room, authorized by a revocable token (no personal login on the shared screen). Rotates through activity, standings, streams, and the planning schedule, plus the **#LoveWall**: the latest photos/videos with an animated reveal, the crowd favourite pinned, live reaction emojis, and a full-screen "drop" when someone posts during the LAN (admin-switchable). Opt-in. |
 | **Activity & Hall of Fame** | Dashboard feed of the 20 most recent events, plus a player win-rate leaderboard derived from completed tournaments. |
 | **Announcements & Presence** | Admin **PA banner** (info/alert, auto-expiry, optional Discord fan-out) shown across the app; the HUB roster shows **who's online right now** via a lightweight browser heartbeat. |
-| **Audit Log** | Admin-only trail of sensitive actions (event/tournament create & delete) with actor and timestamp. |
+| **Audit Log** | Admin-only trail of sensitive actions — event create/delete, tournament delete, invite codes, every expense and settlement write, role changes, member deactivation/deletion, password resets, announcements, LoL game removal — with actor and timestamp. |
 | **Admin Settings** | Twitch + Discord SSO credentials, SMTP (password-reset email), currency, per-feature opt-in/opt-out toggles, and a one-click DB + uploads backup as `tar.gz`. |
 | **Role-Based Access** | Admin, Treasurer, and User roles enforced per route — not just hidden in the UI. |
+
+### Which LAN size is this for?
+
+LPM is built for a crew of 10 to 50 people who meet a few times a year, and that is where it is
+at home. What the numbers say:
+
+- A Raspberry Pi 4 on an SD card runs the whole stack for that size with room to spare: writes
+  are a few per minute at the peak of a LAN, and SQLite in WAL mode absorbs hundreds per second.
+- XP, cards, the recap and the hall of fame are derived on read from what the crew already does,
+  so they add no rows. A 20-member crew is still a few megabytes of database after years.
+- At 250 people with sponsors, the first things to give way are not the database: the single
+  uvicorn worker on a Pi, the chat relaying every message to 250 WebSocket connections, ffmpeg
+  thumbnails on the Pi and the SD card's `fsync`. The answer is a Pi 5 on NVMe or a small x86
+  box and more workers, not another database engine.
+- `DATABASE_URL` is an environment variable and SQLAlchemy + Alembic speak PostgreSQL, for the day
+  several backend containers, a hundred concurrent writers or a multi-GB database show up. None
+  of those is in sight at crew scale.
 
 ---
 
@@ -141,6 +167,17 @@ docker compose up -d
 ```
 
 > Images on Docker Hub: [`crosswax/lanpartymanager-backend`](https://hub.docker.com/r/crosswax/lanpartymanager-backend) · [`crosswax/lanpartymanager-frontend`](https://hub.docker.com/r/crosswax/lanpartymanager-frontend)
+
+### Portainer and other stack UIs
+
+Portainer turns `${VAR:-default}` into an empty string rather than the default: write literal
+values in the stack. Two more habits that pay off on a self-hosted box:
+
+- Pin both `image:` lines to a version (`crosswax/lanpartymanager-backend:1.4.1`, not `:latest`).
+  An update is then a deliberate edit, and rolling back is putting the previous number back.
+  Every release is pushed under both tags.
+- If the backend container can't resolve names (Discord and Steam linking both fail, mail doesn't
+  leave), add `dns: [1.1.1.1, 9.9.9.9]` to the backend service.
 
 ### Option B — Build from source
 
@@ -347,9 +384,11 @@ npm run dev   # Vite dev server on http://localhost:5173
 ### Tests & checks
 
 ```bash
-cd backend && pytest                       # backend test suite
+cd backend && pytest -n auto               # backend test suite (~20 s with xdist)
+cd backend && ruff check .                 # backend lint
+cd frontend && npm run test && npm run lint && npm run build
 python scripts/check_i18n_parity.py        # EN/FR translation parity
-python scripts/check_version_sync.py       # version consistency across files
+python scripts/check_version_sync.py       # version consistency (16 locations, desktop included)
 ```
 
 ---
@@ -608,6 +647,102 @@ Everything game-specific — what `score` counts, its ceiling, its sort directio
 | DELETE | `/api/announcements/{id}`     | Admin only | Delete/dismiss an announcement                                     |
 | POST   | `/api/presence/ping`          | Any        | Browser heartbeat — powers the HUB roster's "who's online" list   |
 
+### Groceries
+
+*Opt-in — 404 while the `groceries` flag is off.*
+
+| Method | Path                                         | Auth                       | Description                                                   |
+|--------|-----------------------------------------------|----------------------------|---------------------------------------------------------------|
+| GET    | `/api/groceries/events/{event_id}`            | Any                        | The event's whole list in one call                            |
+| POST   | `/api/groceries/events/{event_id}/items`      | Any                        | Add an item, optionally assigning who buys it                 |
+| POST   | `/api/groceries/events/{event_id}/import`     | Any                        | Bulk-add items (the CSV import)                               |
+| PUT    | `/api/groceries/items/{item_id}`              | Creator, assignee or admin | Edit name, category, quantity, assignee, or tick it off as bought |
+| DELETE | `/api/groceries/items/{item_id}`              | Creator, assignee or admin | Remove an item                                                |
+
+### Games Library
+
+*Opt-in — 404 while the `games` flag is off. The Steam import needs a Steam account linked from the profile (`/api/auth/steam/link`).*
+
+| Method | Path                                      | Auth | Description                                                          |
+|--------|-------------------------------------------|------|----------------------------------------------------------------------|
+| GET    | `/api/games/catalog`                      | Any  | The shared catalog (seed titles + every custom addition)             |
+| GET    | `/api/games/me`                           | Any  | My library, wishlist and saved filters                               |
+| PUT    | `/api/games/me/filters`                   | Any  | Save my library filters                                              |
+| POST   | `/api/games/me/library`                   | Any  | Add a game to my library                                             |
+| PUT    | `/api/games/me/library/{game_id}`         | Any  | Update an entry (player count, …)                                    |
+| PUT    | `/api/games/me/library/{game_id}/favorite`| Any  | Set or clear the favorite flag                                       |
+| DELETE | `/api/games/me/library/{game_id}`         | Any  | Remove a game from my library                                        |
+| POST   | `/api/games/me/wishlist`                  | Any  | Add a game to my wishlist                                            |
+| DELETE | `/api/games/me/wishlist/{game_id}`        | Any  | Remove it from my wishlist                                           |
+| GET    | `/api/games/matches`                      | Any  | Every other member, ranked by the games they share with me           |
+| POST   | `/api/games/session`                      | Any  | Games owned by every listed member, with the group's player ceiling  |
+| POST   | `/api/games/me/import-steam`              | Any  | Import my Steam-owned games into my library                          |
+
+### Trophies
+
+*Opt-in — 404 while the `trophies` flag is off. Draft editions are admin-only until revealed.*
+
+| Method | Path                                              | Auth       | Description                                                        |
+|--------|---------------------------------------------------|------------|--------------------------------------------------------------------|
+| GET    | `/api/trophies/`                                  | Admin only | The whole cabinet, archived trophies last                          |
+| POST   | `/api/trophies/`                                  | Admin only | Create a trophy                                                    |
+| PUT    | `/api/trophies/{trophy_id}`                       | Admin only | Update a trophy                                                    |
+| DELETE | `/api/trophies/{trophy_id}`                       | Admin only | Delete a trophy nobody has won yet (won ones get archived instead) |
+| POST   | `/api/trophies/{trophy_id}/image`                 | Admin only | Upload its image                                                   |
+| DELETE | `/api/trophies/{trophy_id}/image`                 | Admin only | Remove its image                                                   |
+| GET    | `/api/trophies/events/{event_id}`                 | Any        | An event's trophies, as the viewer may see them                    |
+| POST   | `/api/trophies/events/{event_id}`                 | Admin only | Add a trophy edition to an event                                   |
+| PATCH  | `/api/trophies/editions/{edition_id}`             | Admin only | Update an edition                                                  |
+| DELETE | `/api/trophies/editions/{edition_id}`             | Admin only | Delete an edition                                                  |
+| PUT    | `/api/trophies/editions/{edition_id}/winners`     | Admin only | Set the winners by hand                                            |
+| POST   | `/api/trophies/editions/{edition_id}/vote`        | Any        | Cast my vote — one ballot per member and edition, a retry never counts twice |
+| POST   | `/api/trophies/editions/{edition_id}/reveal`      | Admin only | Reveal the winners                                                 |
+| POST   | `/api/trophies/events/{event_id}/open-votes`      | Admin only | Open the votes of an event's editions                              |
+| POST   | `/api/trophies/events/{event_id}/close-votes`     | Admin only | Close every open vote and propose the winners                      |
+| POST   | `/api/trophies/events/{event_id}/nudge`           | Admin only | Remind the attendees who still have to vote                        |
+| GET    | `/api/trophies/ballot`                            | Any        | My open votes, or `null` (polled by open tabs)                     |
+| GET    | `/api/trophies/users/{user_id}`                   | Any        | A member's revealed trophies, newest event first                   |
+
+### League of Legends (desktop capture)
+
+*Opt-in — 404 while the `lol_stats` flag is off. Games are sent by the desktop app's capture, never typed in by hand.*
+
+| Method | Path                           | Auth              | Description                                                                 |
+|--------|--------------------------------|-------------------|-----------------------------------------------------------------------------|
+| POST   | `/api/lol/matches`             | Any, 30 per hour  | Submit a captured game. Values are bounded (K/D/A, damage, duration, 10 players at most) and the game counts for a member only if their own app sent it |
+| GET    | `/api/lol/capture-status`      | Any               | What a member's desktop app polls to know whether to capture (answers even with the flag off, so the app stops) |
+| GET    | `/api/lol/stats`               | Any               | Aggregated stats (`?event_id=`, or all-time)                                |
+| GET    | `/api/lol/matches`             | Any               | Captured games (`?event_id=`)                                               |
+| DELETE | `/api/lol/matches/{match_id}`  | Admin only        | Remove a game that shouldn't count (a test, a remake); audited              |
+
+### XP & Levels
+
+*Opt-in — 404 while the `xp` flag is off. Derived on read from tournaments, attendance, chat and media; the ledger is cached 30 s per process and invalidated by any write that counts.*
+
+| Method | Path                       | Auth | Description                                                       |
+|--------|----------------------------|------|-------------------------------------------------------------------|
+| GET    | `/api/xp/crew`             | Any  | Every active member's XP and level, best first (the Hub leaderboard) |
+| GET    | `/api/xp/users/{user_id}`  | Any  | One member's XP with its breakdown                                |
+
+### Cards & Boosters
+
+*Opt-in — 404 while the `cards` flag is off; needs XP.*
+
+| Method | Path                                      | Auth | Description                                                                     |
+|--------|-------------------------------------------|------|---------------------------------------------------------------------------------|
+| GET    | `/api/cards/me`                           | Any  | My unopened boosters, after granting whatever I earned since my last visit      |
+| POST   | `/api/cards/boosters/buy`                 | Any  | Buy a booster with spendable XP; 409 when the balance no longer covers it       |
+| POST   | `/api/cards/boosters/{booster_id}/open`   | Any  | Reveal a booster's cards in slot order (the Epic last); a second open is refused |
+| GET    | `/api/cards/collection/{user_id}`         | Any  | A member's collection, readable by the whole crew                               |
+
+### Monthly Contract
+
+*Opt-in — 404 while the `quests` flag is off, and only with XP on.*
+
+| Method | Path                   | Auth | Description                                                               |
+|--------|------------------------|------|---------------------------------------------------------------------------|
+| GET    | `/api/quests/current`  | Any  | This month's contract and my progress (the month's first look creates it) |
+
 ### Settings, Activity, Audit & Backup
 
 | Method | Path                  | Auth       | Description                                                                 |
@@ -616,7 +751,9 @@ Everything game-specific — what `score` counts, its ceiling, its sort directio
 | PUT    | `/api/settings/{key}` | Admin only | Upsert a setting (twitch_client_id/secret, discord_oauth_enabled/client_id/client_secret, …) |
 | GET    | `/api/activity/`      | Any        | Paginated activity feed (`?limit=`)                                        |
 | GET    | `/api/audit/`         | Admin only | Paginated admin audit log                                                  |
-| GET    | `/api/backup/export`  | Admin only | Download `tar.gz` of DB + uploads folder                                   |
+| GET    | `/api/backup/export`  | Admin only | Download `tar.gz` of DB + uploads folder (a consistent SQLite snapshot; `X-Backup-Estimate` carries the size) |
+| GET    | `/api/backup/storage` | Admin only | Disk space on the uploads volume                                           |
+| POST   | `/api/backup/import`  | Admin only | Restore an `/export` archive (raw `application/gzip` body): replaces DB + uploads, then restarts the backend |
 
 ---
 
@@ -701,8 +838,12 @@ everything, unmodified, plus native notifications and background updates.
   automatically once you're signed in.
 - **Auto-updates itself** once installed — checks once per launch, no manual re-downloads.
 
-Source lives in [`desktopapp/`](../desktopapp/) — see [`desktopapp/README.md`](../desktopapp/README.md) for
-build/dev instructions. Installers aren't published yet; build and run from source for now:
+A signed Windows installer (`LPM_Desktop_v<version>_x64.msi`) is published on
+[lanpartymanager.com](https://lanpartymanager.com) — the site's Desktop section links the current one.
+Installed apps check `https://lanpartymanager.com/assets/desktop/latest.json` once per launch and only
+accept an update whose signature verifies against the public key compiled into them. Source lives in
+[`desktopapp/`](../desktopapp/) — see [`desktopapp/README.md`](../desktopapp/README.md) to build and
+run it from source:
 
 ```powershell
 cd desktopapp
@@ -753,6 +894,13 @@ Lan-Party-Manager/
 │   ├── router_kiosk.py        # /api/kiosk (opt-in token-authorized projector display)
 │   ├── router_announcements.py# /api/announcements (admin PA banner + Discord fan-out)
 │   ├── router_presence.py     # /api/presence (browser heartbeat, who's online)
+│   ├── router_groceries.py    # /api/groceries (opt-in per-event food & drink list)
+│   ├── router_games.py        # /api/games (opt-in library, wishlist, Steam import, finder)
+│   ├── router_trophies.py     # /api/trophies (opt-in trophies: editions, votes, reveal)
+│   ├── router_lol.py          # /api/lol (opt-in LoL games captured by the desktop app)
+│   ├── router_xp.py           # /api/xp (opt-in XP and levels, derived on read — xp.py)
+│   ├── router_cards.py        # /api/cards (opt-in cards and boosters — cards.py)
+│   ├── router_quests.py       # /api/quests (opt-in monthly contract — quests.py)
 │   ├── router_settings.py     # /api/settings
 │   ├── router_activity.py     # /api/activity
 │   ├── router_audit.py        # /api/audit

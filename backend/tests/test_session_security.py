@@ -5,7 +5,7 @@ token types, WebSocket auth by first frame, and the password-gated Discord link.
 from datetime import datetime, timedelta
 
 import pytest
-from jose import jwt
+import jwt  # PyJWT since 1.4.1 (python-jose dropped, O-3)
 from starlette.websockets import WebSocketDisconnect
 
 import auth

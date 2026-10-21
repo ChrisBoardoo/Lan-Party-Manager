@@ -3,6 +3,8 @@ import { Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { auditApi } from '../lib/api'
+import { useLoad } from '../hooks/useLoad'
+import LoadError from '../components/ui/LoadError'
 import { AuditLogEntry } from '../types'
 import { timeAgo } from '../lib/formatDate'
 import { ShieldAlert } from 'lucide-react'
@@ -11,16 +13,14 @@ export default function AuditLog() {
   const { user } = useAuth()
   const { t } = useTranslation()
   const [entries, setEntries] = useState<AuditLogEntry[]>([])
-  const [loading, setLoading] = useState(true)
+  const { loading, error, retry } = useLoad(async () => setEntries(await auditApi.getAll()), [])
 
+  // After the hooks (F-10 of the 2026-10-20 review).
   if (user?.role !== 'admin') return <Navigate to="/" replace />
-
-  useEffect(() => {
-    auditApi.getAll().then((data) => { setEntries(data); setLoading(false) })
-  }, [])
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-12">
+      {error && <LoadError message={error} onRetry={retry} />}
       <div className="mb-12">
         <div className="font-mono-label text-accent mb-3">{t('audit.tagline')}</div>
         <h1 className="text-5xl lg:text-6xl font-black tracking-tighter text-foreground leading-none">

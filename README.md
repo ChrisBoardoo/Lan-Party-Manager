@@ -7,7 +7,7 @@
 **The self-hosted HQ for your LAN party weekends.**
 Invites, brackets, shared costs, photos, big-screen hype — on a box you own.
 
-[![Version](https://img.shields.io/badge/version-1.4.0-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.4.1-FF3D00?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-4C566A?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -42,7 +42,7 @@ crew's chaos stays on your box.
 | 📸 **Media vault** | Shared photo/video gallery with emoji reactions and video thumbnails. |
 | 📺 **Big-screen kiosk** | A token-authorized projector page: live matches, arrivals, photo wall, trophy ceremonies with confetti. |
 | 🗓️ **Planning** | Propose time blocks, vote, lock the schedule. The projector counts down to the next one. |
-| 🎮 **The rest** | Twitch embeds, Discord SSO & announcements, gear checklist ("who brings the switch?"), groceries, trophies, post-event recap… **29 features**, each one switchable off. |
+| 🎮 **The rest** | Twitch embeds, Discord SSO & announcements, gear checklist ("who brings the switch?"), groceries, trophies, post-event recap… **30+ features**, each one switchable off. |
 
 Bilingual **EN/FR**, per player. Full tour on the [website](https://lanpartymanager.com).
 

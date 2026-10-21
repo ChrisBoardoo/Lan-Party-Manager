@@ -80,33 +80,50 @@ def _rsvp_in(
 
 
 def _enrich(event: LanEvent, db: Session, user_id: int) -> LanEvent:
+    return _enrich_many([event], db, user_id)[0]
+
+
+def _enrich_many(events: list, db: Session, user_id: int) -> list:
+    """Attendees, the viewer's own RSVP and the lock flag for a list of events:
+    three queries for the list, not three per event (Q-7 of the 2026-10-20
+    review — the Events page did 3N+2 for N events)."""
+    if not events:
+        return events
+    ids = [e.id for e in events]
+    today = local_today(db)
     in_rsvps = (
         db.query(EventRSVP)
         .join(models.User, EventRSVP.user_id == models.User.id)
         .options(joinedload(EventRSVP.user))
-        .filter(EventRSVP.event_id == event.id, EventRSVP.status == "in", models.User.is_active == True)  # noqa: E712
+        .filter(EventRSVP.event_id.in_(ids), EventRSVP.status == "in", models.User.is_active == True)  # noqa: E712
         .all()
     )
-    event.rsvp_count = len(in_rsvps)
-    event.attendees = [
-        {
-            "user_id": r.user_id,
-            "username": r.user.username,
-            "avatar_url": r.user.avatar_url,
-            "arrival_date": r.arrival_date,
-            "departure_date": r.departure_date,
-        }
-        for r in sorted(in_rsvps, key=lambda r: r.arrival_date or date.max)
-    ]
-
-    rsvp = db.query(EventRSVP).filter(
-        EventRSVP.event_id == event.id, EventRSVP.user_id == user_id
-    ).first()
-    event.my_rsvp = rsvp.status if rsvp else None
-    event.my_arrival_date = rsvp.arrival_date if rsvp else None
-    event.my_departure_date = rsvp.departure_date if rsvp else None
-    event.attendance_locked = has_started(event, local_today(db))
-    return event
+    by_event: dict = {}
+    for r in in_rsvps:
+        by_event.setdefault(r.event_id, []).append(r)
+    mine = {
+        r.event_id: r
+        for r in db.query(EventRSVP).filter(EventRSVP.event_id.in_(ids), EventRSVP.user_id == user_id).all()
+    }
+    for event in events:
+        rows = sorted(by_event.get(event.id, []), key=lambda r: r.arrival_date or date.max)
+        event.rsvp_count = len(rows)
+        event.attendees = [
+            {
+                "user_id": r.user_id,
+                "username": r.user.username,
+                "avatar_url": r.user.avatar_url,
+                "arrival_date": r.arrival_date,
+                "departure_date": r.departure_date,
+            }
+            for r in rows
+        ]
+        rsvp = mine.get(event.id)
+        event.my_rsvp = rsvp.status if rsvp else None
+        event.my_arrival_date = rsvp.arrival_date if rsvp else None
+        event.my_departure_date = rsvp.departure_date if rsvp else None
+        event.attendance_locked = has_started(event, today)
+    return events
 
 
 @router.get("/", response_model=list[EventOut])
@@ -115,7 +132,7 @@ def list_events(
     current_user: models.User = Depends(get_current_user),
 ):
     events = db.query(LanEvent).order_by(LanEvent.start_date).all()
-    return [_enrich(e, db, current_user.id) for e in events]
+    return _enrich_many(events, db, current_user.id)
 
 
 @router.get("/{event_id}", response_model=EventOut)
