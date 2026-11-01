@@ -81,6 +81,23 @@
         <p class="settings-hint">Games played during a LAN you're attending count for that LAN; the others only show in the Global stats. Needs your crew to have LoL stats on. Reads the end-of-game screen from the League client — nothing else.</p>
       </section>
 
+      <section class="settings-section">
+        <span class="settings-label">Game time</span>
+        <label class="settings-toggle">
+          <input type="checkbox" id="settings-gametime" />
+          Count the time I spend in games
+        </label>
+        <label class="settings-toggle settings-toggle-sub">
+          <input type="checkbox" id="settings-gametime-visible" />
+          Show my crew what I'm playing right now
+        </label>
+        <label class="settings-toggle settings-toggle-sub">
+          <input type="checkbox" id="settings-gametime-outside-lan" />
+          Also outside a LAN (at home, between LANs)
+        </label>
+        <p class="settings-hint">Recognises games from your Steam and Epic libraries and a list kept by your crew's server, among the programs running on this PC. Only the game's name is sent — never the list of programs. Needs your crew to have Game time on.</p>
+      </section>
+
       <p id="settings-version" class="settings-version"></p>
     </div>
   </div>

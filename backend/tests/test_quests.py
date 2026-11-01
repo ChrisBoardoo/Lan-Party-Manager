@@ -195,6 +195,10 @@ def test_the_next_lans_rsvp_is_asked_once(client, crew, monkeypatch):
 
 def test_chat_is_asked_only_with_a_room_open_long_enough(client, crew, monkeypatch):
     monkeypatch.setattr(quests, "_rng", _InOrder())
+    # Drawn on the 1st: the offer counts the month's remaining days, and a
+    # month's last four leave fewer than TARGETS["chat_days"].
+    first = _today().replace(day=1)
+    monkeypatch.setattr(quests, "local_today", lambda db: first)
     _set(client, crew["tok"]["founder"], "craving_chat_enabled", "true")
     _set(client, crew["tok"]["founder"], "craving_chat_always_open", "true")
     _lan(crew, 10)  # always open: its room is open from now on

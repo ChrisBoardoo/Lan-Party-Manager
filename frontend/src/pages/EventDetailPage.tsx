@@ -131,9 +131,14 @@ export default function EventDetailPage() {
   }
 
   const upcoming = isUpcoming(event.end_date)
+  // Wide screens: from xl the page splits in two columns, the LAN itself on the
+  // left and the logistics (gear, groceries, checklist) on the right, instead of
+  // ~10 sections stacked in an 848px column (26% of a 3440px screen). Without
+  // any logistics section there's nothing for a right column, so it stays narrow.
+  const hasLogistics = gearEnabled || groceriesEnabled || checklistEnabled
 
   return (
-    <main className="max-w-4xl mx-auto px-6 py-12">
+    <main className="max-w-4xl xl:max-w-7xl 3xl:max-w-[1600px] 4xl:max-w-[2240px] 5xl:max-w-[2880px] mx-auto px-6 py-12">
       <button
         onClick={() => navigate('/events')}
         className="flex items-center gap-2 font-mono-label text-muted-foreground hover:text-foreground transition-colors mb-8"
@@ -144,7 +149,7 @@ export default function EventDetailPage() {
       {/* Recap */}
       <div className="border border-border bg-card mb-6">
         {event.cover_image_url && (
-          <div className="w-full h-48 sm:h-64 overflow-hidden border-b border-border">
+          <div className="w-full h-48 sm:h-64 4xl:h-96 overflow-hidden border-b border-border">
             <img src={event.cover_image_url} alt={event.title} className="w-full h-full object-cover" />
           </div>
         )}
@@ -190,175 +195,195 @@ export default function EventDetailPage() {
       {/* Guest WiFi — only for the current event's attendees (and admins) */}
       {(event.my_rsvp === 'in' || isAdmin) && upcoming && <WifiCard eventId={eventId} />}
 
-      {/* Attendees */}
-      <div className="border border-border bg-card p-6 mb-6">
-        <p className="font-mono-label text-accent mb-1">{t('eventDetail.attendeesTitle')}</p>
-        <AttendeeRoster
-          event={event}
-          isAdmin={isAdmin}
-          currentUserId={user?.id}
-          onAttendanceChanged={load}
-          defaultExpanded
-        />
-      </div>
-
-      {/* Media */}
-      <div className="border border-border bg-card p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <p className="font-mono-label text-accent">{t('eventDetail.mediaTitle')}</p>
-          <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleUpload} />
-          <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
-            <ImagePlus size={12} /> {uploading ? t('eventDetail.uploading') : t('eventDetail.addMedia')}
-          </Button>
-        </div>
-        {media.length === 0 ? (
-          <p className="font-mono-label text-muted-foreground text-xs">{t('eventDetail.noMediaYet')}</p>
-        ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-1">
-            {media.map((item, i) => (
-              <button
-                key={item.id}
-                onClick={() => setViewer({ items: media, index: i })}
-                className="aspect-square border border-border bg-muted overflow-hidden group relative"
-              >
-                {item.file_type === 'image' ? (
-                  <img src={item.url} alt={item.original_name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                ) : item.thumbnail_url ? (
-                  <img src={item.thumbnail_url} alt={item.original_name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Play size={14} strokeWidth={1.5} className="text-muted-foreground" />
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Tournaments */}
-      <div className="border border-border bg-card p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <p className="font-mono-label text-accent flex items-center gap-1.5">
-            <Trophy size={12} strokeWidth={1.5} /> {t('eventDetail.tournamentsTitle')}
-          </p>
-          {canCreateTournament && (
-            <Button size="sm" variant="outline" onClick={() => setShowTournamentModal(true)}>
-              <Plus size={12} /> {t('eventDetail.addTournament')}
-            </Button>
-          )}
-        </div>
-        {tournaments.length === 0 ? (
-          <p className="font-mono-label text-muted-foreground text-xs">{t('eventDetail.noTournamentsYet')}</p>
-        ) : (
-          <div className="space-y-2">
-            {tournaments.map((tour) => (
-              <Link
-                key={tour.id}
-                to="/tournaments"
-                className="flex items-center justify-between px-4 py-3 border border-border hover:border-accent transition-colors"
-              >
-                <span className="text-sm font-semibold text-foreground">{tour.game_name}</span>
-                <Badge variant="muted">{t(`roundLabels.${tour.status}`, tour.status)}</Badge>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Expenses */}
-      {treasuryEnabled && (
-      <div className="border border-border bg-card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <p className="font-mono-label text-accent flex items-center gap-1.5">
-            <DollarSign size={12} strokeWidth={1.5} /> {t('eventDetail.expensesTitle')}
-          </p>
-          <span className="font-mono font-black text-foreground tabular-nums">{totalExpenses.toFixed(2)}{currency}</span>
-        </div>
-        {expenses.length === 0 ? (
-          <p className="font-mono-label text-muted-foreground text-xs">{t('eventDetail.noExpensesYet')}</p>
-        ) : (
-          <div className="space-y-2">
-            {expenses.map((ex) => (
-              <div key={ex.id} className="flex items-center justify-between px-4 py-2 border-b border-border last:border-0">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="text-sm text-foreground truncate">{ex.description}</span>
-                  <Badge variant={(CATEGORY_COLORS[ex.category] as any) ?? 'muted'}>
-                    {t(`categories.${ex.category}`, ex.category)}
-                  </Badge>
-                </div>
-                <span className="font-mono font-black text-foreground tabular-nums flex-shrink-0">
-                  {ex.amount.toFixed(2)}{currency}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* Prizes (read-only display; managed on the Prizes page) */}
-      {prizesEnabled && (
-        <div className="border border-border bg-card p-6 mt-6">
-          <p className="font-mono-label text-accent flex items-center gap-1.5 mb-4">
-            <Gift size={12} strokeWidth={1.5} /> {t('prizes.eventBlockTitle')}
-          </p>
-          {prizes.length === 0 ? (
-            <p className="font-mono-label text-muted-foreground text-xs">{t('prizes.emptyEvent')}</p>
-          ) : (
-            <PrizeGrid prizes={prizes} />
-          )}
-        </div>
-      )}
-
-      {/* Trophies — put in play, voted, revealed (the kiosk plays the ceremony) */}
-      {trophiesEnabled && <EventTrophiesSection event={event} isAdmin={isAdmin} currentUserId={user?.id} />}
-
-      {/* Post-event recap — only once there's an event to look back on. */}
-      {recapEnabled && !upcoming && (
-        <Link
-          to={`/events/${eventId}/recap`}
-          className="mt-6 border border-accent bg-accent/5 p-6 flex items-center justify-between gap-4 hover:bg-accent/10 transition-colors"
+      {/* Phone: one column, in this order. With logistics: the event on the
+          left, logistics on the right from xl; from 4xl the event side flows
+          into two columns (read top to bottom), and from 5xl the logistics get
+          a grid of two — a grid, not columns, so a list growing while someone
+          types in it never jumps to the other column. Without logistics the
+          event sections flow into 2, 3 then 4 columns. In columns, every
+          section's own top margin is replaced by a bottom one. */}
+      <div className={hasLogistics ? 'xl:grid xl:grid-cols-2 4xl:grid-cols-3 5xl:grid-cols-4 xl:gap-6 xl:items-start' : ''}>
+        <div
+          className={
+            hasLogistics
+              ? '4xl:col-span-2 4xl:columns-2 4xl:gap-6 4xl:[&>*]:mt-0 4xl:[&>*]:mb-6 4xl:[&>*]:break-inside-avoid'
+              : 'xl:columns-2 4xl:columns-3 5xl:columns-4 xl:gap-6 xl:[&>*]:mt-0 xl:[&>*]:mb-6 xl:[&>*]:break-inside-avoid'
+          }
         >
-          <div>
-            <p className="font-mono-label text-accent flex items-center gap-1.5 mb-1">
-              <Sparkles size={12} strokeWidth={1.5} /> {t('recap.blockTitle')}
-            </p>
-            <p className="text-sm text-muted-foreground">{t('recap.blockDesc')}</p>
+          {/* Attendees */}
+          <div className="border border-border bg-card p-6 mb-6">
+            <p className="font-mono-label text-accent mb-1">{t('eventDetail.attendeesTitle')}</p>
+            <AttendeeRoster
+              event={event}
+              isAdmin={isAdmin}
+              currentUserId={user?.id}
+              onAttendanceChanged={load}
+              defaultExpanded
+            />
           </div>
-          <ChevronRight size={20} strokeWidth={1.5} className="text-accent shrink-0" />
-        </Link>
-      )}
 
-      {/* Gear / BYO — who's bringing what */}
-      {gearEnabled && (
-        <div className="border border-border bg-card p-6 mt-6">
-          <p className="font-mono-label text-accent flex items-center gap-1.5 mb-4">
-            <Package size={12} strokeWidth={1.5} /> {t('gear.blockTitle')}
-          </p>
-          <GearSection eventId={eventId} />
-        </div>
-      )}
+          {/* Media */}
+          <div className="border border-border bg-card p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-mono-label text-accent">{t('eventDetail.mediaTitle')}</p>
+              <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleUpload} />
+              <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                <ImagePlus size={12} /> {uploading ? t('eventDetail.uploading') : t('eventDetail.addMedia')}
+              </Button>
+            </div>
+            {media.length === 0 ? (
+              <p className="font-mono-label text-muted-foreground text-xs">{t('eventDetail.noMediaYet')}</p>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-1">
+                {media.map((item, i) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setViewer({ items: media, index: i })}
+                    className="aspect-square border border-border bg-muted overflow-hidden group relative"
+                  >
+                    {item.file_type === 'image' ? (
+                      <img src={item.url} alt={item.original_name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                    ) : item.thumbnail_url ? (
+                      <img src={item.thumbnail_url} alt={item.original_name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Play size={14} strokeWidth={1.5} className="text-muted-foreground" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
-      {/* Groceries — the food/drink shopping list */}
-      {groceriesEnabled && (
-        <div className="border border-border bg-card p-6 mt-6">
-          <p className="font-mono-label text-accent flex items-center gap-1.5 mb-4">
-            <ShoppingCart size={12} strokeWidth={1.5} /> {t('groceries.blockTitle')}
-          </p>
-          <GroceriesSection eventId={eventId} attendees={event.attendees} />
-        </div>
-      )}
+          {/* Tournaments */}
+          <div className="border border-border bg-card p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-mono-label text-accent flex items-center gap-1.5">
+                <Trophy size={12} strokeWidth={1.5} /> {t('eventDetail.tournamentsTitle')}
+              </p>
+              {canCreateTournament && (
+                <Button size="sm" variant="outline" onClick={() => setShowTournamentModal(true)}>
+                  <Plus size={12} /> {t('eventDetail.addTournament')}
+                </Button>
+              )}
+            </div>
+            {tournaments.length === 0 ? (
+              <p className="font-mono-label text-muted-foreground text-xs">{t('eventDetail.noTournamentsYet')}</p>
+            ) : (
+              <div className="space-y-2">
+                {tournaments.map((tour) => (
+                  <Link
+                    key={tour.id}
+                    to="/tournaments"
+                    className="flex items-center justify-between px-4 py-3 border border-border hover:border-accent transition-colors"
+                  >
+                    <span className="text-sm font-semibold text-foreground">{tour.game_name}</span>
+                    <Badge variant="muted">{t(`roundLabels.${tour.status}`, tour.status)}</Badge>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
 
-      {/* Private packing checklist — visible only to the logged-in viewer. */}
-      {checklistEnabled && (
-        <div className="border border-border bg-card p-6 mt-6">
-          <p className="font-mono-label text-accent flex items-center gap-1.5 mb-4">
-            <ListChecks size={12} strokeWidth={1.5} /> {t('checklist.blockTitle')}
-          </p>
-          <ChecklistSection eventId={eventId} event={event} />
+          {/* Expenses */}
+          {treasuryEnabled && (
+          <div className="border border-border bg-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-mono-label text-accent flex items-center gap-1.5">
+                <DollarSign size={12} strokeWidth={1.5} /> {t('eventDetail.expensesTitle')}
+              </p>
+              <span className="font-mono font-black text-foreground tabular-nums">{totalExpenses.toFixed(2)}{currency}</span>
+            </div>
+            {expenses.length === 0 ? (
+              <p className="font-mono-label text-muted-foreground text-xs">{t('eventDetail.noExpensesYet')}</p>
+            ) : (
+              <div className="space-y-2">
+                {expenses.map((ex) => (
+                  <div key={ex.id} className="flex items-center justify-between px-4 py-2 border-b border-border last:border-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-sm text-foreground truncate">{ex.description}</span>
+                      <Badge variant={(CATEGORY_COLORS[ex.category] as any) ?? 'muted'}>
+                        {t(`categories.${ex.category}`, ex.category)}
+                      </Badge>
+                    </div>
+                    <span className="font-mono font-black text-foreground tabular-nums flex-shrink-0">
+                      {ex.amount.toFixed(2)}{currency}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          )}
+
+          {/* Prizes (read-only display; managed on the Prizes page) */}
+          {prizesEnabled && (
+            <div className="border border-border bg-card p-6 mt-6">
+              <p className="font-mono-label text-accent flex items-center gap-1.5 mb-4">
+                <Gift size={12} strokeWidth={1.5} /> {t('prizes.eventBlockTitle')}
+              </p>
+              {prizes.length === 0 ? (
+                <p className="font-mono-label text-muted-foreground text-xs">{t('prizes.emptyEvent')}</p>
+              ) : (
+                <PrizeGrid prizes={prizes} />
+              )}
+            </div>
+          )}
+
+          {/* Trophies — put in play, voted, revealed (the kiosk plays the ceremony) */}
+          {trophiesEnabled && <EventTrophiesSection event={event} isAdmin={isAdmin} currentUserId={user?.id} />}
+
+          {/* Post-event recap — only once there's an event to look back on. */}
+          {recapEnabled && !upcoming && (
+            <Link
+              to={`/events/${eventId}/recap`}
+              className="mt-6 border border-accent bg-accent/5 p-6 flex items-center justify-between gap-4 hover:bg-accent/10 transition-colors"
+            >
+              <div>
+                <p className="font-mono-label text-accent flex items-center gap-1.5 mb-1">
+                  <Sparkles size={12} strokeWidth={1.5} /> {t('recap.blockTitle')}
+                </p>
+                <p className="text-sm text-muted-foreground">{t('recap.blockDesc')}</p>
+              </div>
+              <ChevronRight size={20} strokeWidth={1.5} className="text-accent shrink-0" />
+            </Link>
+          )}
         </div>
-      )}
+
+        {/* Right column: its first section's mt-6 would push it below the left one. */}
+        <div className="xl:[&>*:first-child]:mt-0 5xl:col-span-2 5xl:grid 5xl:grid-cols-2 5xl:gap-6 5xl:items-start 5xl:[&>*]:mt-0">
+          {/* Gear / BYO — who's bringing what */}
+          {gearEnabled && (
+            <div className="border border-border bg-card p-6 mt-6">
+              <p className="font-mono-label text-accent flex items-center gap-1.5 mb-4">
+                <Package size={12} strokeWidth={1.5} /> {t('gear.blockTitle')}
+              </p>
+              <GearSection eventId={eventId} />
+            </div>
+          )}
+
+          {/* Groceries — the food/drink shopping list */}
+          {groceriesEnabled && (
+            <div className="border border-border bg-card p-6 mt-6">
+              <p className="font-mono-label text-accent flex items-center gap-1.5 mb-4">
+                <ShoppingCart size={12} strokeWidth={1.5} /> {t('groceries.blockTitle')}
+              </p>
+              <GroceriesSection eventId={eventId} attendees={event.attendees} />
+            </div>
+          )}
+
+          {/* Private packing checklist — visible only to the logged-in viewer. */}
+          {checklistEnabled && (
+            <div className="border border-border bg-card p-6 mt-6">
+              <p className="font-mono-label text-accent flex items-center gap-1.5 mb-4">
+                <ListChecks size={12} strokeWidth={1.5} /> {t('checklist.blockTitle')}
+              </p>
+              <ChecklistSection eventId={eventId} event={event} />
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Sponsors: admin manager + public strip. Gated on sponsorsEnabled too —
           isAdmin alone used to be enough, so the manager kept showing up here

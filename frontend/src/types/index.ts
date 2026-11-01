@@ -257,6 +257,25 @@ export interface SettlementLine {
   payment_id?: number | null
   // The debtor can't log in any more: the treasurer records their payment.
   from_inactive?: boolean
+  // Still-owed line that differs from the frozen plan because of a transfer
+  // outside it (Trésorerie 2.0): a debtor sent elsewhere, money to pass on, or
+  // an overpayment to give back.
+  label?: 'redirected' | 'pass_on' | 'give_back' | null
+  // Recorded transfer (paid line): when, the note, who entered it.
+  transfer_id?: number | null
+  transferred_on?: string | null
+  note?: string | null
+  recorded_by_user_id?: number | null
+  recorded_by_username?: string | null
+  on_behalf?: boolean
+}
+
+export interface TransferInput {
+  from_user_id: number
+  to_user_id: number
+  amount: number
+  transferred_on: string
+  note?: string
 }
 
 export interface ProRataResult {
@@ -269,6 +288,8 @@ export interface ProRataResult {
   total_person_nights: number
   shares: ProRataShare[]
   settlements: SettlementLine[]
+  // Frozen plan: lines only move for the people a transfer concerns.
+  plan?: { frozen: boolean; frozen_on: string | null }
 }
 
 export interface LiveStream {
@@ -367,6 +388,17 @@ export interface QuestContract {
   xp: number
   done: boolean
   objectives: QuestObjective[]
+}
+
+// Hub "Customize" mode (lib/hubLayout.ts, /api/users/me/hub-layout).
+export type HubBlockId =
+  | 'contract' | 'stats' | 'roster' | 'chat' | 'activity'
+  | 'xp' | 'minigames' | 'hallOfFame' | 'recentMedia' | 'shortcuts'
+export type HubZone = 'full' | 'main' | 'side'
+export interface HubBlockState {
+  id: HubBlockId
+  zone: HubZone
+  hidden: boolean
 }
 
 export interface XpCrewEntry {
@@ -1057,6 +1089,48 @@ export interface LolMatch {
   players: LolMatchPlayer[]
 }
 
+// ── Game time (detected by the desktop app, backend/router_gametime.py) ──────
+
+export interface GametimeGameLine {
+  game_key: string
+  game_name: string
+  game_id: number | null
+  seconds: number
+  players: number
+}
+
+export interface GametimeMemberLine {
+  user_id: number
+  username: string
+  avatar_url: string | null
+  seconds: number
+  games: { game_key: string; game_name: string; seconds: number }[]
+}
+
+export interface GametimeHeatCell {
+  day: string   // YYYY-MM-DD, in the instance's timezone
+  hour: number  // 0–23, same timezone
+  seconds: number
+}
+
+export interface GametimeNowPlaying {
+  user_id: number
+  username: string
+  avatar_url: string | null
+  game_name: string
+  since: string
+}
+
+export interface GametimeEvent {
+  event_id: number
+  total_seconds: number
+  games: GametimeGameLine[]
+  members: GametimeMemberLine[]
+  heatmap: GametimeHeatCell[]
+  now_playing: GametimeNowPlaying[]
+  longest: { user_id: number; username: string; game_name: string; seconds: number } | null
+}
+
 export const CLOTHING_SIZES: ClothingSize[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']
 
 // ── Craving Chat (per-event pre-LAN hype chat) ──────────────────────────────
@@ -1147,11 +1221,18 @@ export interface CardFace {
 
 export interface CardItem {
   id: number
+  /** With `rarity`, the card's type: identical duplicates share it. */
+  face_id: number
   rarity: CardRarity
   kind: 'pulled' | 'signature'
   slot: number
   source_type: BoosterSource | 'signature'
+  /** Opened, or received by a trade. */
   obtained_at: string | null
+  /** Set when it came by a trade. */
+  acquired_at?: string | null
+  /** Who it was traded from (collection only). */
+  acquired_from?: string | null
   face: CardFace
 }
 
@@ -1176,6 +1257,8 @@ export interface CardsMe {
   purchases_left: number | null
   /** When the next purchase frees up, once the weekly limit is reached. */
   next_purchase_at: string | null
+  /** Trade offers waiting for my answer; null when trading is off. */
+  trades_pending?: number | null
 }
 
 export interface BoosterOpening {
@@ -1194,6 +1277,18 @@ export interface CollectionMember {
   cards: CardItem[]
 }
 
+/** One card type in a collection, for trading: copies held, how many can be
+ *  given (all but one, never the signature), listed in the market or not, and
+ *  the card ids an offer can use. */
+export interface CardTypeInfo {
+  face_id: number
+  rarity: CardRarity
+  count: number
+  tradable: number
+  listed: boolean
+  card_ids: number[]
+}
+
 export interface CardCollection {
   owner_id: number
   members: CollectionMember[]
@@ -1201,4 +1296,56 @@ export interface CardCollection {
   crew_size: number
   total_cards: number
   epic_cards: number
+  types?: CardTypeInfo[]
+}
+
+// ── Card trades (backend/card_trades.py) ─────────────────────────────────────
+
+export interface TradeMember {
+  id: number
+  username: string
+  avatar_url: string | null
+}
+
+export type TradeStatus = 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired'
+
+/** An offer. `give` is the proposer's side, `take` the recipient's. */
+export interface CardTrade {
+  id: number
+  status: TradeStatus
+  /** Cancelled only: withdrawn by its author, or a card moved since. */
+  closed_reason: 'proposer' | 'unavailable' | null
+  note: string | null
+  created_at: string | null
+  decided_at: string | null
+  expires_at: string
+  listing_id: number | null
+  proposer: TradeMember
+  recipient: TradeMember
+  give: CardItem[]
+  take: CardItem[]
+}
+
+export interface CardTrades {
+  received: CardTrade[]
+  sent: CardTrade[]
+  history: CardTrade[]
+}
+
+/** A duplicate up for trade; `card` is the copy an offer asks for. */
+export interface CardListing {
+  id: number
+  owner: TradeMember
+  card: CardItem
+  note: string | null
+  created_at: string | null
+  mine: boolean
+  /** How many of this type the viewer holds (0 = missing). */
+  viewer_count: number
+}
+
+export interface TradeSuggestion {
+  member: TradeMember
+  they_give: CardItem[]
+  i_give: CardItem[]
 }

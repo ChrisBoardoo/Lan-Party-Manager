@@ -456,9 +456,10 @@ export default function Tournaments() {
   const isRoundRobin = selected?.bracket_type === 'round_robin'
 
   return (
-    <main className="max-w-6xl mx-auto px-6 py-12">
+    <main className="max-w-6xl 2xl:max-w-[1440px] 3xl:max-w-[1600px] 4xl:max-w-[2240px] 5xl:max-w-[2880px] mx-auto px-6 py-12">
       {error && <LoadError message={error} onRetry={retry} />}
-      <div className="flex items-start justify-between mb-12">
+      {/* Wraps on a phone: the "new" button used to stick out 64px to the right. */}
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-12">
         <div>
           <div className="font-mono-label text-accent mb-3">{t('tournaments.tagline')}</div>
           <h1 className="text-5xl lg:text-6xl font-black tracking-tighter text-foreground leading-none">
@@ -506,7 +507,9 @@ export default function Tournaments() {
       {tab === 'minigames' && <MiniGames />}
       {tab === 'stats' && <GameStatsTab />}
 
-      <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${tab === 'tournaments' ? '' : 'hidden'}`}>
+      {/* List + detail: 1/3 + 2/3, then 1/4 + 3/4 from 4xl so the bracket gets
+          the room; from 5xl the detail itself splits (teams | bracket). */}
+      <div className={`grid grid-cols-1 lg:grid-cols-3 4xl:grid-cols-4 gap-8 ${tab === 'tournaments' ? '' : 'hidden'}`}>
         {/* Tournament list */}
         <div className="space-y-px">
           <p className="font-mono-label text-muted-foreground mb-3">
@@ -549,7 +552,7 @@ export default function Tournaments() {
         </div>
 
         {/* Tournament detail */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 4xl:col-span-3">
           {!selected ? (
             <div className="border border-border h-64 flex items-center justify-center">
               <div className="text-center">
@@ -558,7 +561,8 @@ export default function Tournaments() {
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-6 5xl:space-y-0 5xl:grid 5xl:grid-cols-3 5xl:gap-6 5xl:items-start">
+              <div className={`space-y-6 ${selected.matches.length > 0 ? '' : '5xl:col-span-3'}`}>
               {/* Tournament header */}
               <div className="border border-border bg-card p-6">
                 <div className="flex items-start justify-between mb-4">
@@ -713,9 +717,11 @@ export default function Tournaments() {
                 </div>
               )}
 
+              </div>
+
               {/* Match list / Bracket */}
               {selected.matches.length > 0 && (
-                <div className="border border-border bg-card p-6">
+                <div className="border border-border bg-card p-6 5xl:col-span-2">
                   <div className="flex items-center justify-between mb-4">
                     <p className="font-mono-label text-accent">
                       {isRoundRobin ? t('tournaments.matchList') : t('tournaments.bracket')}

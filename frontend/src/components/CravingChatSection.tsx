@@ -228,13 +228,22 @@ export default function CravingChatSection({ eventId, attendees, heightClassName
       )
     : messages
 
+  // The room can change under a mounted section (the Hub picked its room
+  // before the chat rules had loaded, an RSVP changes): a slower answer for
+  // the previous room must not land in this one. On 2026-11-01 the Hub kept
+  // showing the October LAN's messages under the 2027 LAN's room this way.
   useEffect(() => {
+    let stale = false
     setLoading(true)
+    setClosed(false)
+    setMessages([])
+    setPinned(null)
     chatApi.getMessages(eventId)
-      .then(setMessages)
-      .catch(() => setClosed(true))
-      .finally(() => setLoading(false))
-    chatApi.getPinned(eventId).then(setPinned).catch(() => {})
+      .then((items) => { if (!stale) setMessages(items) })
+      .catch(() => { if (!stale) setClosed(true) })
+      .finally(() => { if (!stale) setLoading(false) })
+    chatApi.getPinned(eventId).then((p) => { if (!stale) setPinned(p) }).catch(() => {})
+    return () => { stale = true }
   }, [eventId])
 
   // Clears every pending "typing" expiry timer on unmount/room switch —
@@ -524,11 +533,13 @@ export default function CravingChatSection({ eventId, attendees, heightClassName
             // the chat, instead of always growing leftward off a right-1
             // anchor — which spilled off the chat box's edge for short
             // bubbles sitting close to either side.
+            // Bubble width: 75% alone gave ~2000px single lines on a 3440px
+            // ultrawide (the page has no max-w), hence the 40rem cap.
             const anchorSide = m.is_mine ? 'right-1' : 'left-1'
             return (
             <div key={m.id} className={`group flex ${m.is_mine ? 'justify-end' : 'justify-start'}`}>
               <div
-                className={`relative max-w-[75%] px-3 py-2 text-white ${
+                className={`relative max-w-[min(75%,40rem)] px-3 py-2 text-white ${
                   m.is_mine ? 'bg-emerald-800' : 'bg-neutral-700'
                 }`}
               >

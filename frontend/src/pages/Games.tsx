@@ -1,23 +1,26 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Gamepad2, Swords } from 'lucide-react'
+import { Gamepad2, Swords, Timer } from 'lucide-react'
 import { useAppConfig } from '../contexts/AppConfigContext'
 import GameFinderTab from '../components/GameFinderTab'
 import LolTrackerTab from '../components/LolTrackerTab'
+import GameTimeTab from '../components/GameTimeTab'
 
-type GamesTab = 'lol' | 'finder'
+type GamesTab = 'lol' | 'gametime' | 'finder'
 
 // Games: what the crew plays, as tabs like Arena. The LoL tracker is a game
 // followed over the LAN, not a tournament — so it lives here, first and open
-// by default when lol_stats is on. The finder needs the games library flag.
+// by default when lol_stats is on. Game time (what the desktop apps saw the
+// crew play) comes next; the finder needs the games library flag.
 // The route is reachable when either flag is on (App.tsx), so a tab always exists.
 export default function Games() {
   const { t } = useTranslation()
-  const { lolStatsEnabled, gamesEnabled } = useAppConfig()
+  const { lolStatsEnabled, gametimeEnabled, gamesEnabled } = useAppConfig()
   const [picked, setPicked] = useState<GamesTab | null>(null)
 
   const tabs = [
     ...(lolStatsEnabled ? [['lol', t('games.tabLol'), Swords] as const] : []),
+    ...(gametimeEnabled ? [['gametime', t('games.tabGametime'), Timer] as const] : []),
     ...(gamesEnabled ? [['finder', t('games.finderTitle'), Gamepad2] as const] : []),
   ]
   // The first tab until one is picked — and again if the picked one's flag goes off.
@@ -52,6 +55,7 @@ export default function Games() {
       </div>
 
       {tab === 'lol' && <LolTrackerTab />}
+      {tab === 'gametime' && <GameTimeTab />}
       {tab === 'finder' && <GameFinderTab />}
     </main>
   )

@@ -141,7 +141,8 @@ def test_marking_paid_records_the_amount_and_adds_up(client):
                         headers=auth_header(t))
     assert again.status_code == 400
 
-    # A late receipt: bob owes 20 more, and paying it adds up into the same row.
+    # A late receipt: bob owes 20 more; paying it is a second transfer, and the
+    # two add up to what bob sent in all.
     s = database.SessionLocal()
     try:
         s.add(models.Expense(description="Ice", amount=60.0, category="general", date=_today(),
@@ -154,7 +155,9 @@ def test_marking_paid_records_the_amount_and_adds_up(client):
     client.post("/api/expenses/settlements/mark", json={"event_id": eid, "to_user_id": admin}, headers=auth_header(t))
     s = database.SessionLocal()
     try:
-        assert s.query(models.SettlementPayment).filter_by(event_id=eid, from_user_id=bob).one().amount == 120.0
+        rows = s.query(models.Transfer).filter_by(event_id=eid, from_user_id=bob).order_by(models.Transfer.id).all()
+        assert [r.amount_cents for r in rows] == [10000, 2000]
+        assert all(r.recorded_by == bob for r in rows)
     finally:
         s.close()
 

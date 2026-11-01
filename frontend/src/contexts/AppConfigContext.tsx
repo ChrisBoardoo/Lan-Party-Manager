@@ -27,10 +27,14 @@ interface AppConfigContextType {
   chatRules: ChatWindowRules
   trophiesEnabled: boolean
   lolStatsEnabled: boolean
+  /** Game time detected by the desktop app (Games > Game time). */
+  gametimeEnabled: boolean
   xpEnabled: boolean
   /** The monthly contract: on only with XP on (the server checks both). */
   questsEnabled: boolean
   cardsEnabled: boolean
+  /** Card trades (needs cards on) — backend card_trades.py. */
+  cardsTradingEnabled: boolean
   /** False until the first /public-config response lands. Route guards for opt-in
    *  features must wait for this: their flags start false, so deciding before the
    *  config arrives bounces a legitimate deep link straight back to the hub. */
@@ -61,9 +65,11 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   const [chatRules, setChatRules] = useState<ChatWindowRules>(DEFAULT_CHAT_RULES)
   const [trophiesEnabled, setTrophiesEnabled] = useState(false)
   const [lolStatsEnabled, setLolStatsEnabled] = useState(false)
+  const [gametimeEnabled, setGametimeEnabled] = useState(false)
   const [xpEnabled, setXpEnabled] = useState(false)
   const [questsEnabled, setQuestsEnabled] = useState(false)
   const [cardsEnabled, setCardsEnabled] = useState(false)
+  const [cardsTradingEnabled, setCardsTradingEnabled] = useState(false)
   const [configLoaded, setConfigLoaded] = useState(false)
 
   const refreshConfig = useCallback(async () => {
@@ -91,9 +97,11 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       })
       setTrophiesEnabled(data.trophies_enabled)
       setLolStatsEnabled(data.lol_stats_enabled)
+      setGametimeEnabled(!!data.gametime_enabled)
       setXpEnabled(data.xp_enabled)
       setQuestsEnabled(!!data.quests_enabled)
       setCardsEnabled(data.cards_enabled)
+      setCardsTradingEnabled(!!data.cards_trading_enabled)
     } catch {
       setCurrency(DEFAULT_CURRENCY)
       setTreasuryEnabled(true)
@@ -112,9 +120,11 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       setCravingChatEnabled(true)
       setTrophiesEnabled(false)
       setLolStatsEnabled(false)
+      setGametimeEnabled(false)
       setXpEnabled(false)
       setQuestsEnabled(false)
       setCardsEnabled(false)
+      setCardsTradingEnabled(false)
     } finally {
       // Set even on failure: a guard that waits forever is worse than one that
       // falls back to defaults and lets the user move.
@@ -129,7 +139,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   }, [user, refreshConfig])
 
   return (
-    <AppConfigContext.Provider value={{ currency, treasuryEnabled, sponsorsEnabled, prizesEnabled, planningEnabled, gearEnabled, groceriesEnabled, recapEnabled, setupEnabled, streamsEnabled, checklistEnabled, merchSizeEnabled, minigamesEnabled, gamesEnabled, cravingChatEnabled, chatRules, trophiesEnabled, lolStatsEnabled, xpEnabled, questsEnabled, cardsEnabled, configLoaded, refreshConfig }}>
+    <AppConfigContext.Provider value={{ currency, treasuryEnabled, sponsorsEnabled, prizesEnabled, planningEnabled, gearEnabled, groceriesEnabled, recapEnabled, setupEnabled, streamsEnabled, checklistEnabled, merchSizeEnabled, minigamesEnabled, gamesEnabled, cravingChatEnabled, chatRules, trophiesEnabled, lolStatsEnabled, gametimeEnabled, xpEnabled, questsEnabled, cardsEnabled, cardsTradingEnabled, configLoaded, refreshConfig }}>
       {children}
     </AppConfigContext.Provider>
   )

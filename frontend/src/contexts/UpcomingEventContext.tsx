@@ -29,7 +29,7 @@ const UpcomingEventContext = createContext<UpcomingEventContextType | null>(null
 
 export function UpcomingEventProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
-  const { cravingChatEnabled, chatRules } = useAppConfig()
+  const { cravingChatEnabled, chatRules, configLoaded } = useAppConfig()
   const [nextEvent, setNextEvent] = useState<LanEvent | null>(null)
   const [events, setEvents] = useState<LanEvent[]>([])
 
@@ -56,7 +56,10 @@ export function UpcomingEventProvider({ children }: { children: ReactNode }) {
   }, [user, refresh])
 
   const today = todayIso()
-  const reachable = cravingChatEnabled
+  // No room before /public-config has answered: /events often lands first, and
+  // the default rules (30 days before, 15 after) pick another room than the
+  // admin's — the Hub then opened last LAN's chat, and kept it.
+  const reachable = cravingChatEnabled && configLoaded
     ? events.filter(
         (e) =>
           e.my_rsvp === 'in' &&

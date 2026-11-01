@@ -37,6 +37,9 @@ const settingsLaunchMinimized = document.getElementById("settings-launch-minimiz
 const settingsAutostart = document.getElementById("settings-autostart");
 const settingsLolCapture = document.getElementById("settings-lol-capture");
 const settingsLolOutsideLan = document.getElementById("settings-lol-outside-lan");
+const settingsGametime = document.getElementById("settings-gametime");
+const settingsGametimeVisible = document.getElementById("settings-gametime-visible");
+const settingsGametimeOutsideLan = document.getElementById("settings-gametime-outside-lan");
 const settingsVersionEl = document.getElementById("settings-version");
 const categoryCheckboxes = Array.from(
   document.querySelectorAll("#settings-panel input[data-category]")
@@ -313,6 +316,15 @@ async function openSettings() {
   settingsLolOutsideLan.checked = (await store.get("lolCaptureOutsideLan")) !== false;
   settingsLolOutsideLan.disabled = !settingsLolCapture.checked;
 
+  // Read by Rust's game time loop (src-tauri/src/gametime.rs) every turn.
+  // Counting and "show what I'm playing" default on; outside a LAN defaults
+  // off (decided 2026-10-27).
+  settingsGametime.checked = (await store.get("gametime")) !== false;
+  settingsGametimeVisible.checked = (await store.get("gametimeVisible")) !== false;
+  settingsGametimeOutsideLan.checked = (await store.get("gametimeOutsideLan")) === true;
+  settingsGametimeVisible.disabled = !settingsGametime.checked;
+  settingsGametimeOutsideLan.disabled = !settingsGametime.checked;
+
   try {
     settingsAutostart.checked = await invoke("get_autostart_enabled");
   } catch (err) {
@@ -357,6 +369,26 @@ settingsLolCapture.addEventListener("change", async () => {
 settingsLolOutsideLan.addEventListener("change", async () => {
   const store = await getStore();
   await store.set("lolCaptureOutsideLan", settingsLolOutsideLan.checked);
+  await store.save();
+});
+
+settingsGametime.addEventListener("change", async () => {
+  settingsGametimeVisible.disabled = !settingsGametime.checked;
+  settingsGametimeOutsideLan.disabled = !settingsGametime.checked;
+  const store = await getStore();
+  await store.set("gametime", settingsGametime.checked);
+  await store.save();
+});
+
+settingsGametimeVisible.addEventListener("change", async () => {
+  const store = await getStore();
+  await store.set("gametimeVisible", settingsGametimeVisible.checked);
+  await store.save();
+});
+
+settingsGametimeOutsideLan.addEventListener("change", async () => {
+  const store = await getStore();
+  await store.set("gametimeOutsideLan", settingsGametimeOutsideLan.checked);
   await store.save();
 });
 

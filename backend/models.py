@@ -69,6 +69,12 @@ class User(Base):
     # touched, frontend shows the defaults. Shape: schemas.GameLibraryFilters.
     games_library_filters = Column(Text, nullable=True)
 
+    # The Hub's block arrangement (order, column, hidden) from its "Customize"
+    # mode, as JSON — on the account for the same reason as the filters above.
+    # NULL = never customized, frontend shows the default layout.
+    # Shape: schemas.HubLayout.
+    hub_layout = Column(Text, nullable=True)
+
     # Copied into every session token (`tv` claim). Bumping it — password
     # change or reset, deactivation, deletion — invalidates every token issued
     # before, see auth.revoke_sessions.
@@ -141,6 +147,52 @@ class SettlementPayment(Base):
     marked_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (UniqueConstraint("event_id", "from_user_id", "to_user_id"),)
+
+
+class Transfer(Base):
+    """Money that went from one member to another for an event's split (1.4.2,
+    Trésorerie 2.0) — one row per transfer, not one per pair: date, note and who
+    entered it are kept, and several transfers on the same pair add up. Written
+    by "payment sent" (the debtor, amount = their line) and by the treasurer or
+    an admin (any amount, any two members, the real date). Counts in the
+    balances like a SettlementPayment with an amount used to; those rows were
+    copied here by migration 0040, and only the amount-less legacy flags are
+    still read from settlement_payments."""
+    __tablename__ = "transfers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("lan_events.id"), nullable=False, index=True)
+    from_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    to_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    amount_cents = Column(Integer, nullable=False)
+    # When the money moved (the bank date), not when it was entered.
+    transferred_on = Column(Date, nullable=False)
+    note = Column(String, nullable=True)
+    recorded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    from_user = relationship("User", foreign_keys=[from_user_id])
+    to_user = relationship("User", foreign_keys=[to_user_id])
+    recorder = relationship("User", foreign_keys=[recorded_by])
+
+
+class SettlementPlan(Base):
+    """An event's "who owes whom" plan as it was shown, frozen so that a payment
+    only changes the lines of the people it concerns (treso2.0.md § 2.3 bis).
+    `lines` is JSON [[from_user_id, to_user_id, cents], …]; `baked_transfer_ids`
+    the transfers already counted in it; `fingerprint` the split it was
+    computed on (a changed expense or stay makes it stale); `frozen_on` the
+    local day it started being shown — a transfer dated before that was made
+    against an older plan and triggers a recompute instead."""
+    __tablename__ = "settlement_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("lan_events.id"), nullable=False, unique=True)
+    lines = Column(Text, nullable=False)
+    baked_transfer_ids = Column(Text, nullable=False)
+    fingerprint = Column(String, nullable=False)
+    frozen_on = Column(Date, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
 
 
 class Tournament(Base):
@@ -273,6 +325,8 @@ class LanEvent(Base):
     # No delete cascade: deleting an event keeps its captured games, which
     # fall back to the global stats (SQLAlchemy nulls their event_id).
     lol_matches = relationship("LolMatch", back_populates="event")
+    # Same for game time: the sessions stay, counted outside any LAN.
+    game_sessions = relationship("GameSession", back_populates="event")
 
 
 class Sponsor(Base):
@@ -1165,6 +1219,33 @@ class LolMatchSubmitter(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+class GameSession(Base):
+    """One stretch of a member playing one game, built from the heartbeats
+    their desktop app sends while the game runs (0041, router_gametime.py).
+    Time is the server's own clock: `started_at` is the first heartbeat,
+    `last_seen_at` the latest, so a session lasts last_seen_at − started_at and
+    sending heartbeats faster can't make it longer. `event_id` is the LAN it
+    was played during, NULL outside any LAN (only when the member's app is set
+    to count outside LANs too). `visible` is the member's "show what I'm
+    playing" choice, sent with every heartbeat."""
+    __tablename__ = "game_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    event_id = Column(Integer, ForeignKey("lan_events.id"), nullable=True, index=True)
+    # The catalog row of the same name, when there is one — looked up, never
+    # created: detection must not fill the shared catalog with whatever runs.
+    game_id = Column(Integer, ForeignKey("games.id"), nullable=True)
+    game_key = Column(String, nullable=False)    # the app's own id: "steam:730", "exe:cs2"
+    game_name = Column(String, nullable=False)
+    visible = Column(Boolean, default=True, nullable=False)
+    started_at = Column(DateTime, nullable=False)
+    last_seen_at = Column(DateTime, nullable=False, index=True)
+
+    event = relationship("LanEvent", back_populates="game_sessions")
+    user = relationship("User")
+
+
 # ── Cards & boosters (see cards.py) ───────────────────────────────────────────
 # Unlike XP and badges, a booster is not derivable from other data: its content
 # is drawn once, server-side, when it's granted, and must never be redrawn.
@@ -1227,9 +1308,69 @@ class Card(Base):
     rarity = Column(String, nullable=False, default="common")  # common | epic
     kind = Column(String, nullable=False, default="pulled")  # pulled | signature
     created_at = Column(DateTime, server_default=func.now())
+    # When the current owner got it by a trade; NULL = still the one who drew it.
+    acquired_at = Column(DateTime, nullable=True)
 
     booster = relationship("CardBooster", back_populates="cards")
     face = relationship("CardFace")
+
+
+class CardListing(Base):
+    """A duplicate put up for trade in the crew's market. It's about a card
+    *type* (face, rarity), not one card: duplicates are identical. Closed by its
+    author, or on read once they no longer have a duplicate of that type."""
+    __tablename__ = "card_listings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    face_id = Column(Integer, ForeignKey("card_faces.id"), nullable=False)
+    rarity = Column(String, nullable=False)
+    note = Column(String, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    closed_at = Column(DateTime, nullable=True)
+
+    face = relationship("CardFace")
+    owner = relationship("User", foreign_keys=[owner_id])
+
+
+class CardTrade(Base):
+    """An offer between two members: cards from each side (card_trade_items).
+    Nothing is reserved while it's pending — everything is checked again when
+    it's accepted. Expiry is computed on read.
+
+    status: pending | accepted | declined | cancelled | expired
+    closed_reason (cancelled only): "proposer" (withdrawn by its author) |
+    "unavailable" (a card left, a duplicate ran out, a member left)."""
+    __tablename__ = "card_trades"
+
+    id = Column(Integer, primary_key=True, index=True)
+    proposer_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    recipient_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    listing_id = Column(Integer, ForeignKey("card_listings.id"), nullable=True)
+    status = Column(String, nullable=False, default="pending", index=True)
+    closed_reason = Column(String, nullable=True)
+    note = Column(String, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    decided_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=False)
+
+    proposer = relationship("User", foreign_keys=[proposer_id])
+    recipient = relationship("User", foreign_keys=[recipient_id])
+    items = relationship("CardTradeItem", back_populates="trade", cascade="all, delete-orphan")
+
+
+class CardTradeItem(Base):
+    """One card in a trade, and whose side it's on. Once the trade is accepted,
+    also the card's provenance ("got it from Powet")."""
+    __tablename__ = "card_trade_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    trade_id = Column(Integer, ForeignKey("card_trades.id"), nullable=False, index=True)
+    card_id = Column(Integer, ForeignKey("cards.id"), nullable=False, index=True)
+    from_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    trade = relationship("CardTrade", back_populates="items")
+    card = relationship("Card")
 
 
 class MonthlyContract(Base):

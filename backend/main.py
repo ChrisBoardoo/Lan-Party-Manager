@@ -46,6 +46,7 @@ from router_backup import router as backup_router
 from router_chat import router as chat_router
 from router_trophies import router as trophies_router
 from router_lol import router as lol_router
+from router_gametime import router as gametime_router
 from router_xp import router as xp_router
 from router_cards import router as cards_router
 from router_quests import router as quests_router
@@ -96,7 +97,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="LAN Party Manager API", version="1.4.1", lifespan=lifespan)
+app = FastAPI(title="LAN Party Manager API", version="1.5.0", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -137,6 +138,7 @@ app.include_router(activity_router,    prefix="/api/activity",    tags=["Activit
 app.include_router(chat_router,        prefix="/api/chat",        tags=["Chat"])
 app.include_router(trophies_router,    prefix="/api/trophies",    tags=["Trophies"])
 app.include_router(lol_router,         prefix="/api/lol",         tags=["LoL"])
+app.include_router(gametime_router,    prefix="/api/gametime",    tags=["Game time"])
 app.include_router(xp_router,          prefix="/api/xp",          tags=["XP"])
 app.include_router(cards_router,       prefix="/api/cards",       tags=["Cards"])
 app.include_router(quests_router,      prefix="/api/quests",      tags=["Quests"])

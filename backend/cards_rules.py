@@ -41,6 +41,21 @@ PURCHASES_PER_WEEK = 2
 PURCHASE_WINDOW_DAYS = 7
 
 
+# Trades (card_trades.py), decided by CrossWax on 2026-10-19
+# (md/2.features/cards/cards_v2_quetes_presence_echanges.md, lot C).
+# Cards on each side of an offer: at least one (no gifts), at most this many —
+# enough for "two commons for one Epic".
+TRADE_MAX_CARDS_PER_SIDE = 3
+# An offer nobody answered lapses after this many days (computed on read).
+TRADE_EXPIRY_DAYS = 7
+# Pending offers one member may have sent at once, and open listings they may
+# have in the market.
+TRADE_PENDING_MAX = 10
+LISTINGS_OPEN_MAX = 20
+# Free text on an offer or a listing.
+TRADE_NOTE_MAX_CHARS = 200
+
+
 def booster_size(pool: int) -> int:
     """Cards in a booster drawn from `pool` members (0 = no booster)."""
     if pool <= 0:

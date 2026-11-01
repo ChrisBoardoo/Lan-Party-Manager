@@ -1337,6 +1337,34 @@ class GameFavoriteUpdate(BaseModel):
     is_favorite: bool
 
 
+class HubBlock(BaseModel):
+    """One block of the Hub as a member arranged it. `id` names a block the
+    frontend knows (lib/hubLayout.ts): kept to a slug, not an enum, so a new
+    block ships without a backend change — the frontend drops ids it doesn't
+    know and appends the blocks a saved layout doesn't mention."""
+    id: str = Field(..., pattern=r"^[a-z][a-zA-Z0-9]{0,31}$")
+    zone: Literal["full", "main", "side"]
+    hidden: bool = False
+
+
+class HubLayout(BaseModel):
+    """The Hub's arrangement, saved on the account (User.hub_layout)."""
+    blocks: List[HubBlock] = Field(..., max_length=32)
+
+    @field_validator("blocks")
+    @classmethod
+    def _unique_ids(cls, blocks: List[HubBlock]) -> List[HubBlock]:
+        ids = [b.id for b in blocks]
+        if len(ids) != len(set(ids)):
+            raise ValueError("duplicate block id")
+        return blocks
+
+
+class HubLayoutOut(BaseModel):
+    # None = never customized (or unreadable): the frontend uses its default.
+    blocks: Optional[List[HubBlock]] = None
+
+
 class GameLibraryFilters(BaseModel):
     """The profile library's filter bar, saved on the account (see
     User.games_library_filters). Every field defaults to "no filter", which is
@@ -1663,6 +1691,95 @@ class LolCaptureStatusOut(BaseModel):
 LolCategory = Literal["custom", "aram", "aram_chaos", "matchmade"]
 
 
+# ── Game time (see router_gametime.py) ────────────────────────────────────────
+
+class GametimeGameIn(BaseModel):
+    # The app's own id for the game: "steam:730", "epic:<app name>", "exe:cs2".
+    key: str = Field(..., pattern=r"^[a-z0-9][a-z0-9:._-]{0,63}$")
+    name: str = Field(..., min_length=1, max_length=80)
+
+
+class GametimeBeatIn(BaseModel):
+    games: List[GametimeGameIn] = Field(..., max_length=3)
+    visible: bool = True   # the member's "show what I'm playing" choice
+
+
+class GametimeBeatOut(BaseModel):
+    counted: int                    # games this heartbeat counted
+    event_id: Optional[int] = None  # the LAN it counted for, None outside any
+
+
+class GametimeStatusOut(BaseModel):
+    enabled: bool          # the crew's gametime flag
+    lan_in_progress: bool  # a LAN this member RSVP'd "in" to runs today
+
+
+class GametimeCatalogGame(BaseModel):
+    key: str
+    name: str
+    exes: List[str]
+    catalog: Optional[str] = None  # the shared catalog's name for it, when it differs
+
+
+class GametimeCatalogOut(BaseModel):
+    games: List[GametimeCatalogGame]
+    ignore_exes: List[str]
+    ignore_steam_apps: List[int]
+
+
+class GametimeGameLine(BaseModel):
+    game_key: str
+    game_name: str
+    game_id: Optional[int] = None
+    seconds: int
+    players: int
+
+
+class GametimeMemberGame(BaseModel):
+    game_key: str
+    game_name: str
+    seconds: int
+
+
+class GametimeMemberLine(BaseModel):
+    user_id: int
+    username: str
+    avatar_url: Optional[str] = None
+    seconds: int
+    games: List[GametimeMemberGame]
+
+
+class GametimeHeatCell(BaseModel):
+    day: date   # in the instance's timezone
+    hour: int   # 0–23, same timezone
+    seconds: int
+
+
+class GametimeNowPlaying(BaseModel):
+    user_id: int
+    username: str
+    avatar_url: Optional[str] = None
+    game_name: str
+    since: datetime
+
+
+class GametimeLongest(BaseModel):
+    user_id: int
+    username: str
+    game_name: str
+    seconds: int
+
+
+class GametimeEventOut(BaseModel):
+    event_id: int
+    total_seconds: int
+    games: List[GametimeGameLine]
+    members: List[GametimeMemberLine]
+    heatmap: List[GametimeHeatCell]
+    now_playing: List[GametimeNowPlaying]
+    longest: Optional[GametimeLongest] = None
+
+
 class LolPlayerLine(BaseModel):
     user_id: int
     username: str
@@ -1744,11 +1861,14 @@ class CardFaceOut(BaseModel):
 
 class CardOut(BaseModel):
     id: int
+    face_id: int  # with rarity, the card's type: identical duplicates share it
     rarity: str  # common | epic
     kind: str  # pulled | signature
     slot: int
     source_type: str  # attendance | trophy | xp_level | purchase | signature
-    obtained_at: Optional[datetime] = None
+    obtained_at: Optional[datetime] = None  # opened, or received by a trade
+    acquired_at: Optional[datetime] = None  # set when it came by a trade
+    acquired_from: Optional[str] = None  # who it was traded from (collection only)
     face: CardFaceOut
 
 
@@ -1773,6 +1893,7 @@ class CardsMeOut(BaseModel):
     purchases_per_week: int
     purchases_left: Optional[int] = None  # this rolling week; null when XP is off
     next_purchase_at: Optional[datetime] = None  # when the weekly limit is reached
+    trades_pending: Optional[int] = None  # offers waiting for my answer; null when trading is off
 
 
 class BoosterOpenOut(BaseModel):
@@ -1791,6 +1912,18 @@ class CollectionMemberOut(BaseModel):
     cards: List[CardOut]
 
 
+class CardTypeOut(BaseModel):
+    """One card type (face, rarity) in a collection, for trading: the copies
+    held, how many can be given (all but one, never the signature), whether
+    one is listed in the market, and the ids an offer can use."""
+    face_id: int
+    rarity: str
+    count: int
+    tradable: int
+    listed: bool
+    card_ids: List[int] = []
+
+
 class CollectionOut(BaseModel):
     owner_id: int
     members: List[CollectionMemberOut]
@@ -1798,3 +1931,69 @@ class CollectionOut(BaseModel):
     crew_size: int
     total_cards: int
     epic_cards: int
+    types: List[CardTypeOut] = []
+
+
+# ── Card trades (see card_trades.py) ─────────────────────────────────────────
+
+class TradeMemberOut(BaseModel):
+    id: int
+    username: str
+    avatar_url: Optional[str] = None
+
+
+class TradeOut(BaseModel):
+    """An offer. `give` is the proposer's side, `take` the recipient's."""
+    id: int
+    status: str  # pending | accepted | declined | cancelled | expired
+    closed_reason: Optional[str] = None  # cancelled: proposer | unavailable
+    note: Optional[str] = None
+    created_at: Optional[datetime] = None
+    decided_at: Optional[datetime] = None
+    expires_at: datetime
+    listing_id: Optional[int] = None
+    proposer: TradeMemberOut
+    recipient: TradeMemberOut
+    give: List[CardOut]
+    take: List[CardOut]
+
+
+class TradesOut(BaseModel):
+    received: List[TradeOut]  # pending, waiting for my answer
+    sent: List[TradeOut]  # pending, waiting for theirs
+    history: List[TradeOut]  # closed, newest first
+
+
+class TradeCreate(BaseModel):
+    recipient_id: int
+    give: List[int] = Field(..., min_length=1, max_length=3)  # my card ids
+    take: List[int] = Field(..., min_length=1, max_length=3)  # theirs
+    listing_id: Optional[int] = None
+    note: Optional[str] = Field(None, max_length=200)
+
+
+class ListingCreate(BaseModel):
+    face_id: int
+    rarity: Literal["common", "epic"]
+    note: Optional[str] = Field(None, max_length=200)
+
+
+class ListingOut(BaseModel):
+    """A duplicate up for trade. `card` is one of the author's copies, the one
+    an offer asks for; `viewer_count` is how many of this type the viewer
+    holds (0 = "I'm missing it")."""
+    id: int
+    owner: TradeMemberOut
+    card: CardOut
+    note: Optional[str] = None
+    created_at: Optional[datetime] = None
+    mine: bool
+    viewer_count: int
+
+
+class TradeSuggestionOut(BaseModel):
+    """A trade that suits both sides: their duplicates I have no copy of, and
+    mine they have no copy of (one card per type)."""
+    member: TradeMemberOut
+    they_give: List[CardOut]
+    i_give: List[CardOut]

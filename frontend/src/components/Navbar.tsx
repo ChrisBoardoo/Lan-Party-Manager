@@ -19,7 +19,7 @@ const DiscordIcon = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
 
 export default function Navbar() {
   const { user, logout } = useAuth()
-  const { treasuryEnabled, prizesEnabled, planningEnabled, streamsEnabled, gamesEnabled, lolStatsEnabled } = useAppConfig()
+  const { treasuryEnabled, prizesEnabled, planningEnabled, streamsEnabled, gamesEnabled, lolStatsEnabled, gametimeEnabled } = useAppConfig()
   const { chatEvent } = useUpcomingEvent()
   const { t } = useTranslation()
   const { pathname } = useLocation()
@@ -54,7 +54,7 @@ export default function Navbar() {
     { to: '/tournaments', label: t('nav.arena'), icon: Trophy, adminOnly: false, show: true },
     { to: '/streams', label: t('nav.live'), icon: Radio, adminOnly: false, show: streamsEnabled },
     { to: '/media', label: t('nav.media'), icon: ImageIcon, adminOnly: false, show: true },
-    { to: '/games-finder', label: t('nav.games'), icon: Gamepad2, adminOnly: false, show: gamesEnabled || lolStatsEnabled },
+    { to: '/games-finder', label: t('nav.games'), icon: Gamepad2, adminOnly: false, show: gamesEnabled || lolStatsEnabled || gametimeEnabled },
     { to: '/settings', label: t('nav.settings'), icon: Settings, adminOnly: true, show: true },
     { to: '/audit', label: t('nav.audit'), icon: ShieldAlert, adminOnly: true, show: true },
   ].filter((item) => item.show && (!item.adminOnly || isAdmin))
@@ -94,7 +94,7 @@ export default function Navbar() {
               {t('nav.brandTop')}
             </span>
             <span className="w-px h-4 bg-border" />
-            <span className="font-mono-label text-muted-foreground whitespace-nowrap">{t('nav.brandBottom')}</span>
+            <span className="font-mono-label text-[#b3b3b3] whitespace-nowrap">{t('nav.brandBottom')}</span>
           </Link>
 
           {/* Desktop nav. min-w-0 + overflow-x-auto stay as a last-resort
@@ -105,8 +105,9 @@ export default function Navbar() {
               claim all the space the logo doesn't need, so the spacer below
               has room to push the user block to the right edge; the
               ml-[max(...)] is the Hub/content-alignment calc described
-              above. */}
-          <div className="hidden sm:flex items-center gap-1 min-w-0 overflow-x-auto flex-1 ml-[max(16px,calc((100vw-1152px)/2-167px))]">
+              above, repeated at 2xl/3xl for the wide pages' 1440/1600px
+              columns (Hub, Médias, Arène, Lots, Collection). */}
+          <div className="hidden sm:flex items-center gap-1 min-w-0 overflow-x-auto flex-1 ml-[max(16px,calc((100vw-1152px)/2-167px))] 2xl:ml-[max(16px,calc((100vw-1440px)/2-167px))] 3xl:ml-[max(16px,calc((100vw-1600px)/2-167px))]">
             {navItems.map(({ to, label, icon: Icon }) => {
               const active = pathname === to
               return (
@@ -114,11 +115,11 @@ export default function Navbar() {
                   key={to}
                   to={to}
                   className={`flex items-center gap-1.5 px-2 py-2 font-mono-label-nav transition-colors duration-150 ${
-                    active ? 'text-accent' : 'text-[#9e9e9e] hover:text-foreground'
+                    active ? 'text-accent' : 'text-[#b3b3b3] hover:text-foreground'
                   }`}
                   title={label}
                 >
-                  <Icon size={16} strokeWidth={1.5} />
+                  <Icon size={16} strokeWidth={2} />
                   <span className="hidden 3xl:inline">{label}</span>
                 </Link>
               )
@@ -144,7 +145,7 @@ export default function Navbar() {
                       </span>
                     </div>
                   )}
-                  <span className="font-mono-label-nav text-[#9e9e9e]">{user.username}</span>
+                  <span className="font-mono-label-nav text-[#b3b3b3]">{user.username}</span>
                   {user.role !== 'user' && (
                     <span className="font-mono-label text-accent text-[10px] flex-shrink-0">
                       [{roleLabel(user.role)}]
@@ -155,7 +156,7 @@ export default function Navbar() {
                 {discordInvite && (
                   <ExternalLink
                     href={discordInvite}
-                    className="hidden lg:flex items-center text-muted-foreground hover:text-accent transition-colors duration-150 flex-shrink-0"
+                    className="hidden lg:flex items-center text-[#b3b3b3] hover:text-accent transition-colors duration-150 flex-shrink-0"
                     title={t('nav.discordInvite')}
                     aria-label={t('nav.discordInvite')}
                   >
@@ -165,11 +166,11 @@ export default function Navbar() {
 
                 <button
                   onClick={logout}
-                  className="flex items-center gap-1.5 px-2 py-2 text-muted-foreground hover:text-foreground transition-colors duration-150 flex-shrink-0"
+                  className="flex items-center gap-1.5 px-2 py-2 text-[#b3b3b3] hover:text-foreground transition-colors duration-150 flex-shrink-0"
                   title={t('nav.logout')}
                   aria-label={t('nav.logout')}
                 >
-                  <LogOut size={14} strokeWidth={1.5} />
+                  <LogOut size={14} strokeWidth={2} />
                 </button>
               </div>
             )}
@@ -203,10 +204,10 @@ export default function Navbar() {
                   className={`flex items-center gap-4 px-6 py-4 font-mono-label-nav border-b border-border transition-colors duration-150 ${
                     active
                       ? 'text-accent border-l-2 border-l-accent pl-[22px]'
-                      : 'text-[#9e9e9e] hover:text-foreground hover:bg-white/5'
+                      : 'text-[#b3b3b3] hover:text-foreground hover:bg-white/5'
                   }`}
                 >
-                  <Icon size={16} strokeWidth={1.5} />
+                  <Icon size={16} strokeWidth={2} />
                   {label}
                 </Link>
               )
@@ -254,7 +255,7 @@ export default function Navbar() {
                   onClick={() => { logout(); setMenuOpen(false) }}
                   className="flex items-center gap-2 px-3 py-2 font-mono-label text-muted-foreground hover:text-foreground transition-colors duration-150"
                 >
-                  <LogOut size={14} strokeWidth={1.5} />
+                  <LogOut size={14} strokeWidth={2} />
                   {t('nav.logout')}
                 </button>
               </div>

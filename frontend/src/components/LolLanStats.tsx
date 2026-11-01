@@ -103,9 +103,11 @@ export default function LolLanStats({ eventId, scopeName }: { eventId?: number; 
       ) : (
         <>
           {stats.records.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-border border-b border-border">
+            // Outlines, not `gap-px bg-border`: with 1 or 2 records the
+            // empty cells showed as a grey block (same fix as Dashboard's roster).
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-px border-b border-border">
               {stats.records.map((r) => (
-                <div key={r.kind} className="bg-card p-4">
+                <div key={r.kind} className="bg-card p-4 outline outline-1 outline-border">
                   <p className="font-mono-label text-muted-foreground text-[10px]">{t(`games.lol.record.${r.kind}`)}</p>
                   <p className="text-2xl font-black text-foreground mt-1">
                     {r.kind === 'damage' ? formatDamage(r.value) : r.value}

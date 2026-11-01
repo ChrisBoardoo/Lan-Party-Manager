@@ -14,7 +14,7 @@
     --accent: #FF3D00;
     --border: #262626;
     --muted: #1A1A1A;
-    --muted-fg: #737373;
+    --muted-fg: #909090;
   }
 
   * {
@@ -85,7 +85,7 @@
   }
 
   input::placeholder, textarea::placeholder {
-    color: #737373;
+    color: #909090;
   }
 
   button {
@@ -370,7 +370,7 @@
   font-size: 3.6cqw;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #737373;
+  color: #909090;
   white-space: nowrap;
 }
 .lpm-card__top span:first-child {
@@ -432,7 +432,7 @@
   font-size: 3.4cqw;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #737373;
+  color: #909090;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -576,7 +576,7 @@
   font-size: 3.4cqw;
   letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: #737373;
+  color: #909090;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1177,4 +1177,21 @@
 @media (prefers-reduced-motion: reduce) {
   .lpm-swap-in-next, .lpm-swap-in-prev { animation: none; }
   .lpm-swap-out-next, .lpm-swap-out-prev { display: none; }
+}
+
+/* An accepted card trade (TradePanels.tsx, TradesPanel): the two sides cross
+   over before the list refreshes — what I receive comes over from the other
+   column, what I give goes the other way. */
+.lpm-trade-get { animation: lpm-trade-get 0.7s cubic-bezier(0.5, 0, 0.25, 1) both; }
+.lpm-trade-give { animation: lpm-trade-give 0.7s cubic-bezier(0.5, 0, 0.25, 1) both; }
+@keyframes lpm-trade-get {
+  from { transform: translateX(60%) scale(0.92); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes lpm-trade-give {
+  50% { transform: translateX(-60%) scale(0.92); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lpm-trade-get, .lpm-trade-give { animation: none; }
 }

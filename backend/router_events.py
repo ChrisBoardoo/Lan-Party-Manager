@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from database import get_db
-from models import LanEvent, EventRSVP, EventInvite, Expense, SettlementPayment
+from models import LanEvent, EventRSVP, EventInvite, Expense, SettlementPayment, SettlementPlan, Transfer
 from schemas import (
     EventCreate, EventUpdate, EventOut, EventRSVPIn, EventRSVPAdjust, EventInviteOut, EventInviteValidate,
 )
@@ -273,13 +273,13 @@ def delete_event(
     add_audit(db, current_user.id, "event_deleted", f"Event: {event.title}")
     # Its expenses don't vanish with it: detached, they show up again in the
     # treasury's "unassigned" banner for the treasurer to re-file. Its paid
-    # markers, on the other hand, mean nothing without the event.
+    # markers, transfers and frozen plan, on the other hand, mean nothing
+    # without the event.
     db.query(Expense).filter(Expense.event_id == event.id).update(
         {Expense.event_id: None}, synchronize_session=False
     )
-    db.query(SettlementPayment).filter(SettlementPayment.event_id == event.id).delete(
-        synchronize_session=False
-    )
+    for model in (SettlementPayment, Transfer, SettlementPlan):
+        db.query(model).filter(model.event_id == event.id).delete(synchronize_session=False)
     db.delete(event)
     db.commit()
     return {"ok": True}

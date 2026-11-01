@@ -15,8 +15,9 @@ import type {
   GroceryEvent, GroceryItem, GroceryImportResult,
   ChatMessage, PinnedMessage, WifiConfig,
   Trophy, TrophyBallot, BoosterOpening, CardCollection, CardsMe, TrophyBulkResult, TrophyEdition, TrophyMode, TrophyStatus, UserTrophy,
-  LolCategory, LolMatch, LolStats,
-  XpSummary, XpCrewEntry, QuestContract,
+  CardListing, CardRarity, CardTrade, CardTrades, TradeSuggestion,
+  LolCategory, LolMatch, LolStats, GametimeEvent,
+  XpSummary, XpCrewEntry, QuestContract, HubBlockState, TransferInput,
 } from '../types'
 
 const client = axios.create({ baseURL: '/api' })
@@ -108,6 +109,15 @@ export const steamApi = {
 
 export const usersApi = {
   getAll: () => client.get<User[]>('/users/').then((r) => r.data),
+
+  // The Hub's arrangement, on the account. blocks: null = never customized.
+  getHubLayout: () =>
+    client.get<{ blocks: HubBlockState[] | null }>('/users/me/hub-layout').then((r) => r.data.blocks),
+
+  saveHubLayout: (blocks: HubBlockState[]) =>
+    client.put<{ blocks: HubBlockState[] }>('/users/me/hub-layout', { blocks }).then((r) => r.data.blocks),
+
+  resetHubLayout: () => client.delete('/users/me/hub-layout').then(() => null),
 
   get: (id: number) => client.get<User>(`/users/${id}`).then((r) => r.data),
 
@@ -208,6 +218,23 @@ export const expensesApi = {
         from_user_id: fromUserId,
       })
       .then((r) => r.data),
+
+  // Treasurer/admin: one or several transfers (a catch-up), any amount, the
+  // real date. confirmOutsideSplit: a member isn't in this event's split.
+  recordTransfers: (eventId: number, transfers: TransferInput[], confirmOutsideSplit = false) =>
+    client
+      .post<{ plan_recalculated: boolean }>('/expenses/transfers', {
+        event_id: eventId,
+        transfers,
+        confirm_outside_split: confirmOutsideSplit,
+      })
+      .then((r) => r.data),
+
+  deleteTransfer: (transferId: number) =>
+    client.delete<{ plan_recalculated: boolean }>(`/expenses/transfers/${transferId}`).then((r) => r.data),
+
+  recalculatePlan: (eventId: number) =>
+    client.post('/expenses/transfers/recalculate', { event_id: eventId }).then((r) => r.data),
 
   unmarkSettlement: (eventId: number, toUserId: number, fromUserId?: number) =>
     client
@@ -540,9 +567,11 @@ export const settingsApi = {
         craving_chat_always_open: boolean
         trophies_enabled: boolean
         lol_stats_enabled: boolean
+        gametime_enabled: boolean
         xp_enabled: boolean
         quests_enabled: boolean
         cards_enabled: boolean
+        cards_trading_enabled: boolean
       }>('/settings/public-config')
       .then((r) => r.data),
 
@@ -613,6 +642,24 @@ export const cardsApi = {
   open: (boosterId: number) => client.post<BoosterOpening>(`/cards/boosters/${boosterId}/open`).then((r) => r.data),
 
   collection: (userId: number) => client.get<CardCollection>(`/cards/collection/${userId}`).then((r) => r.data),
+
+  // Trades (gated by cards_trading). `give` = my card ids, `take` = theirs.
+  trades: () => client.get<CardTrades>('/cards/trades').then((r) => r.data),
+
+  propose: (data: { recipient_id: number; give: number[]; take: number[]; listing_id?: number | null; note?: string | null }) =>
+    client.post<CardTrade>('/cards/trades', data).then((r) => r.data),
+
+  answer: (tradeId: number, verb: 'accept' | 'decline' | 'cancel') =>
+    client.post<CardTrade>(`/cards/trades/${tradeId}/${verb}`).then((r) => r.data),
+
+  listings: () => client.get<CardListing[]>('/cards/listings').then((r) => r.data),
+
+  createListing: (data: { face_id: number; rarity: CardRarity; note?: string | null }) =>
+    client.post<CardListing>('/cards/listings', data).then((r) => r.data),
+
+  closeListing: (listingId: number) => client.delete(`/cards/listings/${listingId}`).then((r) => r.data),
+
+  suggestions: () => client.get<TradeSuggestion[]>('/cards/trade-suggestions').then((r) => r.data),
 }
 
 // ── Trophies ──────────────────────────────────────────────────────────────────
@@ -848,6 +895,12 @@ export const lolApi = {
     client.get<LolMatch[]>('/lol/matches', { params: eventId ? { event_id: eventId } : {} }).then((r) => r.data),
   // Admin only.
   deleteMatch: (matchId: number) => client.delete(`/lol/matches/${matchId}`).then((r) => r.data),
+}
+
+// ── Game time (detected by the desktop app, backend/router_gametime.py) ──────
+
+export const gametimeApi = {
+  event: (eventId: number) => client.get<GametimeEvent>(`/gametime/events/${eventId}`).then((r) => r.data),
 }
 
 // ── Checklist (private per-event packing list) ─────────────────────────────────

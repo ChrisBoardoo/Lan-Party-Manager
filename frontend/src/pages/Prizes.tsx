@@ -183,7 +183,7 @@ export default function Prizes() {
   }
 
   return (
-    <main className="max-w-6xl mx-auto px-6 py-12">
+    <main className="max-w-6xl 2xl:max-w-[1440px] 3xl:max-w-[1600px] mx-auto px-6 py-12">
       {/* Header */}
       <div className="mb-12">
         <div className="font-mono-label text-accent mb-3">{t('prizes.tagline')}</div>
@@ -240,7 +240,7 @@ export default function Prizes() {
               className="w-full px-3 py-2 bg-input border border-border text-foreground text-sm focus:border-accent outline-none resize-y"
             />
           </div>
-          <p className="font-mono-label text-muted-foreground/60 text-[10px]">{t('prizes.photoHint')}</p>
+          <p className="font-mono-label text-muted-foreground text-[10px]">{t('prizes.photoHint')}</p>
           <div className="flex gap-2">
             <Button size="sm" onClick={handleAdd} disabled={saving || !title.trim()}>
               <Check size={12} /> {saving ? t('common.saving') : t('prizes.add')}
@@ -254,7 +254,7 @@ export default function Prizes() {
 
       {/* Prizes */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
           {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-56 bg-muted animate-pulse" />)}
         </div>
       ) : events.length === 0 ? (
@@ -268,11 +268,11 @@ export default function Prizes() {
           <p className="font-mono-label text-muted-foreground">{t('prizes.emptyEvent')}</p>
         </div>
       ) : isAdmin ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
           {prizes.map((p) => <PrizeAdminCard key={p.id} prize={p} onChange={loadPrizes} />)}
         </div>
       ) : (
-        <PrizeGrid prizes={prizes} />
+        <PrizeGrid prizes={prizes} wide />
       )}
     </main>
   )

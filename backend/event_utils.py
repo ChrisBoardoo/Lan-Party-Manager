@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
-from models import AppSetting, Expense, EventRSVP, LanEvent, SettlementPayment, User
+from models import AppSetting, Expense, EventRSVP, LanEvent, SettlementPayment, Transfer, User
 
 logger = logging.getLogger(__name__)
 
@@ -88,11 +88,34 @@ def current_event(db: Session) -> Optional[LanEvent]:
     return event
 
 
+def lan_in_progress(db: Session, user: User) -> Optional[LanEvent]:
+    """The LAN this member RSVP'd "in" to that runs today (event dates, in the
+    instance's timezone), or None. What the desktop app's captures are filed
+    under — LoL games (router_lol) and game time (router_gametime) — so both
+    follow the same rule and the app never does its own date arithmetic."""
+    today = local_today(db)
+    return (
+        db.query(LanEvent)
+        .join(EventRSVP, EventRSVP.event_id == LanEvent.id)
+        .filter(
+            EventRSVP.user_id == user.id,
+            EventRSVP.status == "in",
+            LanEvent.start_date <= today,
+            LanEvent.end_date >= today,
+        )
+        .order_by(LanEvent.start_date.desc(), LanEvent.id.desc())
+        .first()
+    )
+
+
 def event_prorata_inputs(
     db: Session, event: LanEvent
-) -> Tuple[List[EventRSVP], List[Expense], List[SettlementPayment]]:
+) -> Tuple[List[EventRSVP], List[Expense], list]:
     """The RSVPs, expenses and recorded payments for one event — the single
-    scoped input set for ``prorata.calculate_prorata``.
+    scoped input set for ``prorata.calculate_prorata``. Payments are the
+    event's transfers (oldest first) followed by the pre-1.3.4 "paid" flags,
+    the settlement_payments rows without an amount; the rows *with* one were
+    copied into transfers by migration 0040 and must not be counted twice.
 
     Expenses are scoped strictly by ``event_id``: an expense belongs to exactly
     one event's split. This used to be an unfiltered ``query(Expense).all()``,
@@ -135,11 +158,17 @@ def event_prorata_inputs(
 
     expenses = db.query(Expense).filter(Expense.event_id == event.id).all()
 
-    payments = (
+    transfers = (
+        db.query(Transfer)
+        .filter(Transfer.event_id == event.id)
+        .order_by(Transfer.transferred_on, Transfer.id)
+        .all()
+    )
+    legacy_flags = (
         db.query(SettlementPayment)
-        .filter(SettlementPayment.event_id == event.id)
+        .filter(SettlementPayment.event_id == event.id, SettlementPayment.amount.is_(None))
         .order_by(SettlementPayment.id)
         .all()
     )
 
-    return rsvps, expenses, payments
+    return rsvps, expenses, transfers + legacy_flags

@@ -32,9 +32,7 @@ Capture rules (POST /matches):
 
 Gated by the `lol_stats` feature flag (default OFF, see router_settings).
 """
-from datetime import date, datetime
 from typing import Optional
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.exc import IntegrityError
@@ -43,6 +41,7 @@ from sqlalchemy.orm import Session
 from activity import add_audit
 from auth import get_current_user, require_admin
 from database import get_db
+from event_utils import lan_in_progress
 from games_catalog import resolve_game
 from limiter import limiter
 from lol_capture import CaptureError, parse_end_of_game
@@ -50,40 +49,14 @@ from lol_stats import (
     LOL_CATALOG_NAME, all_lines, captured_matches, category_of, game_records,
     lol_catalog_game, player_records,
 )
-from models import EventRSVP, LanEvent, LolMatch, LolMatchPlayer, LolMatchSubmitter, User
-from router_settings import get_setting, is_feature_enabled, require_feature
+from models import LolMatch, LolMatchPlayer, LolMatchSubmitter, User
+from router_settings import is_feature_enabled, require_feature
 from schemas import (
     LolCaptureIn, LolCaptureResultOut, LolCaptureStatusOut, LolCategory, LolMatchOut,
     LolMatchPlayerOut, LolPlayerLine, LolRecordOut, LolStatsOut,
 )
 
 router = APIRouter()
-
-
-def _today(db: Session) -> date:
-    """Today in the app's timezone — a game at 00:30 on a LAN's first night
-    must not land on the day before just because the server runs in UTC."""
-    try:
-        tz = ZoneInfo(get_setting(db, "app_timezone") or "UTC")
-    except Exception:
-        tz = ZoneInfo("UTC")
-    return datetime.now(tz).date()
-
-
-def _lan_in_progress(db: Session, user: User) -> Optional[LanEvent]:
-    today = _today(db)
-    return (
-        db.query(LanEvent)
-        .join(EventRSVP, EventRSVP.event_id == LanEvent.id)
-        .filter(
-            EventRSVP.user_id == user.id,
-            EventRSVP.status == "in",
-            LanEvent.start_date <= today,
-            LanEvent.end_date >= today,
-        )
-        .order_by(LanEvent.start_date.desc(), LanEvent.id.desc())
-        .first()
-    )
 
 
 def link_captured_players(db: Session, user: User) -> None:
@@ -144,7 +117,7 @@ def submit_match(
         return LolCaptureResultOut(match_id=existing.id, created=False)
 
     # No LAN on for the sender: kept all the same, for the global stats only.
-    event = _lan_in_progress(db, user)
+    event = lan_in_progress(db, user)
 
     members = {
         u.riot_id_key: u.id
@@ -198,7 +171,7 @@ def capture_status(db: Session = Depends(get_db), user: User = Depends(get_curre
     require_feature: an admin's app must also see `enabled: false`."""
     return LolCaptureStatusOut(
         enabled=is_feature_enabled(db, "lol_stats"),
-        lan_in_progress=_lan_in_progress(db, user) is not None,
+        lan_in_progress=lan_in_progress(db, user) is not None,
     )
 
 

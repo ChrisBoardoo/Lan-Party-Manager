@@ -6,10 +6,12 @@ from sqlalchemy.orm import Session
 import secrets
 
 from database import get_db
+from pydantic import ValidationError
+
 from models import Game, User
 from schemas import (
-    BadgeOut, DeletedUserOut, UserGameStatsLine, UserOut, UserPublic, UserUpdate, UserPasswordChange,
-    RESERVED_USERNAME_PREFIX,
+    BadgeOut, DeletedUserOut, HubLayout, HubLayoutOut, UserGameStatsLine, UserOut, UserPublic, UserUpdate,
+    UserPasswordChange, RESERVED_USERNAME_PREFIX,
 )
 from auth import (
     create_access_token,
@@ -58,6 +60,45 @@ def get_all_users(
     for u in users:
         u.is_online = is_user_online(u)
     return users
+
+
+# ── Hub layout (own account only) ─────────────────────────────────────────────
+# Declared before the /{user_id} routes. Each member arranges their own Hub;
+# nobody, admins included, reads or writes someone else's.
+
+@router.get("/me/hub-layout", response_model=HubLayoutOut)
+def get_my_hub_layout(current_user: User = Depends(get_current_user)):
+    """The member's saved Hub arrangement, or blocks=None when there's none —
+    or when what's stored no longer validates, so a stale layout can never
+    take the Hub down (same rule as router_games._saved_filters)."""
+    if not current_user.hub_layout:
+        return HubLayoutOut()
+    try:
+        return HubLayoutOut(blocks=HubLayout.model_validate_json(current_user.hub_layout).blocks)
+    except ValidationError:
+        return HubLayoutOut()
+
+
+@router.put("/me/hub-layout", response_model=HubLayoutOut)
+def save_my_hub_layout(
+    data: HubLayout,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    current_user.hub_layout = data.model_dump_json()
+    db.commit()
+    return HubLayoutOut(blocks=data.blocks)
+
+
+@router.delete("/me/hub-layout", response_model=HubLayoutOut)
+def reset_my_hub_layout(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Back to the default layout."""
+    current_user.hub_layout = None
+    db.commit()
+    return HubLayoutOut()
 
 
 @router.get("/deleted", response_model=list[DeletedUserOut])

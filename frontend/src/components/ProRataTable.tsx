@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ProRataResult, User } from '../types'
+import { ProRataResult, SettlementLine, User } from '../types'
 import { useAppConfig } from '../contexts/AppConfigContext'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { eventsApi, expensesApi, usersApi } from '../lib/api'
 import { apiErrorMessage } from '../lib/apiError'
-import { Check, ArrowRight, Wallet, Phone, Pencil, UserPlus } from 'lucide-react'
+import { formatDate } from '../lib/formatDate'
+import TransferModal from './TransferModal'
+import { Check, ArrowRight, Wallet, Phone, Pencil, UserPlus, Trash2, ArrowLeftRight, RotateCcw, Lock } from 'lucide-react'
 
 interface ProRataTableProps {
   data: ProRataResult
@@ -120,30 +123,64 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
   const { t } = useTranslation()
   const { currency } = useAppConfig()
   const { user, isTreasurer } = useAuth()
+  const { push } = useToast()
   const [busyKey, setBusyKey] = useState<string | null>(null)
   // user id whose stay is being edited; 'new' = adding a member not in the split yet
   const [editing, setEditing] = useState<number | 'new' | null>(null)
   const [members, setMembers] = useState<User[]>([])
   const [newMember, setNewMember] = useState<number | null>(null)
+  const [transferOpen, setTransferOpen] = useState(false)
   const maxAmount = Math.max(...data.shares.map((s) => s.amount), 1)
   const canAdjust = isTreasurer && data.event_id != null
+  const money = (amount: number) => `${amount.toFixed(2)} ${currency}`
 
-  // fromUserId: the treasurer acting for a debtor who can't log in any more.
-  const togglePaid = async (toUserId: number, paid: boolean, fromUserId?: number) => {
-    if (data.event_id == null) return
-    const key = `${fromUserId ?? ''}-${toUserId}`
+  // Every write ends in a toast when it fails (1.4.1 rule), then reloads.
+  const run = async (key: string, action: () => Promise<unknown>, success?: string) => {
     setBusyKey(key)
     try {
-      if (paid) {
-        await expensesApi.unmarkSettlement(data.event_id, toUserId, fromUserId)
-      } else {
-        await expensesApi.markSettlement(data.event_id, toUserId, fromUserId)
-      }
+      await action()
+      if (success) push(success)
       onSettlementChange?.()
+    } catch (e) {
+      push(apiErrorMessage(e, t), 'error')
     } finally {
       setBusyKey(null)
     }
   }
+
+  // fromUserId: the treasurer acting for a debtor who can't log in any more.
+  const markPaid = (toUserId: number, fromUserId?: number) => {
+    if (data.event_id == null) return
+    const eventId = data.event_id
+    run(`${fromUserId ?? ''}-${toUserId}`, () => expensesApi.markSettlement(eventId, toUserId, fromUserId))
+  }
+
+  // A recorded transfer: the treasurer/an admin deletes any; a member the
+  // "payment sent" they recorded themselves. A pre-1.3.4 "paid" flag (no
+  // transfer id) is reversed through the old endpoint, by its debtor.
+  const canDelete = (line: SettlementLine) =>
+    line.transfer_id != null
+      ? isTreasurer || (line.recorded_by_user_id === user?.id && line.from_user_id === user?.id)
+      : user?.id === line.from_user_id
+  const deleteLine = (line: SettlementLine) => {
+    if (!confirm(t('finances.transfer.deleteConfirm', { amount: money(line.amount), from: line.from_username, to: line.to_username }))) return
+    run(
+      `del-${line.transfer_id ?? `${line.from_user_id}-${line.to_user_id}`}`,
+      () => line.transfer_id != null
+        ? expensesApi.deleteTransfer(line.transfer_id)
+        : expensesApi.unmarkSettlement(data.event_id!, line.to_user_id),
+      t('finances.transfer.deleted'),
+    )
+  }
+
+  const recalculate = () => {
+    if (data.event_id == null || !confirm(t('finances.transfer.recalculateConfirm'))) return
+    const eventId = data.event_id
+    run('recalculate', () => expensesApi.recalculatePlan(eventId), t('finances.transfer.planRecalculated'))
+  }
+
+  const toPay = data.settlements.filter((l) => !l.paid)
+  const recorded = data.settlements.filter((l) => l.paid)
 
   const startAdding = async () => {
     setEditing('new')
@@ -196,8 +233,8 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
         </div>
       ) : (
         <div className="border border-border">
-          {/* Header */}
-          <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-muted border-b border-border">
+          {/* Header (desktop table only) */}
+          <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-muted border-b border-border">
             <div className="col-span-3 font-mono-label text-muted-foreground">{t('finances.table.player')}</div>
             <div className="col-span-2 font-mono-label text-muted-foreground text-center">
               {t('finances.table.nightsHeader')}
@@ -210,81 +247,109 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
             </div>
           </div>
 
-          {data.shares.map((share) => (
-            <div
-              key={share.user_id}
-              className="grid grid-cols-12 gap-4 px-4 py-4 items-center border-b border-border last:border-0 hover:bg-muted/50 transition-colors duration-150"
-            >
-              {/* Player */}
-              <div className="col-span-3 flex items-center gap-3">
-                <div className="w-8 h-8 bg-muted border border-border flex items-center justify-center flex-shrink-0">
-                  {share.avatar_url ? (
-                    <img
-                      src={share.avatar_url}
-                      alt={share.username}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-sm font-bold text-muted-foreground">
-                      {share.username[0].toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                <span className="font-sans font-semibold text-sm text-foreground truncate">
-                  {share.username}
-                </span>
-              </div>
-
-              {/* Nights */}
-              <div className="col-span-2 text-center">
-                <span className="font-mono text-foreground font-bold">{share.nights}</span>
-                <span className="font-mono-label text-muted-foreground ml-1">n</span>
-                {canAdjust && editing !== share.user_id && (
-                  <button
-                    onClick={() => setEditing(share.user_id)}
-                    title={t('finances.adjust.edit')}
-                    className="ml-2 text-muted-foreground hover:text-accent align-middle"
-                  >
-                    <Pencil size={11} strokeWidth={1.5} />
-                  </button>
+          {data.shares.map((share) => {
+            const avatar = (
+              <div className="w-8 h-8 bg-muted border border-border flex items-center justify-center flex-shrink-0">
+                {share.avatar_url ? (
+                  <img
+                    src={share.avatar_url}
+                    alt={share.username}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-sm font-bold text-muted-foreground">
+                    {share.username[0].toUpperCase()}
+                  </span>
                 )}
               </div>
-
-              {/* Percentage bar */}
-              <div className="col-span-2 flex flex-col items-center gap-1">
-                <span className="font-mono text-sm font-bold text-foreground">
-                  {share.percentage}%
-                </span>
-              </div>
-
-              {/* Amount */}
-              <div className="col-span-5 flex items-center justify-end gap-3">
-                {/* Progress bar */}
-                <div className="flex-1 h-1 bg-muted">
-                  <div
-                    className="h-full bg-accent transition-all duration-500"
-                    style={{ width: `${(share.amount / maxAmount) * 100}%` }}
-                  />
+            )
+            const editStay = canAdjust && editing !== share.user_id && (
+              <button
+                onClick={() => setEditing(share.user_id)}
+                title={t('finances.adjust.edit')}
+                aria-label={t('finances.adjust.edit')}
+                className="ml-2 p-1 -m-1 text-muted-foreground hover:text-accent align-middle"
+              >
+                <Pencil size={11} strokeWidth={1.5} />
+              </button>
+            )
+            const amount = (
+              <span className="font-mono text-xl font-black text-foreground tabular-nums whitespace-nowrap">
+                {share.amount.toFixed(2)}
+                <span className="text-sm text-muted-foreground ml-1">{currency}</span>
+              </span>
+            )
+            return (
+              <div
+                key={share.user_id}
+                className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors duration-150"
+              >
+                {/* Phone: one line per player — in the 12 columns the names
+                    were cut down to their first letter. */}
+                <div className="md:hidden flex items-center gap-3 px-4 py-3">
+                  {avatar}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-sans font-semibold text-sm text-foreground truncate">{share.username}</p>
+                    <p className="font-mono-label text-[10px] text-muted-foreground">
+                      {share.nights} n · {share.percentage}%
+                      {editStay}
+                    </p>
+                  </div>
+                  {amount}
                 </div>
-                <span className="font-mono text-xl font-black text-foreground tabular-nums">
-                  {share.amount.toFixed(2)}
-                  <span className="text-sm text-muted-foreground ml-1">{currency}</span>
-                </span>
-              </div>
 
-              {editing === share.user_id && (
-                <StayEditor
-                  data={data}
-                  userId={share.user_id}
-                  initialArrival={share.arrival_date ?? data.event_start ?? ''}
-                  initialDeparture={share.departure_date ?? data.event_end ?? ''}
-                  deleted={share.deleted}
-                  onDone={doneEditing}
-                  onCancel={() => setEditing(null)}
-                />
-              )}
-            </div>
-          ))}
+                <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-4 items-center">
+                  {/* Player */}
+                  <div className="col-span-3 flex items-center gap-3 min-w-0">
+                    {avatar}
+                    <span className="font-sans font-semibold text-sm text-foreground truncate">
+                      {share.username}
+                    </span>
+                  </div>
+
+                  {/* Nights */}
+                  <div className="col-span-2 text-center">
+                    <span className="font-mono text-foreground font-bold">{share.nights}</span>
+                    <span className="font-mono-label text-muted-foreground ml-1">n</span>
+                    {editStay}
+                  </div>
+
+                  {/* Percentage */}
+                  <div className="col-span-2 flex flex-col items-center gap-1">
+                    <span className="font-mono text-sm font-bold text-foreground">
+                      {share.percentage}%
+                    </span>
+                  </div>
+
+                  {/* Amount */}
+                  <div className="col-span-5 flex items-center justify-end gap-3">
+                    {/* Progress bar */}
+                    <div className="flex-1 h-1 bg-muted">
+                      <div
+                        className="h-full bg-accent transition-all duration-500"
+                        style={{ width: `${(share.amount / maxAmount) * 100}%` }}
+                      />
+                    </div>
+                    {amount}
+                  </div>
+                </div>
+
+                {editing === share.user_id && (
+                  <div className="px-4 pb-4">
+                    <StayEditor
+                      data={data}
+                      userId={share.user_id}
+                      initialArrival={share.arrival_date ?? data.event_start ?? ''}
+                      initialDeparture={share.departure_date ?? data.event_end ?? ''}
+                      deleted={share.deleted}
+                      onDone={doneEditing}
+                      onCancel={() => setEditing(null)}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
 
           {/* Total row */}
           <div className="grid grid-cols-12 gap-4 px-4 py-4 bg-muted border-t-2 border-accent">
@@ -346,84 +411,154 @@ export default function ProRataTable({ data, onSettlementChange }: ProRataTableP
 
       {/* Who owes whom — settlement */}
       {data.shares.length > 0 && (
-        <div>
-          <p className="font-mono-label text-muted-foreground mb-3 flex items-center gap-1.5">
-            <Wallet size={14} className="text-accent" strokeWidth={1.5} /> {t('finances.settlementTitle')}
-          </p>
-          {data.settlements.length === 0 ? (
-            <div className="text-center py-10 border border-border">
-              <p className="font-mono-label text-muted-foreground">{t('finances.allSettled')}</p>
-            </div>
-          ) : (
-            <div className="border border-border divide-y divide-border">
-              {data.settlements.map((line) => {
-                const isDebtor = user?.id === line.from_user_id
-                const onBehalf = !isDebtor && isTreasurer && !!line.from_inactive
-                const busy = busyKey === `${onBehalf ? line.from_user_id : ''}-${line.to_user_id}`
-                return (
-                  <div
-                    // A pair can have a recorded payment *and* a line still owed
-                    // (e.g. a receipt added after the payment).
-                    key={`${line.from_user_id}-${line.to_user_id}-${line.paid ? `paid-${line.payment_id ?? ''}` : 'owed'}`}
-                    className="flex flex-wrap items-center gap-3 px-4 py-3"
+        <div className="space-y-6">
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <p className="font-mono-label text-muted-foreground flex items-center gap-1.5">
+                <Wallet size={14} className="text-accent" strokeWidth={1.5} /> {t('finances.settlementTitle')}
+              </p>
+              {/* Treasurer/admin: transfers (partial, outside the plan, catch-up) and the plan itself */}
+              {canAdjust && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <button
+                    onClick={recalculate}
+                    disabled={busyKey === 'recalculate'}
+                    className="font-mono-label text-[11px] text-muted-foreground hover:text-accent flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50"
                   >
+                    <RotateCcw size={12} strokeWidth={1.5} /> {t('finances.transfer.recalculate')}
+                  </button>
+                  <button
+                    onClick={() => setTransferOpen(true)}
+                    className="font-mono-label text-[11px] px-3 py-1.5 border border-accent text-accent hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-1.5 whitespace-nowrap"
+                  >
+                    <ArrowLeftRight size={12} strokeWidth={1.5} /> {t('finances.transfer.record')}
+                  </button>
+                </div>
+              )}
+            </div>
+            {data.plan?.frozen && data.plan.frozen_on && (
+              <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1.5">
+                <Lock size={11} strokeWidth={1.5} className="flex-shrink-0" />
+                {t('finances.transfer.planFrozen', { date: formatDate(data.plan.frozen_on) })}
+              </p>
+            )}
+            {toPay.length === 0 ? (
+              <div className="text-center py-10 border border-border">
+                <p className="font-mono-label text-muted-foreground">{t('finances.allSettled')}</p>
+              </div>
+            ) : (
+              <div className="border border-border divide-y divide-border">
+                {toPay.map((line) => {
+                  const isDebtor = user?.id === line.from_user_id
+                  const onBehalf = !isDebtor && isTreasurer && !!line.from_inactive
+                  const busy = busyKey === `${onBehalf ? line.from_user_id : ''}-${line.to_user_id}`
+                  return (
+                    <div key={`${line.from_user_id}-${line.to_user_id}`} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                      <div className="flex items-center gap-2 text-sm min-w-0">
+                        <span className="font-semibold text-foreground truncate">{line.from_username}</span>
+                        <ArrowRight size={13} className="text-muted-foreground flex-shrink-0" />
+                        <span className="font-semibold text-foreground truncate">{line.to_username}</span>
+                      </div>
+
+                      <span className="font-mono font-black text-foreground tabular-nums">
+                        {line.amount.toFixed(2)}
+                        <span className="text-xs text-muted-foreground ml-1">{currency}</span>
+                      </span>
+
+                      {/* Changed by a transfer made outside the plan */}
+                      {line.label && (
+                        <span
+                          title={t('finances.transfer.labelHint')}
+                          className="font-mono-label text-[10px] px-1.5 py-0.5 border border-yellow-500/50 text-yellow-400"
+                        >
+                          {t(`finances.transfer.label.${line.label}`)}
+                        </span>
+                      )}
+
+                      {/* Creditor's contact phone — shown only to the debtor who owes them */}
+                      {isDebtor && line.to_phone && (
+                        <a
+                          href={`tel:${line.to_phone}`}
+                          className="font-mono-label text-accent flex items-center gap-1 text-[11px] hover:underline"
+                        >
+                          <Phone size={12} strokeWidth={1.5} /> {line.to_phone}
+                        </a>
+                      )}
+
+                      <div className="ml-auto">
+                        {isDebtor || onBehalf ? (
+                          <button
+                            onClick={() => markPaid(line.to_user_id, onBehalf ? line.from_user_id : undefined)}
+                            title={onBehalf ? t('finances.markPaidOnBehalf') : undefined}
+                            disabled={busy}
+                            className="font-mono-label text-[11px] px-3 py-1.5 border border-accent text-accent hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50"
+                          >
+                            {t('finances.markPaid')}
+                          </button>
+                        ) : (
+                          <span className="font-mono-label text-muted-foreground text-[11px]">
+                            {t('finances.markPaidPending')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Recorded transfers: one line each, with its date, note and who entered it */}
+          {recorded.length > 0 && (
+            <div>
+              <p className="font-mono-label text-muted-foreground mb-3 flex items-center gap-1.5">
+                <Check size={14} className="text-green-500" strokeWidth={1.5} /> {t('finances.transfer.historyTitle')}
+              </p>
+              <div className="border border-border divide-y divide-border">
+                {recorded.map((line) => (
+                  <div
+                    key={line.transfer_id ?? `flag-${line.from_user_id}-${line.to_user_id}`}
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3"
+                  >
+                    <span className="font-mono-label text-[10px] text-muted-foreground whitespace-nowrap min-w-[6.5rem] flex-shrink-0">
+                      {line.transferred_on ? formatDate(line.transferred_on) : '—'}
+                    </span>
                     <div className="flex items-center gap-2 text-sm min-w-0">
                       <span className="font-semibold text-foreground truncate">{line.from_username}</span>
                       <ArrowRight size={13} className="text-muted-foreground flex-shrink-0" />
                       <span className="font-semibold text-foreground truncate">{line.to_username}</span>
                     </div>
-
-                    <span className="font-mono font-black text-foreground tabular-nums">
+                    <span className="font-mono font-black text-green-500 tabular-nums">
                       {line.amount.toFixed(2)}
                       <span className="text-xs text-muted-foreground ml-1">{currency}</span>
                     </span>
-
-                    {/* Creditor's contact phone — shown only to the debtor who owes them */}
-                    {isDebtor && line.to_phone && (
-                      <a
-                        href={`tel:${line.to_phone}`}
-                        className="font-mono-label text-accent flex items-center gap-1 text-[11px] hover:underline"
-                      >
-                        <Phone size={12} strokeWidth={1.5} /> {line.to_phone}
-                      </a>
+                    {line.on_behalf && line.recorded_by_username && (
+                      <span className="font-mono-label text-[10px] text-muted-foreground">
+                        {t('finances.transfer.recordedBy', { name: line.recorded_by_username })}
+                      </span>
                     )}
-
-                    <div className="ml-auto">
-                      {isDebtor || onBehalf ? (
-                        <button
-                          onClick={() =>
-                            togglePaid(line.to_user_id, line.paid, onBehalf ? line.from_user_id : undefined)
-                          }
-                          title={onBehalf ? t('finances.markPaidOnBehalf') : undefined}
-                          disabled={busy}
-                          className={`font-mono-label text-[11px] px-3 py-1.5 border transition-colors disabled:opacity-50 ${
-                            line.paid
-                              ? 'border-green-500 text-green-500 hover:border-red-400 hover:text-red-400'
-                              : 'border-accent text-accent hover:bg-accent hover:text-accent-foreground'
-                          }`}
-                        >
-                          {line.paid ? (
-                            <span className="flex items-center gap-1"><Check size={12} /> {t('finances.paymentSent')}</span>
-                          ) : (
-                            t('finances.markPaid')
-                          )}
-                        </button>
-                      ) : line.paid ? (
-                        <span className="font-mono-label text-green-500 flex items-center gap-1 text-[11px]">
-                          <Check size={12} /> {t('finances.paymentSent')}
-                        </span>
-                      ) : (
-                        <span className="font-mono-label text-muted-foreground text-[11px]">
-                          {t('finances.markPaidPending')}
-                        </span>
-                      )}
-                    </div>
+                    {line.note && <span className="text-xs text-muted-foreground italic truncate">{line.note}</span>}
+                    {canDelete(line) && (
+                      <button
+                        onClick={() => deleteLine(line)}
+                        disabled={busyKey === `del-${line.transfer_id ?? `${line.from_user_id}-${line.to_user_id}`}`}
+                        title={t('finances.transfer.delete')}
+                        aria-label={t('finances.transfer.delete')}
+                        className="ml-auto p-1 text-muted-foreground hover:text-red-400 transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 size={13} strokeWidth={1.5} />
+                      </button>
+                    )}
                   </div>
-                )
-              })}
+                ))}
+              </div>
             </div>
           )}
         </div>
+      )}
+
+      {transferOpen && (
+        <TransferModal data={data} onClose={() => setTransferOpen(false)} onSaved={() => onSettlementChange?.()} />
       )}
     </div>
   )

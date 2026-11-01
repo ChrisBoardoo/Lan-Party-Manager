@@ -98,13 +98,13 @@ def test_mark_is_idempotent(client):
 
     session = database.SessionLocal()
     try:
-        rows = session.query(models.SettlementPayment).filter(
-            models.SettlementPayment.event_id == event_id,
-            models.SettlementPayment.from_user_id == bob_id,
-            models.SettlementPayment.to_user_id == founder_id,
+        rows = session.query(models.Transfer).filter(
+            models.Transfer.event_id == event_id,
+            models.Transfer.from_user_id == bob_id,
+            models.Transfer.to_user_id == founder_id,
         ).all()
         assert len(rows) == 1  # no duplicate row
-        assert rows[0].amount is not None and rows[0].amount > 0
+        assert rows[0].amount_cents == 5000
     finally:
         session.close()
 
@@ -132,7 +132,8 @@ def test_two_marks_at_once_record_the_payment_once(client):
     """A double click on "payment sent": both requests used to see the line
     unpaid; the second then broke on the unique pair (500) or, reading the
     first one's row, added the amount a second time (Q-10 of the 2026-10-20
-    review). Serialized on the write lock, the second finds the line paid."""
+    review). Serialized on the write lock, the second finds the line paid.
+    Since 1.4.2 a mark writes a transfer, one row per click."""
     founder_id = make_user("founder", role="admin")
     bob_id = make_user("bob")
     event_id = _seed_event_with_debt(founder_id, bob_id)
@@ -148,10 +149,10 @@ def test_two_marks_at_once_record_the_payment_once(client):
     assert statuses[0] == 200 and statuses[1] in (400, 409), statuses
     s = database.SessionLocal()
     try:
-        rows = s.query(models.SettlementPayment).filter_by(
+        rows = s.query(models.Transfer).filter_by(
             event_id=event_id, from_user_id=bob_id, to_user_id=founder_id,
         ).all()
-        assert len(rows) == 1 and rows[0].amount == 50.0
+        assert len(rows) == 1 and rows[0].amount_cents == 5000
     finally:
         s.close()
     assert _line(client, bob, event_id, bob_id, founder_id)["paid"] is True

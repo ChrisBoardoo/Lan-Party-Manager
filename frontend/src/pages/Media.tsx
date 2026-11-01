@@ -238,7 +238,7 @@ export default function Media() {
   const videos = items.filter((i) => i.file_type === 'video')
 
   return (
-    <main className="max-w-6xl mx-auto px-6 py-12">
+    <main className="max-w-6xl 2xl:max-w-[1440px] 3xl:max-w-[1600px] 4xl:max-w-[2240px] 5xl:max-w-[2880px] mx-auto px-6 py-12">
       {error && <LoadError message={error} onRetry={retry} />}
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
@@ -302,7 +302,7 @@ export default function Media() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 4xl:grid-cols-8 5xl:grid-cols-10 gap-3">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="aspect-square bg-muted animate-pulse" />
           ))}
@@ -321,7 +321,7 @@ export default function Media() {
                 <ImageIcon size={14} strokeWidth={1.5} className="text-accent" />
                 <p className="font-mono-label text-accent">{t('media.photos', { count: images.length })}</p>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 4xl:grid-cols-8 5xl:grid-cols-10 gap-3">
                 {images.map((item, i) => (
                   <MediaCard
                     key={item.id}
@@ -344,7 +344,7 @@ export default function Media() {
                 <Video size={14} strokeWidth={1.5} className="text-accent" />
                 <p className="font-mono-label text-accent">{t('media.videos', { count: videos.length })}</p>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 4xl:grid-cols-8 5xl:grid-cols-10 gap-3">
                 {videos.map((item, i) => (
                   <MediaCard
                     key={item.id}

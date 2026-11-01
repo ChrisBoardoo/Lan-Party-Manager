@@ -54,9 +54,11 @@ ALLOWED_KEYS = {
     "craving_chat_enabled",
     "trophies_enabled",
     "lol_stats_enabled",
+    "gametime_enabled",
     "xp_enabled",
     "quests_enabled",
     "cards_enabled",
+    "cards_trading_enabled",
     # Craving Chat window (see router_chat.chat_window): days before a LAN its
     # room opens, days after it closes, and "always open" (rooms chain from one
     # LAN to the next).
@@ -113,6 +115,8 @@ def is_feature_enabled(db: Session, feature: str) -> bool:
       by vote or by an admin — see router_trophies.py)
     - lol_stats: opt-in, default OFF (League of Legends games captured by the
       desktop app during a LAN — see router_lol.py)
+    - gametime: opt-in, default OFF (game time detected by the desktop app — see
+      router_gametime.py)
     - xp:       opt-in, default OFF (crew XP and levels, derived on read — see xp.py)
     - cards:    opt-in, default OFF (collectible crew cards and boosters — see cards.py)
     - quests:   opt-in, default OFF, and only with XP on (the monthly contract,
@@ -154,10 +158,14 @@ def is_feature_enabled(db: Session, feature: str) -> bool:
         return get_setting(db, "trophies_enabled") == "true"
     if feature == "lol_stats":
         return get_setting(db, "lol_stats_enabled") == "true"
+    if feature == "gametime":
+        return get_setting(db, "gametime_enabled") == "true"
     if feature == "xp":
         return get_setting(db, "xp_enabled") == "true"
     if feature == "cards":
         return get_setting(db, "cards_enabled") == "true"
+    if feature == "cards_trading":
+        return get_setting(db, "cards_trading_enabled") == "true" and get_setting(db, "cards_enabled") == "true"
     if feature == "quests":
         return get_setting(db, "quests_enabled") == "true" and get_setting(db, "xp_enabled") == "true"
     return True
@@ -280,9 +288,11 @@ def get_public_config(db: Session = Depends(get_db), _: User = Depends(get_curre
         "craving_chat_enabled": is_feature_enabled(db, "craving_chat"),
         "trophies_enabled": is_feature_enabled(db, "trophies"),
         "lol_stats_enabled": is_feature_enabled(db, "lol_stats"),
+        "gametime_enabled": is_feature_enabled(db, "gametime"),
         "xp_enabled": is_feature_enabled(db, "xp"),
         "quests_enabled": is_feature_enabled(db, "quests"),
         "cards_enabled": is_feature_enabled(db, "cards"),
+        "cards_trading_enabled": is_feature_enabled(db, "cards_trading"),
         **chat_window_config(db),
     }
 

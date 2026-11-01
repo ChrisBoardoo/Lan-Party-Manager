@@ -114,7 +114,7 @@ def test_the_same_game_sent_by_every_player_is_kept_once(client, crew):
 def test_simultaneous_sends_do_not_fail(client, crew, monkeypatch):
     """Another app's insert landing between our duplicate check and our own
     insert must end as "already have it", not a 500."""
-    real = router_lol._lan_in_progress
+    real = router_lol.lan_in_progress
 
     def racing(db, user):
         event = real(db, user)
@@ -126,7 +126,7 @@ def test_simultaneous_sends_do_not_fail(client, crew, monkeypatch):
             s.close()
         return event
 
-    monkeypatch.setattr(router_lol, "_lan_in_progress", racing)
+    monkeypatch.setattr(router_lol, "lan_in_progress", racing)
     r = _post(client, crew.tokens["cross"], _custom_5v5(9001))
     assert r.status_code == 200
     assert r.json()["created"] is False

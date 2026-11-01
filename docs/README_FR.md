@@ -7,7 +7,7 @@
 **Gestion d'événements auto-hébergée pour LAN parties** — invitations, tournois, trésorerie,
 médias et streams en direct, le tout sur votre propre matériel. D'un Raspberry Pi à un NUC.
 
-[![Version](https://img.shields.io/badge/version-1.4.1-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.5.0-FF3D00?style=flat-square)](#)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0-4C566A?style=flat-square)](../LICENSE)
 [![Plateforme](https://img.shields.io/badge/plateforme-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -65,14 +65,15 @@ compte cloud, aucune télémétrie, aucun abonnement. Les données de votre équ
 | **Mini-Jeux** | Jeux d'arcade intégrés avec un **classement persistant par joueur**, pour faire revenir le crew entre deux LAN. Livré avec *Neon Survivor* (un roguelite) ; le schéma est multi-jeux, d'autres peuvent donc être ajoutés sans migration. Seules les parties solo sont classées — une partie coop à deux dure mécaniquement plus longtemps. Les scores sont vérifiés côté serveur contre un jeton de partie et le temps réellement écoulé. Optionnel. |
 | **Ludothèque et recherche de jeux** | Chaque membre tient sa ludothèque (favoris, nombre de joueurs, liste de souhaits), importable depuis un compte Steam lié. La recherche classe les coéquipiers par jeux en commun et liste ce que tout un groupe possède, pour une session qui démarre sans le tour de « qui l'a ? ». Optionnel. |
 | **Riot ID et stats LoL** | Les membres renseignent leur Riot ID ; l'application de bureau capture les parties de League of Legends jouées pendant une LAN, et la page Jeux affiche les stats par événement et globales. Les envois sont limités et bornés, une partie ne compte pour un membre que si sa propre application l'a envoyée, et un admin peut retirer une partie qui ne devrait pas compter. Optionnel. |
+| **Temps de jeu** | L'application de bureau reconnaît les jeux lancés sur le PC d'un membre (bibliothèques Steam et Epic, plus une liste de jeux connus servie par l'instance) et compte le temps passé dans chacun pendant une LAN. Jeux › Temps de jeu affiche les totaux par jeu et par membre, qui joue en ce moment, et les jours × heures de la LAN. Seul le nom du jeu quitte le PC ; chaque membre peut couper le comptage, cacher ce à quoi il joue, ou compter aussi hors LAN. Pas d'XP. Optionnel. |
 | **XP et niveaux** | XP et niveaux du crew dérivés à la lecture des tournois, des présences, du chat et des médias — rien n'est stocké, rien à migrer — avec un classement sur le Hub et le détail sur chaque profil. Un tournoi ne rapporte d'XP que si les deux camps ont des comptes liés. Optionnel. |
-| **Cartes à collectionner et boosters** | Dépensez de l'XP en boosters qui révèlent des cartes du crew (l'Épique toujours en dernier) ; la collection de chaque membre est une vitrine que tout le crew peut parcourir. Achat et ouverture sont atomiques — un double clic ne dépense jamais deux fois. Optionnel, nécessite l'XP. |
+| **Cartes à collectionner et boosters** | Dépensez de l'XP en boosters qui révèlent des cartes du crew (l'Épique toujours en dernier) ; la collection de chaque membre est une vitrine que tout le crew peut parcourir. Achat et ouverture sont atomiques — un double clic ne dépense jamais deux fois. Optionnel, nécessite l'XP. Les membres peuvent aussi échanger leurs doublons — offres, Bourse du crew, suggestions — sous un drapeau à part, désactivé par défaut. |
 | **Contrat mensuel** | Une série d'objectifs pour le mois, qui rapporte de l'XP une fois le nombre requis atteint, avec la progression de chaque membre calculée à partir de ce qu'il fait déjà. Optionnel, nécessite l'XP. |
 | **Trophées et votes** | Des trophées définis par le crew et décernés par événement — par vote des participants (ouverture, clôture, relance des retardataires, révélation) ou par un admin. Les brouillons restent réservés aux admins jusqu'à la révélation ; les trophées d'un membre font sa vitrine. Optionnel. |
 | **Courses** | Une liste de courses par événement : les participants ajoutent des articles, désignent qui achète, cochent ce qui est acheté, ou importent toute une liste d'un coup. Optionnel. |
 | **WiFi invités (QR)** | Les admins saisissent une fois le SSID, la sécurité et le mot de passe du lieu ; la page de l'événement et le kiosque affichent un QR code WiFi à scanner. Un SSID vide le masque. |
 | **Verrou des présences** | Dès le premier jour d'un événement, les membres ne peuvent plus changer leur réponse (409 avec un message clair) ; un trésorier ou un admin la fixe pour eux, avec trace d'audit et notification — le prorata repose ainsi sur les nuits réelles. |
-| **Trésorerie** | Suivi des dépenses par catégorie, **répartition automatique au prorata** selon les nuits de présence, règlement entre pairs (P2P) et export CSV en un clic. |
+| **Trésorerie** | Suivi des dépenses par catégorie, **répartition automatique au prorata** selon les nuits de présence, règlement entre pairs (P2P) avec transferts enregistrés (partiels, rattrapage) et plan figé, et export CSV en un clic. |
 | **Lots** | Présentez les lots (photo + description) par événement pour récompenser les vainqueurs des tournois. Activer les Lots masque la Trésorerie — les équipes qui offrent des lots ne partagent généralement pas les dépenses. Optionnel. |
 | **Sponsors** | Bannières de sponsors (image ou vidéo) avec lien cliquable, affichées sur les pages événement, tournois et profil joueur. Optionnel. |
 | **Arène / Tournois** | Événements par équipe ou solo/individuel ; **arbres à élimination directe et toutes rondes** (classement V/D/N/Pts) ; têtes de série par équipe ; **tirage aléatoire des équipes** (taille fixe, relance à volonté, restants placés à la main) ; suivi des scores en direct ; **signalement des scores depuis le téléphone** (les joueurs signalent, l'organisateur confirme) ; vue plein écran de l'arbre pour la projection. |
@@ -178,7 +179,7 @@ docker compose up -d
 Portainer transforme `${VAR:-défaut}` en chaîne vide au lieu de la valeur par défaut : écrivez des
 valeurs littérales dans la stack. Deux autres habitudes qui payent sur une machine auto-hébergée :
 
-- Épinglez les deux lignes `image:` à un numéro de version (`crosswax/lanpartymanager-backend:1.4.1`,
+- Épinglez les deux lignes `image:` à un numéro de version (`crosswax/lanpartymanager-backend:1.5.0`,
   pas `:latest`). Une mise à jour devient une modification délibérée, et revenir en arrière consiste
   à remettre le numéro précédent. Chaque version est poussée sous les deux tags.
 - Si le conteneur backend ne résout plus les noms (liaison Discord et Steam en échec toutes les deux,
@@ -449,6 +450,10 @@ Les endpoints de liste acceptent la pagination `?limit=` et `?offset=`.
 | POST    | `/api/expenses/`        | Trésorier / Admin | Créer une dépense                                                |
 | PUT     | `/api/expenses/{id}`    | Trésorier / Admin | Modifier une dépense                                             |
 | DELETE  | `/api/expenses/{id}`    | Trésorier / Admin | Supprimer une dépense                                           |
+| POST    | `/api/expenses/settlements/mark` | Débiteur (trésorier pour un membre inactif) | « Paiement envoyé » : enregistre un transfert du montant de la ligne, daté du jour |
+| POST    | `/api/expenses/transfers` | Trésorier / Admin | Enregistrer 1 à 20 transferts entre membres : montant libre (partiel), date réelle (rattrapage), note facultative ; un membre hors partage demande `confirm_outside_split` |
+| DELETE  | `/api/expenses/transfers/{id}` | Trésorier / Admin, ou le membre pour son propre « paiement envoyé » | Supprimer un transfert |
+| POST    | `/api/expenses/transfers/recalculate` | Trésorier / Admin | Recalculer le plan de remboursement à partir de ce que chacun doit encore |
 
 ### Lots
 
@@ -732,6 +737,17 @@ dans `backend/minigames_registry.py`. Ajouter un jeu, c'est une entrée là plus
 | GET     | `/api/lol/matches`              | Tous                | Parties capturées (`?event_id=`)                                            |
 | DELETE  | `/api/lol/matches/{match_id}`   | Admin uniquement    | Retirer une partie qui ne devrait pas compter (un test, un remake) ; audité |
 
+### Temps de jeu (détection par l'application de bureau)
+
+*Optionnel — 404 tant que le drapeau `gametime` est éteint. Les sessions sont construites à partir des battements de l'application de bureau, sur l'horloge du serveur.*
+
+| Méthode | Chemin                             | Accès | Description                                                                 |
+|---------|------------------------------------|-------|-----------------------------------------------------------------------------|
+| POST    | `/api/gametime/heartbeat`          | Tous  | « Je joue à X » (3 jeux au plus), envoyé chaque minute tant qu'un jeu tourne ; prolonge la session ouverte ou en ouvre une. Classé sous la LAN à laquelle le membre participe aujourd'hui, sinon sous aucune |
+| GET     | `/api/gametime/status`             | Tous  | Ce que l'application de bureau interroge pour savoir si elle doit compter (répond même drapeau éteint, pour que l'application s'arrête) |
+| GET     | `/api/gametime/catalog`            | Tous  | Les exécutables que l'application reconnaît et ceux qu'elle ignore (`backend/gametime_catalog.json`) |
+| GET     | `/api/gametime/events/{event_id}`  | Tous  | Le temps de jeu d'une LAN : totaux par jeu et par membre, carte par jour et heure locaux, en jeu maintenant, plus longue session |
+
 ### XP et niveaux
 
 *Optionnel — 404 tant que le drapeau `xp` est désactivé. Dérivé à la lecture des tournois, présences, chat et médias ; le registre est mis en cache 30 s par processus et invalidé par toute écriture qui compte.*
@@ -751,6 +767,22 @@ dans `backend/minigames_registry.py`. Ajouter un jeu, c'est une entrée là plus
 | POST    | `/api/cards/boosters/buy`                  | Tous  | Acheter un booster avec l'XP dépensable ; 409 quand le solde ne couvre plus         |
 | POST    | `/api/cards/boosters/{booster_id}/open`    | Tous  | Révéler les cartes d'un booster dans l'ordre des emplacements (l'Épique en dernier) ; une seconde ouverture est refusée |
 | GET     | `/api/cards/collection/{user_id}`          | Tous  | La collection d'un membre, visible par tout le crew                                  |
+
+### Échanges de cartes
+
+*Optionnel — 404 tant que le drapeau `cards_trading` est désactivé (il nécessite aussi `cards`). Seuls les doublons circulent : chacun garde un exemplaire de chaque carte, la carte signature ne bouge jamais, et personne ne reçoit sa propre carte. Rien n'est réservé tant qu'une offre attend ; tout est revérifié, en série, à l'acceptation.*
+
+| Méthode | Chemin                                 | Accès        | Description                                                                                                                                                                                   |
+|---------|----------------------------------------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| GET     | `/api/cards/trades`                    | Tous         | Mes offres : reçues et envoyées (en attente), et l'historique. Les offres expirées (7 jours) ou devenues impossibles sont fermées à la lecture                                                |
+| POST    | `/api/cards/trades`                    | Tous         | Proposer 1 à 3 de mes doublons contre 1 à 3 des siens (`recipient_id`, `give`, `take`, `listing_id` et `note` facultatifs) ; un même 400 pour toute carte non échangeable, sans dire laquelle |
+| POST    | `/api/cards/trades/{trade_id}/accept`  | Destinataire | Échanger les cartes, toutes les règles revérifiées ; 409 si une carte a bougé depuis (l'offre est alors annulée)                                                                              |
+| POST    | `/api/cards/trades/{trade_id}/decline` | Destinataire | Refuser l'offre                                                                                                                                                                               |
+| POST    | `/api/cards/trades/{trade_id}/cancel`  | Auteur       | Retirer l'offre                                                                                                                                                                               |
+| GET     | `/api/cards/listings`                  | Tous         | La Bourse du crew : les doublons mis à l'échange                                                                                                                                              |
+| POST    | `/api/cards/listings`                  | Tous         | Mettre un doublon à l'échange (`face_id`, `rarity`, `note` facultative)                                                                                                                       |
+| DELETE  | `/api/cards/listings/{listing_id}`     | Auteur       | Retirer une annonce                                                                                                                                                                           |
+| GET     | `/api/cards/trade-suggestions`         | Tous         | Jusqu'à trois membres avec qui un échange arrange les deux côtés                                                                                                                              |
 
 ### Contrat mensuel
 
@@ -799,6 +831,16 @@ Les dates sont définies **par événement**, pas globalement : indiquez RSVP «
 **LAN Party** et confirmez vos dates d'arrivée/départ dans la fenêtre de l'événement pour apparaître
 dans sa répartition. L'onglet Prorata de la Trésorerie permet de choisir l'événement à répartir (par
 défaut le plus proche à venir) et d'exporter le résultat en CSV.
+
+**Qui doit à qui** est un ensemble minimal de transferts, calculé en centimes. Depuis la 1.4.2,
+chaque paiement est un **transfert** (montant, date réelle, note, qui l'a saisi) : le débiteur
+clique « paiement envoyé » sur sa ligne, ou le trésorier / un admin saisit n'importe quel transfert
+— un remboursement partiel, un paiement fait en dehors du plan, ou le rattrapage de virements faits
+pendant la LAN. Le plan est **figé** au premier paiement : un paiement ne change que les lignes des
+personnes concernées. Il est recalculé quand une dépense ou une présence change, quand un transfert
+qu'il comptait est supprimé, quand un transfert daté d'avant lui est saisi, ou avec le bouton
+« Recalculer le plan » du trésorier. Chaque transfert est audité ; les deux membres sont prévenus,
+ainsi que toute personne dont les paiements à faire changent.
 
 ---
 

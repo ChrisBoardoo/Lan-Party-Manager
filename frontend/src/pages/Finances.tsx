@@ -36,6 +36,26 @@ function exportProRataCSV(proRata: ProRataResult, currency: string) {
       formatCsvNumber(proRata.total_expenses, 2, fmt),
     ],
   ]
+  // Every recorded transfer (Trésorerie 2.0), so the treasurer's sheet matches the bank.
+  const transfers = proRata.settlements.filter((l) => l.paid)
+  if (transfers.length) {
+    rows.push(
+      [],
+      [i18n.t('finances.csvTransfers.title')],
+      [
+        i18n.t('finances.csvTransfers.date'), i18n.t('finances.csvTransfers.from'), i18n.t('finances.csvTransfers.to'),
+        i18n.t('finances.csv.amount', { currency }), i18n.t('finances.csvTransfers.note'), i18n.t('finances.csvTransfers.recordedBy'),
+      ],
+      ...transfers.map((l) => [
+        l.transferred_on ?? '',
+        l.from_username,
+        l.to_username,
+        formatCsvNumber(l.amount, 2, fmt),
+        l.note ?? '',
+        l.recorded_by_username ?? '',
+      ]),
+    )
+  }
   downloadCsv(buildCsv(rows, fmt), 'prorata.csv')
 }
 
@@ -72,49 +92,77 @@ function ExpenseRow({
     general: 'muted',
   }
 
+  const badge = (
+    <Badge variant={(categoryColors[expense.category] as any) ?? 'muted'}>
+      {t(`categories.${expense.category}`, expense.category)}
+    </Badge>
+  )
+  const amount = (
+    <span className="font-mono font-black text-foreground tabular-nums whitespace-nowrap">
+      {expense.amount.toFixed(2)}{currency}
+    </span>
+  )
+  const payer = expense.payer?.username ?? expense.creator?.username
+  // Always visible on a phone (no hover there: the treasurer couldn't edit or
+  // delete at all), revealed on hover/focus with a mouse.
+  const actions = canEdit && (
+    <div className="flex items-center justify-end gap-1 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
+      <button
+        onClick={() => onEdit(expense)}
+        className="p-1.5 lg:p-1 text-muted-foreground hover:text-foreground transition-colors"
+        title={t('common.edit')}
+        aria-label={t('common.edit')}
+      >
+        <Edit2 size={13} strokeWidth={1.5} />
+      </button>
+      <button
+        onClick={() => onDelete(expense.id)}
+        className="p-1.5 lg:p-1 text-muted-foreground hover:text-red-400 transition-colors"
+        title={t('common.delete')}
+        aria-label={t('common.delete')}
+      >
+        <Trash2 size={13} strokeWidth={1.5} />
+      </button>
+    </div>
+  )
+
   return (
-    <div className="grid grid-cols-12 gap-3 px-4 py-3 items-center border-b border-border last:border-0 hover:bg-muted/30 transition-colors group">
-      <div className="col-span-4 flex items-center gap-3">
-        <div className="w-1 h-8 bg-accent flex-shrink-0" />
-        <span className="text-sm font-semibold text-foreground truncate">
-          {expense.description}
-        </span>
+    <div className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors group">
+      {/* Phone / tablet: a card — the 12-column row overlapped below lg
+          (category, date, payer and amount on top of each other). */}
+      <div className="lg:hidden flex items-stretch gap-3 px-4 py-3">
+        <div className="w-1 bg-accent flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <span className="text-sm font-semibold text-foreground break-words min-w-0">{expense.description}</span>
+            {amount}
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+            {badge}
+            <span className="font-mono-label text-[10px] text-muted-foreground">{expense.date}</span>
+            {payer && <span className="font-mono-label text-[10px] text-muted-foreground truncate">{payer}</span>}
+          </div>
+        </div>
+        {actions}
       </div>
-      <div className="col-span-2">
-        <Badge variant={(categoryColors[expense.category] as any) ?? 'muted'}>
-          {t(`categories.${expense.category}`, expense.category)}
-        </Badge>
-      </div>
-      <div className="col-span-2 font-mono-label text-muted-foreground">
-        {expense.date}
-      </div>
-      <div className="col-span-2 font-mono-label text-muted-foreground text-xs">
-        {expense.payer?.username ?? expense.creator?.username}
-      </div>
-      <div className="col-span-1 text-right">
-        <span className="font-mono font-black text-foreground tabular-nums">
-          {expense.amount.toFixed(2)}{currency}
-        </span>
-      </div>
-      <div className="col-span-1 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {canEdit && (
-          <>
-            <button
-              onClick={() => onEdit(expense)}
-              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-              title={t('common.edit')}
-            >
-              <Edit2 size={12} strokeWidth={1.5} />
-            </button>
-            <button
-              onClick={() => onDelete(expense.id)}
-              className="p-1 text-muted-foreground hover:text-red-400 transition-colors"
-              title={t('common.delete')}
-            >
-              <Trash2 size={12} strokeWidth={1.5} />
-            </button>
-          </>
-        )}
+
+      {/* Desktop: the table row */}
+      <div className="hidden lg:grid grid-cols-12 gap-3 px-4 py-3 items-center">
+        <div className="col-span-4 flex items-center gap-3 min-w-0">
+          <div className="w-1 h-8 bg-accent flex-shrink-0" />
+          <span className="text-sm font-semibold text-foreground truncate">
+            {expense.description}
+          </span>
+        </div>
+        <div className="col-span-2">{badge}</div>
+        <div className="col-span-2 font-mono-label text-muted-foreground">
+          {expense.date}
+        </div>
+        <div className="col-span-2 font-mono-label text-muted-foreground text-xs truncate">
+          {payer}
+        </div>
+        <div className="col-span-1 text-right">{amount}</div>
+        <div className="col-span-1">{actions}</div>
       </div>
     </div>
   )
@@ -249,7 +297,7 @@ export default function Finances() {
     <main className="max-w-6xl mx-auto px-6 py-12">
       {error && <LoadError message={error} onRetry={retry} />}
       {/* Header */}
-      <div className="flex items-start justify-between mb-12">
+      <div className="flex flex-wrap items-start justify-between gap-6 mb-12">
         <div>
           <div className="font-mono-label text-accent mb-3">{t('finances.tagline')}</div>
           <h1 className="text-5xl lg:text-6xl font-black tracking-tighter text-foreground leading-none">
@@ -258,7 +306,7 @@ export default function Finances() {
             <span className="text-accent">{t('finances.heroLine2')}</span>
           </h1>
         </div>
-        <div className="text-right">
+        <div className="sm:text-right">
           <p className="font-mono-label text-muted-foreground">{t('finances.totalBudget')}</p>
           <p className="text-4xl font-black tracking-tighter text-foreground">
             {total.toFixed(2)}
@@ -432,7 +480,7 @@ export default function Finances() {
           ) : (
             <div className="border border-border">
               {/* Table header */}
-              <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-muted border-b border-border">
+              <div className="hidden lg:grid grid-cols-12 gap-3 px-4 py-3 bg-muted border-b border-border">
                 <div className="col-span-4 font-mono-label text-muted-foreground">{t('finances.tableDescription')}</div>
                 <div className="col-span-2 font-mono-label text-muted-foreground">{t('finances.tableCategory')}</div>
                 <div className="col-span-2 font-mono-label text-muted-foreground">{t('finances.tableDate')}</div>
@@ -452,9 +500,9 @@ export default function Finances() {
               ))}
 
               {/* Total row */}
-              <div className="grid grid-cols-12 gap-3 px-4 py-4 bg-muted border-t-2 border-accent">
-                <div className="col-span-11 font-mono-label text-accent">{t('finances.total')}</div>
-                <div className="col-span-1 text-right font-mono font-black text-accent tabular-nums">
+              <div className="flex items-center justify-between gap-3 px-4 py-4 bg-muted border-t-2 border-accent">
+                <div className="font-mono-label text-accent">{t('finances.total')}</div>
+                <div className="text-right font-mono font-black text-accent tabular-nums whitespace-nowrap lg:mr-[calc(100%/12)]">
                   {total.toFixed(2)}{currency}
                 </div>
               </div>

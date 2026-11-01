@@ -1,6 +1,6 @@
 {
   "name": "lan-party-manager",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,7 +21,7 @@
     "react-hook-form": "^7.48.2",
     "react-i18next": "^17.0.8",
     "react-qr-code": "^2.2.0",
-    "react-router-dom": "^6.20.1"
+    "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

@@ -43,13 +43,15 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+import card_trades
 from activity import add_activity
 from cards_rules import (
     BOOSTER_PRICE_XP, EPIC_RATES, PURCHASE_WINDOW_DAYS, PURCHASES_PER_WEEK, booster_size,
 )
 from event_utils import local_day_start_utc, local_today
 from models import (
-    AppSetting, Card, CardBooster, CardFace, EventRSVP, EventTrophy, EventTrophyWinner, LanEvent, User,
+    AppSetting, Card, CardBooster, CardFace, CardTrade, CardTradeItem, EventRSVP, EventTrophy, EventTrophyWinner,
+    LanEvent, User,
 )
 from router_settings import get_setting, is_feature_enabled
 from uploads import copy_upload, remove_upload
@@ -432,6 +434,7 @@ class CardView:
         self._numbers: Dict[int, List[int]] = {}
         self._trophies: Dict[int, Dict[int, List[str]]] = {}
         self._users: Dict[int, Optional[User]] = {}
+        self._from: Dict[int, str] = {}  # card id → who it was traded from
 
     def _edition_ids(self, event_id: int) -> List[int]:
         if event_id not in self._numbers:
@@ -483,15 +486,35 @@ class CardView:
             "departed": departed,
         }
 
+    def load_provenance(self, cards: Iterable[Card]) -> None:
+        """Who each traded card came from (its last accepted trade), for the
+        collection's "got it from Powet". One query for the lot."""
+        ids = [c.id for c in cards if c.acquired_at is not None]
+        if not ids:
+            return
+        rows = (
+            self.db.query(CardTradeItem.card_id, User.username)
+            .join(CardTrade, CardTrade.id == CardTradeItem.trade_id)
+            .join(User, User.id == CardTradeItem.from_user_id)
+            .filter(CardTradeItem.card_id.in_(ids), CardTrade.status == "accepted")
+            .order_by(CardTrade.decided_at, CardTrade.id)
+            .all()
+        )
+        for card_id, username in rows:
+            self._from[card_id] = username  # the last trade wins
+
     def card(self, card: Card) -> dict:
         booster = card.booster
         return {
             "id": card.id,
+            "face_id": card.face_id,
             "rarity": card.rarity,
             "kind": card.kind,
             "slot": card.slot,
             "source_type": booster.source_type if booster else "signature",
-            "obtained_at": (booster.opened_at if booster else card.created_at),
+            "obtained_at": card.acquired_at or (booster.opened_at if booster else card.created_at),
+            "acquired_at": card.acquired_at,
+            "acquired_from": self._from.get(card.id),
             "face": self.face(card.face),
         }
 
@@ -529,9 +552,29 @@ def collection(db: Session, owner: User) -> dict:
     the most collected. `collected` / `crew_size` is the completion counter
     (active members other than the owner)."""
     view = CardView(db)
+    owned = owned_cards(db, owner.id)
+    view.load_provenance(owned)
     groups: Dict[int, List[dict]] = {}
-    for card in owned_cards(db, owner.id):
+    by_type: Dict[tuple, List[Card]] = {}
+    for card in owned:
         groups.setdefault(card.face.user_id, []).append(view.card(card))
+        by_type.setdefault(card_trades.card_type(card), []).append(card)
+
+    # Trading (card_trades.py): per type, the copies held, those that can be
+    # given (all but one, never the signature), and whether one is listed.
+    spare = card_trades.tradable(by_type)
+    listed = card_trades.listed_types(db, owner.id) & set(spare)
+    types = [
+        {
+            "face_id": face_id,
+            "rarity": rarity,
+            "count": len(cards),
+            "tradable": len(spare.get((face_id, rarity), [])),
+            "listed": (face_id, rarity) in listed,
+            "card_ids": [c.id for c in spare.get((face_id, rarity), [])],
+        }
+        for (face_id, rarity), cards in by_type.items()
+    ]
 
     members = []
     for user_id, cards in groups.items():
@@ -558,6 +601,7 @@ def collection(db: Session, owner: User) -> dict:
         "crew_size": len(crew),
         "total_cards": sum(m["count"] for m in members),
         "epic_cards": sum(m["epic_count"] for m in members),
+        "types": types,
     }
 
 

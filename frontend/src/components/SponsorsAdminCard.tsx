@@ -160,7 +160,7 @@ export default function SponsorsAdminCard({ eventId }: { eventId: number }) {
         </div>
       )}
 
-      <p className="font-mono-label text-muted-foreground/60 text-[10px] mt-3">{t('sponsors.formatsHint')}</p>
+      <p className="font-mono-label text-muted-foreground text-[10px] mt-3">{t('sponsors.formatsHint')}</p>
     </div>
   )
 }

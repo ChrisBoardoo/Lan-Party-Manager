@@ -3,6 +3,7 @@
 // dev` output stays visible.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod gametime;
 mod lol;
 
 use std::sync::{Arc, Mutex};
@@ -317,14 +318,22 @@ const POLL_INTERVAL: Duration = Duration::from_secs(30);
 /// doc comment for why Discord's completion also lands here rather than
 /// calling this directly).
 ///
-/// Also starts the League of Legends capture loop (lol.rs) under the same
-/// generation, so a logout or token change stops both together.
+/// Also starts the League of Legends capture loop (lol.rs) and the game time
+/// loop (gametime.rs) under the same generation, so a logout or token change
+/// stops them all together.
 fn start_polling(app: tauri::AppHandle, token: String, base_url: String, generation: Arc<Mutex<u64>>) {
     let my_generation = {
         let mut g = generation.lock().unwrap();
         *g += 1;
         *g
     };
+    tauri::async_runtime::spawn(gametime::watch(
+        app.clone(),
+        token.clone(),
+        base_url.clone(),
+        my_generation,
+        generation.clone(),
+    ));
     tauri::async_runtime::spawn(lol::watch(
         app.clone(),
         token.clone(),

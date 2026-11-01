@@ -124,12 +124,12 @@ function CardsOnly({ children }: { children: ReactNode }) {
 
 // The Games page is opt-in, same guard shape as MiniGamesOnly (waits for
 // /public-config since the flags start false, so a fresh deep-link isn't
-// bounced before the real value arrives). Either of its two features opens
-// it: the finder (games library) or the League of Legends tracker.
+// bounced before the real value arrives). Any of its features opens it: the
+// finder (games library), the League of Legends tracker or the game time.
 function GamesOnly({ children }: { children: ReactNode }) {
-  const { gamesEnabled, lolStatsEnabled, configLoaded } = useAppConfig()
+  const { gamesEnabled, lolStatsEnabled, gametimeEnabled, configLoaded } = useAppConfig()
   if (!configLoaded) return <ConfigGate />
-  if (!gamesEnabled && !lolStatsEnabled) return <Navigate to="/" replace />
+  if (!gamesEnabled && !lolStatsEnabled && !gametimeEnabled) return <Navigate to="/" replace />
   return <>{children}</>
 }
 

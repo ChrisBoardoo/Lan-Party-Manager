@@ -22,6 +22,7 @@ from typing import Callable, Dict, List, Optional, Set, Tuple
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from card_trades import accepted_by_member
 from database import SessionLocal
 from discord_notify import send_discord_message
 from event_utils import _instance_tz, local_day_start_utc, local_today
@@ -51,6 +52,7 @@ TARGETS = {
     "chat_days": 5,      # days with a Craving Chat message that counts
     "rsvp_next": 1,      # an answer to the next LAN's RSVP
     "planning_vote": 1,  # a vote on a planning slot
+    "trade": 1,          # an accepted card trade, either side
 }
 
 Window = Tuple[datetime, datetime]
@@ -156,6 +158,11 @@ def _planning_vote(db: Session, window: Window, objective: dict) -> Dict[int, in
     )
 
 
+def _trade(db: Session, window: Window, objective: dict) -> Dict[int, int]:
+    """Card trades accepted during the month, counted for both sides."""
+    return accepted_by_member(db, *window)
+
+
 # ── Availability: what can be asked this month ────────────────────────────────
 # Each returns the objective's extra parameters ({} for none), or None when it
 # can't be asked. Checked once, when the month's contract is drawn.
@@ -217,6 +224,10 @@ def _offer_planning_vote(db: Session, today: date) -> Optional[dict]:
     return {} if slot else None
 
 
+def _offer_trade(db: Session, today: date) -> Optional[dict]:
+    return {} if is_feature_enabled(db, "cards_trading") else None
+
+
 # code → (availability, progress). The codes are i18n keys on the frontend
 # (`quests.objective.<code>`).
 CATALOGUE: Dict[str, Tuple[Callable[[Session, date], Optional[dict]], Callable[[Session, Window, dict], Dict[int, int]]]] = {
@@ -225,6 +236,7 @@ CATALOGUE: Dict[str, Tuple[Callable[[Session, date], Optional[dict]], Callable[[
     "chat_days": (_offer_chat_days, _chat_days),
     "rsvp_next": (_offer_rsvp_next, _rsvp_next),
     "planning_vote": (_offer_planning_vote, _planning_vote),
+    "trade": (_offer_trade, _trade),
 }
 
 

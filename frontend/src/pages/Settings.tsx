@@ -903,6 +903,14 @@ export default function Settings() {
                 defaultOff
               />
               <FeatureToggleRow
+                settingKey="gametime_enabled"
+                label={t('settings.gametimeToggleLabel')}
+                description={t('settings.gametimeToggleDesc')}
+                value={settings.find((s) => s.key === 'gametime_enabled')?.value ?? null}
+                onToggle={handleSave}
+                defaultOff
+              />
+              <FeatureToggleRow
                 settingKey="xp_enabled"
                 label={t('settings.xpToggleLabel')}
                 description={t('settings.xpToggleDesc')}
@@ -923,6 +931,14 @@ export default function Settings() {
                 label={t('settings.cardsToggleLabel')}
                 description={t('settings.cardsToggleDesc')}
                 value={settings.find((s) => s.key === 'cards_enabled')?.value ?? null}
+                onToggle={handleSave}
+                defaultOff
+              />
+              <FeatureToggleRow
+                settingKey="cards_trading_enabled"
+                label={t('settings.cardsTradingToggleLabel')}
+                description={t('settings.cardsTradingToggleDesc')}
+                value={settings.find((s) => s.key === 'cards_trading_enabled')?.value ?? null}
                 onToggle={handleSave}
                 defaultOff
               />
@@ -1351,7 +1367,7 @@ export default function Settings() {
               <div>
                 <p className="font-mono-label text-muted-foreground text-[10px] mb-1">{label}</p>
                 <p className="font-mono text-sm text-foreground">{repo}</p>
-                <p className="font-mono-label text-muted-foreground text-[10px] mt-1">:latest · :1.4.1</p>
+                <p className="font-mono-label text-muted-foreground text-[10px] mt-1">:latest · :1.5.0</p>
               </div>
               <ExternalLink size={12} strokeWidth={1.5} className="text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0" />
             </ExternalLinkButton>

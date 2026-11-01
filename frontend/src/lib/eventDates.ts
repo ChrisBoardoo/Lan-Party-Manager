@@ -53,9 +53,9 @@ export function todayIso(): string {
 }
 
 // The LAN running today, whole days from start to end — the latest-starting
-// one if two overlap. Same rule as backend/router_lol.py's `_lan_in_progress`
-// minus its RSVP check: this only picks what the LoL tracker shows by default,
-// the server still decides which LAN a captured game belongs to.
+// one if two overlap. Same rule as backend/event_utils.py's `lan_in_progress`
+// minus its RSVP check: this only picks what the LoL tracker and the game time
+// tab show by default, the server still decides which LAN a capture belongs to.
 export function eventInProgress<T extends { start_date: string; end_date: string }>(events: T[]): T | undefined {
   const today = todayIso()
   return events

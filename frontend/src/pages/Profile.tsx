@@ -315,7 +315,7 @@ export default function Profile() {
   }
 
   return (
-    <main className="max-w-4xl mx-auto px-6 py-12">
+    <main className="max-w-4xl lg:max-w-6xl 3xl:max-w-[1600px] 4xl:max-w-[2240px] 5xl:max-w-[2880px] mx-auto px-6 py-12">
       {/* Header */}
       <div className="mb-12">
         <div className="font-mono-label text-accent mb-3">{t('profile.tagline')}</div>
@@ -331,9 +331,12 @@ export default function Profile() {
         )}
       </div>
 
-      {/* Single-column, in the order the crew asked for: upcoming events and
-          avatar first (identity), then contact/account/social, then the
-          heavier My Setup block, then the rest. Phone/clothing size/roles
+      {/* In the order the crew asked for: upcoming events and avatar first
+          (identity), then contact/account/social, then the heavier My Setup
+          block, then the rest. One column on a phone; from lg the small cards
+          flow into columns (read top to bottom, same order), and My Setup /
+          Games — wide content with their own grids — stay full width, side by
+          side from 4xl. Phone/clothing size/roles
           are all on the same ProfileForm (react-hook-form tracks values via
           `register`, not by which DOM element wraps the input) but there's
           no single <form> tag around them any more — Change Password sits
@@ -341,6 +344,7 @@ export default function Profile() {
           nest, so Save Profile below triggers handleSubmit(onSubmit)
           directly on click instead. */}
       <div className="space-y-6">
+        <div className="lg:columns-2 3xl:columns-3 4xl:columns-4 5xl:columns-5 gap-6 [&>*]:mb-6 [&>*]:break-inside-avoid [&>*:last-child]:mb-0">
         {/* 00 — XP (renders nothing while the feature is off) */}
         {user && <XpCard userId={user.id} isSelf />}
         {user && <CollectionLink userId={user.id} isSelf />}
@@ -456,7 +460,7 @@ export default function Profile() {
             </div>
             <input type="hidden" {...register('clothing_size', { required: true })} />
             {!clothingSize && (
-              <p className="font-mono-label text-accent/70 mt-2 text-[10px]">{t('profile.selectASize')}</p>
+              <p className="font-mono-label text-accent mt-2 text-[10px]">{t('profile.selectASize')}</p>
             )}
           </div>
         )}
@@ -701,14 +705,22 @@ export default function Profile() {
 
         {/* 07c — Riot ID (typed, not OAuth) — what LoL LAN stats match players by */}
         {(gamesEnabled || lolStatsEnabled) && <RiotIdCard />}
+        </div>
 
-        {/* 08 — My Setup */}
-        {setupEnabled && <MySetupCard />}
+        {/* 08 — My Setup, 09 — Games (library / wishlist) */}
+        {(setupEnabled || gamesEnabled) && (
+          <div
+            className={`space-y-6 4xl:space-y-0 4xl:grid 4xl:gap-6 4xl:items-start 4xl:[&>*]:mt-0 ${
+              setupEnabled && gamesEnabled ? '4xl:grid-cols-2' : ''
+            }`}
+          >
+            {setupEnabled && <MySetupCard />}
+            {gamesEnabled && <GamesLibraryCard />}
+          </div>
+        )}
 
-        {/* 09 — Games (library / wishlist) */}
-        {gamesEnabled && <GamesLibraryCard />}
-
-        {/* 10 — Change password */}
+        {/* 10 — Change password, 11 — Badges */}
+        <div className="space-y-6 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
         <div className="border border-border bg-card p-6">
           <p className="font-mono-label text-muted-foreground mb-4 flex items-center gap-1.5">
             <KeyRound size={12} strokeWidth={1.5} /> {t('profile.changePasswordTitle')}
@@ -763,6 +775,7 @@ export default function Profile() {
             <BadgeList badges={badges} />
           </div>
         )}
+        </div>
 
         {/* 12 — Save */}
         <div className="flex items-center gap-4">

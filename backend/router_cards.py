@@ -5,12 +5,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from typing import List
+
+import card_trades
 import cards
 from cards_rules import BOOSTER_PRICE_XP, PURCHASES_PER_WEEK
 from database import get_db
-from models import User
+from models import CardTrade, User
 from router_settings import is_feature_enabled, require_feature
-from schemas import BoosterOpenOut, CardsMeOut, CollectionOut
+from schemas import (
+    BoosterOpenOut, CardsMeOut, CollectionOut, ListingCreate, ListingOut, TradeCreate, TradeOut, TradesOut,
+    TradeSuggestionOut,
+)
 
 router = APIRouter()
 
@@ -45,6 +51,7 @@ def _me(db: Session, user: User, ledger=None) -> CardsMeOut:
         purchases_per_week=PURCHASES_PER_WEEK,
         purchases_left=left,
         next_purchase_at=next_at,
+        trades_pending=card_trades.pending_received(db, user.id) if is_feature_enabled(db, "cards_trading") else None,
     )
 
 
@@ -102,3 +109,142 @@ def get_collection(user_id: int, db: Session = Depends(get_db), viewer: User = D
     if owner.id == viewer.id:
         _grant_and_commit(db, viewer)  # my signature card shows up on my first visit
     return cards.collection(db, owner)
+
+
+# ── Trades (card_trades.py) ───────────────────────────────────────────────────
+# Gated by `cards_trading` (which needs `cards`). Every write takes the write
+# lock first: an accept re-checks the cards and moves them in one go, and two
+# at once that involve the same card would otherwise both pass their checks.
+
+def _member(user: User) -> dict:
+    return {"id": user.id, "username": user.username, "avatar_url": user.avatar_url}
+
+
+def _trade_out(view: cards.CardView, trade: CardTrade) -> dict:
+    by_id = {i.card_id: i.card for i in trade.items}
+    give, take = card_trades.sides(trade)
+    return {
+        "id": trade.id,
+        "status": trade.status,
+        "closed_reason": trade.closed_reason,
+        "note": trade.note,
+        "created_at": trade.created_at,
+        "decided_at": trade.decided_at,
+        "expires_at": trade.expires_at,
+        "listing_id": trade.listing_id,
+        "proposer": _member(trade.proposer),
+        "recipient": _member(trade.recipient),
+        "give": [view.card(by_id[c]) for c in give],
+        "take": [view.card(by_id[c]) for c in take],
+    }
+
+
+@router.get("/trades", response_model=TradesOut)
+def list_trades(db: Session = Depends(get_db), user: User = Depends(require_feature("cards_trading"))):
+    """My offers: received and sent (pending), and the history. Offers that
+    lapsed or became impossible are closed on the way."""
+    mine = card_trades.my_trades(db, user)
+    db.commit()
+    view = cards.CardView(db)
+    return {key: [_trade_out(view, t) for t in trades] for key, trades in mine.items()}
+
+
+@router.post("/trades", response_model=TradeOut)
+def propose_trade(data: TradeCreate, db: Session = Depends(get_db), user: User = Depends(require_feature("cards_trading"))):
+    card_trades.lock(db)
+    trade = card_trades.propose(db, user, data.recipient_id, data.give, data.take, data.listing_id, data.note)
+    db.commit()
+    db.refresh(trade)
+    return _trade_out(cards.CardView(db), trade)
+
+
+def _answer(db: Session, trade: CardTrade) -> dict:
+    db.commit()
+    db.refresh(trade)
+    return _trade_out(cards.CardView(db), trade)
+
+
+@router.post("/trades/{trade_id}/accept", response_model=TradeOut)
+def accept_trade(trade_id: int, db: Session = Depends(get_db), user: User = Depends(require_feature("cards_trading"))):
+    """The cards change hands, after every rule is checked again. 409 when the
+    offer can't go through any more (it's then cancelled)."""
+    card_trades.lock(db)
+    return _answer(db, card_trades.accept(db, trade_id, user))
+
+
+@router.post("/trades/{trade_id}/decline", response_model=TradeOut)
+def decline_trade(trade_id: int, db: Session = Depends(get_db), user: User = Depends(require_feature("cards_trading"))):
+    card_trades.lock(db)
+    return _answer(db, card_trades.decline(db, trade_id, user))
+
+
+@router.post("/trades/{trade_id}/cancel", response_model=TradeOut)
+def cancel_trade(trade_id: int, db: Session = Depends(get_db), user: User = Depends(require_feature("cards_trading"))):
+    card_trades.lock(db)
+    return _answer(db, card_trades.cancel(db, trade_id, user))
+
+
+@router.get("/listings", response_model=List[ListingOut])
+def list_listings(db: Session = Depends(get_db), user: User = Depends(require_feature("cards_trading"))):
+    """The crew's market. Listings whose author no longer has a duplicate of
+    that type are closed on the way."""
+    holdings = card_trades.Holdings(db)
+    listings = card_trades.open_listings(db, holdings)
+    db.commit()
+    mine = holdings.of(user.id)
+    view = cards.CardView(db)
+    out = []
+    for listing in listings:
+        spare = card_trades.tradable(holdings.of(listing.owner_id)).get((listing.face_id, listing.rarity))
+        if not spare:
+            continue
+        out.append({
+            "id": listing.id,
+            "owner": _member(listing.owner),
+            "card": view.card(spare[-1]),
+            "note": listing.note,
+            "created_at": listing.created_at,
+            "mine": listing.owner_id == user.id,
+            "viewer_count": len(mine.get((listing.face_id, listing.rarity), [])),
+        })
+    return out
+
+
+@router.post("/listings", response_model=ListingOut)
+def create_listing(data: ListingCreate, db: Session = Depends(get_db), user: User = Depends(require_feature("cards_trading"))):
+    card_trades.lock(db)
+    listing = card_trades.create_listing(db, user, data.face_id, data.rarity, data.note)
+    db.commit()
+    db.refresh(listing)
+    held = card_trades.Holdings(db).of(user.id)
+    spare = card_trades.tradable(held)[(listing.face_id, listing.rarity)]
+    return {
+        "id": listing.id,
+        "owner": _member(user),
+        "card": cards.CardView(db).card(spare[-1]),
+        "note": listing.note,
+        "created_at": listing.created_at,
+        "mine": True,
+        "viewer_count": len(held[(listing.face_id, listing.rarity)]),
+    }
+
+
+@router.delete("/listings/{listing_id}")
+def delete_listing(listing_id: int, db: Session = Depends(get_db), user: User = Depends(require_feature("cards_trading"))):
+    card_trades.lock(db)
+    card_trades.close_listing(db, listing_id, user)
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/trade-suggestions", response_model=List[TradeSuggestionOut])
+def trade_suggestions(db: Session = Depends(get_db), user: User = Depends(require_feature("cards_trading"))):
+    view = cards.CardView(db)
+    return [
+        {
+            "member": _member(s["user"]),
+            "they_give": [view.card(c) for c in s["they_give"]],
+            "i_give": [view.card(c) for c in s["i_give"]],
+        }
+        for s in card_trades.suggestions(db, user)
+    ]

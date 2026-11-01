@@ -25,6 +25,9 @@ jobs:
     name: Shell build, cargo test, clippy, cargo audit
     runs-on: windows-latest
     timeout-minutes: 40
+    # Windows minutes count double. Dependabot's cargo/npm bumps are checked by
+    # hand (cargo test --locked locally) instead of being paid for here.
+    if: github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v4
 

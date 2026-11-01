@@ -1,6 +1,6 @@
 [package]
 name = "lpm-desktop"
-version = "1.4.1"
+version = "1.5.0"
 description = "LAN Party Manager desktop client"
 edition = "2021"
 
@@ -21,3 +21,9 @@ tokio = { version = "1", features = ["time", "net", "io-util"] }
 notify-rust = "4"
 open = "5"
 getrandom = "0.2"
+# Game time (gametime.rs): the process list, without the rayon thread pool.
+sysinfo = { version = "0.30", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+# Game time: where Steam is installed (HKCU\Software\Valve\Steam).
+winreg = "0.55"

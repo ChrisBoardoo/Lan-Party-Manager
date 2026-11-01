@@ -7,7 +7,7 @@
 **Self-hosted event management for LAN parties** — crew invites, tournaments, treasury,
 media, and live streams, all running on hardware you own. From a Raspberry Pi to a NUC.
 
-[![Version](https://img.shields.io/badge/version-1.4.1-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.5.0-FF3D00?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-4C566A?style=flat-square)](../LICENSE)
 [![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -62,14 +62,15 @@ no telemetry, no subscription. Your crew's data stays on your box.
 | **Mini-Games** | Embedded arcade games with a **persistent per-player leaderboard**, to keep the crew coming back between two LANs. Ships with *Neon Survivor* (a roguelite); the schema is multi-game, so more can be added without a migration. Solo runs only are ranked — a 2-player co-op run lasts mechanically longer. Scores are checked server-side against a run token and real elapsed time. Opt-in. |
 | **Games Library & Finder** | Each member keeps a game library (favorites, player counts, a wishlist), optionally imported from a linked Steam account. The finder ranks crewmates by the games they share with you and lists what a whole group owns, for a session that starts without a "who has it?" round. Opt-in. |
 | **Riot ID & LoL Stats** | Members set their Riot ID; the desktop app captures the League of Legends games played during a LAN and the Games page shows per-event and all-time stats. Submissions are rate-limited and bounded, a game counts for a member only if their own app sent it, and an admin can remove one that shouldn't count. Opt-in. |
+| **Game time** | The desktop app recognises the games running on a member's PC (Steam and Epic libraries, plus a list of known games served by the instance) and counts the time spent in each during a LAN. Games › Game time shows the totals by game and by member, who's playing right now, and the LAN's days × hours. Only the game's name leaves the PC; each member can switch counting off, hide what they play, or count outside LANs too. No XP. Opt-in. |
 | **XP & Levels** | Crew XP and levels derived on read from tournaments, attendance, chat and media — nothing stored, nothing to migrate — with a Hub leaderboard and a per-profile breakdown. A tournament pays XP only when both sides have linked accounts. Opt-in. |
-| **Collectible Cards & Boosters** | Spend XP on boosters that reveal crew cards (the Epic always last); every member's collection is a showcase the whole crew can browse. Buying and opening are atomic — a double click never spends twice. Opt-in, needs XP. |
+| **Collectible Cards & Boosters** | Spend XP on boosters that reveal crew cards (the Epic always last); every member's collection is a showcase the whole crew can browse. Buying and opening are atomic — a double click never spends twice. Opt-in, needs XP. Members can also trade their duplicates — offers, a crew market, suggestions — under a separate flag, off by default. |
 | **Monthly Contract** | A set of objectives for the month, worth XP once the required number is met, with each member's progress computed from what they already do. Opt-in, needs XP. |
 | **Trophies & Votes** | Crew-defined trophies awarded per event — by attendee vote (open, close, nudge the stragglers, reveal) or by an admin. Drafts stay admin-only until revealed; a member's trophies make their showcase. Opt-in. |
 | **Groceries** | A per-event food & drink list: attendees add items, assign a buyer, tick them off as bought, or import a whole list at once. Opt-in. |
 | **Guest WiFi (QR)** | Admins enter the venue's SSID, security and password once; the event page and the kiosk show a scannable WiFi QR code. An empty SSID hides it. |
 | **Attendance Lock** | From an event's first day, members can no longer change their RSVP (409 with a clear message); a treasurer or admin sets attendance for them, audited and notified — so the pro-rata split rests on real nights. |
-| **Treasury** | Expense tracking by category, automatic **pro-rata cost splitting** based on attendance nights, P2P settlement, and one-click CSV export. |
+| **Treasury** | Expense tracking by category, automatic **pro-rata cost splitting** based on attendance nights, P2P settlement with recorded transfers (partial, catch-up) and a frozen plan, and one-click CSV export. |
 | **Prizes** | Showcase per-event prizes (photo + description) for tournament winners. Enabling Prizes hides Treasury — crews giving out prizes don't usually split expenses. Opt-in. |
 | **Sponsors** | Sponsor banners (image or video) with a click-through link, shown on the event, tournaments, and player profile pages. Opt-in. |
 | **Arena / Tournaments** | Team or solo/individual events; **single-elimination brackets and round-robin** (W/L/D/Pts standings); per-team seeding; **random team draw** (fixed size, redraw at will, leftovers placed by hand); live score tracking; **self-service phone score reporting** (players report, organizer confirms); full-screen bracket view for projecting. |
@@ -173,7 +174,7 @@ docker compose up -d
 Portainer turns `${VAR:-default}` into an empty string rather than the default: write literal
 values in the stack. Two more habits that pay off on a self-hosted box:
 
-- Pin both `image:` lines to a version (`crosswax/lanpartymanager-backend:1.4.1`, not `:latest`).
+- Pin both `image:` lines to a version (`crosswax/lanpartymanager-backend:1.5.0`, not `:latest`).
   An update is then a deliberate edit, and rolling back is putting the previous number back.
   Every release is pushed under both tags.
 - If the backend container can't resolve names (Discord and Steam linking both fail, mail doesn't
@@ -434,6 +435,10 @@ List endpoints support `?limit=` and `?offset=` pagination.
 | POST   | `/api/expenses/`        | Treasurer / Admin | Create expense                                                   |
 | PUT    | `/api/expenses/{id}`    | Treasurer / Admin | Update expense                                                   |
 | DELETE | `/api/expenses/{id}`    | Treasurer / Admin | Delete expense                                                   |
+| POST   | `/api/expenses/settlements/mark` | Debtor (Treasurer for an inactive member) | "Payment sent": records a transfer of the line's amount, dated today |
+| POST   | `/api/expenses/transfers` | Treasurer / Admin | Record 1–20 transfers between members: any amount (partial), real date (catch-up), optional note; a member outside the split needs `confirm_outside_split` |
+| DELETE | `/api/expenses/transfers/{id}` | Treasurer / Admin, or the member for their own "payment sent" | Delete a transfer |
+| POST   | `/api/expenses/transfers/recalculate` | Treasurer / Admin | Recompute the settlement plan from what everyone still owes |
 
 ### Prizes
 
@@ -715,6 +720,17 @@ Everything game-specific — what `score` counts, its ceiling, its sort directio
 | GET    | `/api/lol/matches`             | Any               | Captured games (`?event_id=`)                                               |
 | DELETE | `/api/lol/matches/{match_id}`  | Admin only        | Remove a game that shouldn't count (a test, a remake); audited              |
 
+### Game time (desktop detection)
+
+*Opt-in — 404 while the `gametime` flag is off. Sessions are built from the desktop app's heartbeats, on the server's clock.*
+
+| Method | Path                               | Auth | Description                                                                 |
+|--------|------------------------------------|------|-----------------------------------------------------------------------------|
+| POST   | `/api/gametime/heartbeat`          | Any  | "I'm playing X" (up to 3 games), sent every minute while a game runs; extends the open session or starts one. Filed under the LAN the member attends today, else under none |
+| GET    | `/api/gametime/status`             | Any  | What the desktop app polls to know whether to count (answers even with the flag off, so the app stops) |
+| GET    | `/api/gametime/catalog`            | Any  | The executables the app recognises and the ones it ignores (`backend/gametime_catalog.json`) |
+| GET    | `/api/gametime/events/{event_id}`  | Any  | A LAN's game time: totals by game and member, heatmap by local day and hour, playing now, longest session |
+
 ### XP & Levels
 
 *Opt-in — 404 while the `xp` flag is off. Derived on read from tournaments, attendance, chat and media; the ledger is cached 30 s per process and invalidated by any write that counts.*
@@ -734,6 +750,22 @@ Everything game-specific — what `score` counts, its ceiling, its sort directio
 | POST   | `/api/cards/boosters/buy`                 | Any  | Buy a booster with spendable XP; 409 when the balance no longer covers it       |
 | POST   | `/api/cards/boosters/{booster_id}/open`   | Any  | Reveal a booster's cards in slot order (the Epic last); a second open is refused |
 | GET    | `/api/cards/collection/{user_id}`         | Any  | A member's collection, readable by the whole crew                               |
+
+### Card Trades
+
+*Opt-in — 404 while the `cards_trading` flag is off (it needs `cards` too). Only duplicates move: everyone keeps one copy of each card, the signature card never moves, and nobody receives a card of themselves. Nothing is reserved while an offer is pending; everything is checked again, serialized, when it's accepted.*
+
+| Method | Path                                   | Auth      | Description                                                                                                                                                                      |
+|--------|----------------------------------------|-----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| GET    | `/api/cards/trades`                    | Any       | My offers: received and sent (pending), and the history. Offers that lapsed (7 days) or became impossible are closed on read                                                     |
+| POST   | `/api/cards/trades`                    | Any       | Offer 1–3 of my duplicates for 1–3 of theirs (`recipient_id`, `give`, `take`, optional `listing_id` and `note`); one 400 for any card that can't be traded, without saying which |
+| POST   | `/api/cards/trades/{trade_id}/accept`  | Recipient | Swap the cards, every rule checked again; 409 when a card has moved since (the offer is then cancelled)                                                                          |
+| POST   | `/api/cards/trades/{trade_id}/decline` | Recipient | Decline the offer                                                                                                                                                                |
+| POST   | `/api/cards/trades/{trade_id}/cancel`  | Proposer  | Withdraw the offer                                                                                                                                                               |
+| GET    | `/api/cards/listings`                  | Any       | The crew's market: duplicates put up for trade                                                                                                                                   |
+| POST   | `/api/cards/listings`                  | Any       | Put a duplicate up for trade (`face_id`, `rarity`, optional `note`)                                                                                                              |
+| DELETE | `/api/cards/listings/{listing_id}`     | Author    | Take a listing down                                                                                                                                                              |
+| GET    | `/api/cards/trade-suggestions`         | Any       | Up to three members with whom a trade suits both sides                                                                                                                           |
 
 ### Monthly Contract
 
@@ -781,6 +813,15 @@ share(user)         = person_nights(user) / total_person_nights * total_expenses
 Dates are set **per event**, not globally: RSVP "in" on the **LAN Party** page and confirm your
 arrival/departure within that event's window to appear in its breakdown. The Treasury Pro-Rata tab
 lets you pick which event to split (defaults to the soonest upcoming one) and export the result as CSV.
+
+**Who owes whom** is a minimal set of transfers, computed in integer cents. Since 1.4.2 every
+payment is a **transfer** (amount, real date, note, who entered it): the debtor clicks "payment
+sent" on their line, or the treasurer/an admin records any transfer — a partial reimbursement, a
+payment made outside the plan, or a catch-up of bank transfers made during the LAN. The plan is
+**frozen** at the first payment, so a payment only changes the lines of the people it concerns. It
+is recomputed when an expense or a stay changes, when a transfer it counted is deleted, when a
+transfer dated before it is entered, or on the treasurer's "Recalculate the plan". Every transfer is
+audited; both members are notified, and so is anyone whose own payments change.
 
 ---
 

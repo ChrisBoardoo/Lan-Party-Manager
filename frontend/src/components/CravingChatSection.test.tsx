@@ -1,7 +1,15 @@
-import { describe, it, expect } from 'vitest'
-import { render } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, act } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import '../i18n'
+import { ToastProvider } from '../contexts/ToastContext'
+import { chatApi } from '../lib/api'
 import type { ChatMention, ChatMessage } from '../types'
-import { renderMessageContent, colorForUser, mergeMessages } from './CravingChatSection'
+import CravingChatSection, { renderMessageContent, colorForUser, mergeMessages } from './CravingChatSection'
+
+vi.mock('../lib/api', () => ({ chatApi: { getMessages: vi.fn(), getPinned: vi.fn() } }))
+vi.mock('../hooks/useCravingChat', () => ({ useCravingChat: () => ({ sendTyping: () => {} }) }))
+vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 1, role: 'user' } }) }))
 
 // renderMessageContent is the one-pass URL + @mention highlighter for chat
 // bubbles (router_chat.py's _resolve_mentions is the actual security
@@ -171,5 +179,39 @@ describe('mergeMessages', () => {
 
   it('keeps the list in id order', () => {
     expect(mergeMessages([msg(3)], [msg(1), msg(2)]).map((m) => m.id)).toEqual([1, 2, 3])
+  })
+})
+
+// 2026-11-01, desktop app: the Hub opened the October LAN's room (picked
+// before the chat rules had loaded), switched to the 2027 LAN's a moment
+// later, and the October room's slower answer landed last — the Hub then
+// showed October's messages while the chat page showed 2027's.
+describe('CravingChatSection: switching rooms', () => {
+  const message = (id: number, eventId: number, content: string) =>
+    ({
+      id, event_id: eventId, user_id: 2, username: 'HugeP', avatar_url: null, is_admin: false, content,
+      created_at: '2026-10-19T12:00:00', edited_at: null, is_mine: false, reply_to: null,
+      reactions: [], link_preview: null, mentions: [],
+    }) as ChatMessage
+
+  it("keeps the new room's messages when the old room answers last", async () => {
+    Element.prototype.scrollIntoView = vi.fn()  // jsdom has none
+    let answerOld!: (items: ChatMessage[]) => void
+    let answerNew!: (items: ChatMessage[]) => void
+    vi.mocked(chatApi.getMessages)
+      .mockReturnValueOnce(new Promise((resolve) => { answerOld = resolve }))
+      .mockReturnValueOnce(new Promise((resolve) => { answerNew = resolve }))
+    vi.mocked(chatApi.getPinned).mockResolvedValue(null)
+    const room = (eventId: number) => (
+      <MemoryRouter><ToastProvider><CravingChatSection eventId={eventId} attendees={[]} /></ToastProvider></MemoryRouter>
+    )
+
+    const { rerender } = render(room(1))
+    rerender(room(2))
+    await act(async () => { answerNew([message(20, 2, 'yes lanpartymanager.com')]) })
+    await act(async () => { answerOld([message(10, 1, 'Gg lan')]) })
+
+    expect(screen.getByText('yes lanpartymanager.com')).toBeInTheDocument()
+    expect(screen.queryByText('Gg lan')).toBeNull()
   })
 })

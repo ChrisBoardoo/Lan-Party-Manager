@@ -9,12 +9,20 @@ export default {
         // feature is on for an admin in French — measured via Playwright,
         // labels only fit cleanly from ~1680px up (see Navbar.tsx).
         '3xl': '1680px',
+        // Very wide screens (1440p at 100%, ultrawides up to 5120×2160 in the
+        // crew): pages that tile cards add columns here instead of leaving a
+        // 1600px strip in the middle (Profile.tsx).
+        '4xl': '2400px',
+        '5xl': '3200px',
       },
       colors: {
         background: '#0A0A0A',
         foreground: '#FAFAFA',
         muted: '#1A1A1A',
-        'muted-foreground': '#737373',
+        // #737373 until 1.4.1: 4.2:1 on the page, 3.7:1 in inputs (below WCAG
+        // AA), flagged by the crew at the October 2026 LAN. #909090 is 6.2:1 on
+        // the page and 5.45:1 on bg-muted, still clearly a step below foreground.
+        'muted-foreground': '#909090',
         accent: '#FF3D00',
         'accent-foreground': '#0A0A0A',
         border: '#262626',

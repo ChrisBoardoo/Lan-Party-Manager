@@ -3,11 +3,16 @@ name: CI
 on:
   push:
     branches: [main, master]
+    tags: ["v*"]
   pull_request:
+  schedule:
+    - cron: "17 4 * * 1"   # Mondays 04:17 UTC: the weekly arm64 smoke (see that job)
+  workflow_dispatch:
 
-# A newer push to the same branch cancels the run in progress.
+# A newer push to the same branch cancels the run in progress (a scheduled run
+# has its own group, so it never cancels a push's run).
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -135,6 +140,11 @@ jobs:
     name: Alembic migrations on arm64 (Raspberry Pi parity)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # 15-20 emulated minutes per run, about 90 % of what a push used to bill:
+    # the private repo ran out of Actions minutes on 2026-10-21. Migrations
+    # ship with a release, so this runs on release tags (v*), once a week and
+    # on demand (Actions tab -> Run workflow), not on every push.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     # Backend-tests above never actually runs a migration file (conftest.py
     # builds the schema straight from Base.metadata), and even a native
     # ubuntu-latest run of Alembic wouldn't reproduce this: a 2026-09-14

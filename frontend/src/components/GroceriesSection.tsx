@@ -147,7 +147,7 @@ export default function GroceriesSection({ eventId, attendees }: { eventId: numb
         <span className="font-mono-label text-muted-foreground text-xs flex items-center gap-1.5">
           <ShoppingCart size={13} /> {t('groceries.progress', { bought: data?.bought_count ?? 0, total: data?.total_count ?? 0 })}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={exportCsv} disabled={items.length === 0}>
             <Download size={13} /> {t('groceries.exportButton')}
           </Button>

@@ -57,7 +57,7 @@ export default function AboutModal({ onClose }: { onClose: () => void }) {
           </p>
 
           <div>
-            <p className="font-mono-label text-muted-foreground/60 text-[10px] mb-2">
+            <p className="font-mono-label text-muted-foreground text-[10px] mb-2">
               {t('footer.specialThanks')}
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -72,8 +72,8 @@ export default function AboutModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <p className="font-mono-label text-muted-foreground/50 text-[10px] pt-2 border-t border-border">
-            1.4.1
+          <p className="font-mono-label text-muted-foreground text-[10px] pt-2 border-t border-border">
+            1.5.0
           </p>
         </div>
       </div>
