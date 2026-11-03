@@ -95,13 +95,13 @@ export default function Dashboard() {
       tournamentsApi.getAll(),
       activityApi.getAll(20),
       tournamentsApi.getHallOfFame(),
-      mediaApi.getAll(),
+      mediaApi.getRecent(RECENT_MEDIA_COUNT),
     ])
     setUsers(u)
     setTournaments(tour)
     setActivity(act)
     setHallOfFame(hof)
-    setRecentMedia(media.slice(0, RECENT_MEDIA_COUNT))
+    setRecentMedia(media)
   }, [])
 
   // Separate from the main load: mini-games are opt-in, so this only runs when the
@@ -458,7 +458,7 @@ export default function Dashboard() {
                         >
                           {entry.media.file_type === 'image' ? (
                             <img
-                              src={entry.media.url}
+                              src={entry.media.thumbnail_url ?? entry.media.url}
                               alt={entry.media.original_name}
                               loading="lazy"
                               decoding="async"
@@ -651,7 +651,7 @@ export default function Dashboard() {
                 >
                   {item.file_type === 'image' ? (
                     <img
-                      src={item.url}
+                      src={item.thumbnail_url ?? item.url}
                       alt={item.original_name}
                       loading="lazy"
                       decoding="async"

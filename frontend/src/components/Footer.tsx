@@ -25,7 +25,7 @@ export default function Footer() {
 
         <span className="w-px h-3 bg-border hidden sm:block" />
 
-        <span className="font-mono-label text-muted-foreground text-[11px]">1.5.0</span>
+        <span className="font-mono-label text-muted-foreground text-[11px]">1.5.1</span>
 
         <span className="w-px h-3 bg-border hidden sm:block" />
 

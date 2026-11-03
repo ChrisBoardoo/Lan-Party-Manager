@@ -41,7 +41,7 @@ function MediaCard({
     >
       {item.file_type === 'image' ? (
         <img
-          src={item.url}
+          src={item.thumbnail_url ?? item.url}
           alt={item.original_name}
           loading="lazy"
           decoding="async"

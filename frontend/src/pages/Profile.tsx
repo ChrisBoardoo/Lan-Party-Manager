@@ -7,6 +7,7 @@ import { useAppConfig } from '../contexts/AppConfigContext'
 import { usersApi, eventsApi, discordApi, steamApi } from '../lib/api'
 import { isEmbeddedInDesktop, requestDiscordAuth, requestSteamAuth } from '../lib/desktopBridge'
 import { formatDate } from '../lib/formatDate'
+import { isUpcoming } from '../lib/eventDates'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Input from '../components/ui/Input'
@@ -86,7 +87,9 @@ export default function Profile() {
 
   useEffect(() => {
     eventsApi.getAll().then((events) => {
-      setUpcomingEvents(events.filter((e) => e.my_rsvp === 'in'))
+      // Same "upcoming" as the Hub and the Events page: a LAN stays listed
+      // through its last day, then drops off.
+      setUpcomingEvents(events.filter((e) => e.my_rsvp === 'in' && isUpcoming(e.end_date)))
     })
   }, [])
 

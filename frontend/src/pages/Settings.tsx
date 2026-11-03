@@ -1367,7 +1367,7 @@ export default function Settings() {
               <div>
                 <p className="font-mono-label text-muted-foreground text-[10px] mb-1">{label}</p>
                 <p className="font-mono text-sm text-foreground">{repo}</p>
-                <p className="font-mono-label text-muted-foreground text-[10px] mt-1">:latest · :1.5.0</p>
+                <p className="font-mono-label text-muted-foreground text-[10px] mt-1">:latest · :1.5.1</p>
               </div>
               <ExternalLink size={12} strokeWidth={1.5} className="text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0" />
             </ExternalLinkButton>

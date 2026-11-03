@@ -333,11 +333,25 @@ export const streamsApi = {
 
 // ── Media ─────────────────────────────────────────────────────────────────────
 
+// The backend serves 50 items unless asked for more, 200 at most: until 1.5.1 a
+// gallery past 50 lost its oldest photos without a word. Page by page instead.
+const MEDIA_PAGE = 200
+
 export const mediaApi = {
-  getAll: (eventId?: number) => {
-    const params = eventId != null ? `?event_id=${eventId}` : ''
-    return client.get<MediaItem[]>(`/media/${params}`).then((r) => r.data)
+  getAll: async (eventId?: number) => {
+    const byId = new Map<number, MediaItem>()
+    for (let offset = 0; ; offset += MEDIA_PAGE) {
+      const params: Record<string, number> = { limit: MEDIA_PAGE, offset }
+      if (eventId != null) params.event_id = eventId
+      const page = (await client.get<MediaItem[]>('/media/', { params })).data
+      // An upload between two pages shifts the list by one: no item twice.
+      for (const item of page) if (!byId.has(item.id)) byId.set(item.id, item)
+      if (page.length < MEDIA_PAGE) return Array.from(byId.values())
+    }
   },
+
+  getRecent: (limit: number) =>
+    client.get<MediaItem[]>('/media/', { params: { limit } }).then((r) => r.data),
 
   upload: (file: File, caption?: string, eventId?: number) => {
     const form = new FormData()

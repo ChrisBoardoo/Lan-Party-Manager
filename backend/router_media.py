@@ -14,6 +14,7 @@ from schemas import MediaItemOut, MediaItemUpdate, MediaReact, MediaReactionCoun
 from auth import get_current_user
 from activity import add_activity
 from file_validation import matches_declared
+from media_photos import store_thumbnail, strip_metadata
 from uploads import UPLOAD_DIR, read_capped, remove_upload
 
 router = APIRouter()
@@ -185,6 +186,10 @@ async def upload_media(
         raise HTTPException(400, "File content does not match its declared type.")
 
     file_type = "image" if file.content_type.startswith("image/") else "video"
+    if file_type == "image":
+        # Before it touches the disk: /uploads/ is public, and a phone photo's
+        # EXIF often holds where it was taken. Lossless (media_photos.py).
+        content = await run_in_threadpool(strip_metadata, content)
     ext = _MIME_TO_EXT.get(file.content_type, "bin")
     # A full uuid: /uploads/ is public, the name is the only thing guarding it.
     filename = f"media_{current_user.id}_{uuid.uuid4().hex}.{ext}"
@@ -196,10 +201,12 @@ async def upload_media(
     # (Q-2 of the 2026-10-20 review).
     await run_in_threadpool(_write_bytes, file_path, content)
 
-    thumbnail_url = None
     if file_type == "video":
         base_name = filename.rsplit(".", 1)[0]
         thumbnail_url = await _generate_video_thumbnail(file_path, UPLOAD_DIR, base_name)
+    else:
+        # What the grids show instead of the original (~1/50th of the bytes).
+        thumbnail_url = await run_in_threadpool(store_thumbnail, filename, content)
 
     item = MediaItem(
         filename=filename,
@@ -300,8 +307,9 @@ class BulkDeleteRequest(BaseModel):
 
 
 def _remove_media_files(item: MediaItem) -> None:
-    """The file and, for a video, its thumbnail — a deleted clip's frame used
-    to stay publicly reachable under /uploads/thumbnails/."""
+    """The file and its thumbnail (a video's frame, a photo's WebP since 1.5.1)
+    — a deleted clip's frame used to stay publicly reachable under
+    /uploads/thumbnails/."""
     filepath = os.path.join(UPLOAD_DIR, "media", item.filename)
     if os.path.exists(filepath):
         try:

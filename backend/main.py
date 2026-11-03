@@ -17,6 +17,7 @@ from limiter import limiter
 from router_settings import get_setting
 from discord_notify import send_event_reminders
 from backup_scheduler import run_scheduled_backup
+from media_photos import backfill_photos
 from lan_reminders import send_lan_countdown_reminders
 from quests import announce_monthly_contract
 from router_auth import router as auth_router
@@ -89,6 +90,10 @@ async def lifespan(app: FastAPI):
         # Off-hours by default (03:00) — the daily reminder job above runs at 10:00,
         # and neither should land during a LAN party's peak activity window.
         scheduler.add_job(run_scheduled_backup, CronTrigger(hour=3, minute=0, timezone=tz))
+    # Once, now, in the background: photos stored before 1.5.1 (or brought back
+    # by restoring an older backup — the restore restarts the process) get their
+    # metadata stripped and a thumbnail. A no-op once they all have one.
+    scheduler.add_job(backfill_photos)
     scheduler.start()
     app.state.scheduler = scheduler
 
@@ -97,7 +102,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="LAN Party Manager API", version="1.5.0", lifespan=lifespan)
+app = FastAPI(title="LAN Party Manager API", version="1.5.1", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
