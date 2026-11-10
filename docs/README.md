@@ -7,7 +7,7 @@
 **Self-hosted event management for LAN parties** — crew invites, tournaments, treasury,
 media, and live streams, all running on hardware you own. From a Raspberry Pi to a NUC.
 
-[![Version](https://img.shields.io/badge/version-1.5.1-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.5.3-FF3D00?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-4C566A?style=flat-square)](../LICENSE)
 [![Platform](https://img.shields.io/badge/platform-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -174,7 +174,7 @@ docker compose up -d
 Portainer turns `${VAR:-default}` into an empty string rather than the default: write literal
 values in the stack. Two more habits that pay off on a self-hosted box:
 
-- Pin both `image:` lines to a version (`crosswax/lanpartymanager-backend:1.5.1`, not `:latest`).
+- Pin both `image:` lines to a version (`crosswax/lanpartymanager-backend:1.5.3`, not `:latest`).
   An update is then a deliberate edit, and rolling back is putting the previous number back.
   Every release is pushed under both tags.
 - If the backend container can't resolve names (Discord and Steam linking both fail, mail doesn't

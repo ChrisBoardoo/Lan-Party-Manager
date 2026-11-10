@@ -480,8 +480,9 @@ function EventCard({
 
       <div className="p-6">
       {/* top row */}
-      <div className="flex items-start justify-between mb-4">
-        <Link to={`/events/${event.id}`} className="flex items-center gap-3 group/header">
+      {/* Wraps: on a phone the actions go under the title instead of past the screen's edge. */}
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <Link to={`/events/${event.id}`} className="flex items-center gap-3 min-w-0 group/header">
           <div
             className={`w-10 h-10 flex items-center justify-center border flex-shrink-0 ${
               upcoming ? 'border-accent text-accent' : 'border-border text-muted-foreground'
@@ -518,7 +519,7 @@ function EventCard({
           </div>
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Locked from the first day: the stay sets everyone's share */}
           {upcoming && event.attendance_locked && (
             <span
@@ -535,7 +536,7 @@ function EventCard({
               <button
                 onClick={handlePillClick}
                 disabled={toggling || isFull}
-                className={`flex items-center gap-1.5 px-3 py-1.5 font-mono-label text-xs border transition-colors duration-150 disabled:opacity-50 ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 font-mono-label text-xs whitespace-nowrap border transition-colors duration-150 disabled:opacity-50 ${
                   event.my_rsvp === 'in'
                     ? 'border-green-500 text-green-400 bg-green-500/10'
                     : 'border-border text-muted-foreground hover:border-foreground hover:text-foreground'
@@ -550,7 +551,7 @@ function EventCard({
               {event.my_rsvp === 'in' && (
                 <button
                   onClick={() => setShowDateModal(true)}
-                  className="font-mono-label text-muted-foreground hover:text-accent text-[10px] underline"
+                  className="font-mono-label text-muted-foreground hover:text-accent text-[10px] underline whitespace-nowrap"
                 >
                   {t('events.card.editDates')}
                 </button>
@@ -559,7 +560,9 @@ function EventCard({
           )}
 
           {(isAdmin || canManageCover) && (
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            // Revealed on hover where there is a mouse; always shown on a touch
+            // screen, which has no hover to reveal them.
+            <div className="flex gap-1 transition-opacity focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
               {canManageCover && (
                 <>
                   <button
@@ -755,7 +758,7 @@ export default function Events() {
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-12">
-      <div className="flex items-start justify-between mb-12">
+      <div className="flex flex-wrap items-start justify-between gap-6 mb-12">
         <div>
           <div className="font-mono-label text-accent mb-3">{t('events.tagline')}</div>
           <h1 className="text-5xl lg:text-6xl font-black tracking-tighter text-foreground leading-none">

@@ -19,7 +19,7 @@ from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from card_trades import accepted_by_member
@@ -57,6 +57,15 @@ TARGETS = {
 
 Window = Tuple[datetime, datetime]
 
+# Since 1.4.1 (D-3 of the 2026-10-20 review, tagged 2026-10-21 21:35 Paris), a
+# LoL game counts for a member only when their own app sent it. Before, any
+# game with two crew accounts counted for both of them. Progress is computed on
+# read, past months included, so applying the rule to older games took back
+# contracts members had been shown as met — and the XP some had already spent
+# on a booster (found on a prod export, 2026-11-10). Games captured before it
+# keep the rule they were played under. Naive UTC, like LolMatch.created_at.
+LOL_SENDER_RULE_SINCE = datetime(2026, 10, 21, 19, 35)
+
 
 # ── Months ────────────────────────────────────────────────────────────────────
 
@@ -82,17 +91,22 @@ def _lol_squad(db: Session, window: Window, objective: dict) -> Dict[int, int]:
     """Games with at least two crew accounts in them, on the same side or not
     (a crew 1v1 counts as much as a premade) — counted for a member only when
     their own app sent the game (lol_match_submitters): a block typed by hand
-    can't fill someone else's objective (D-3 of the 2026-10-20 review)."""
+    can't fill someone else's objective (D-3 of the 2026-10-20 review). A game
+    captured before that rule counts for every crew member in it, as it did
+    then (LOL_SENDER_RULE_SINCE)."""
     start, end = window
     crew: Dict[int, Set[int]] = defaultdict(set)
+    before_rule: Set[int] = set()
     rows = (
-        db.query(LolMatchPlayer.match_id, LolMatchPlayer.user_id)
+        db.query(LolMatchPlayer.match_id, LolMatchPlayer.user_id, LolMatch.created_at)
         .join(LolMatch, LolMatch.id == LolMatchPlayer.match_id)
         .filter(LolMatch.created_at >= start, LolMatch.created_at < end, LolMatchPlayer.user_id.isnot(None))
         .all()
     )
-    for match_id, uid in rows:
+    for match_id, uid, created_at in rows:
         crew[match_id].add(uid)
+        if created_at < LOL_SENDER_RULE_SINCE:
+            before_rule.add(match_id)
     sent: Dict[int, Set[int]] = defaultdict(set)
     if crew:
         for match_id, uid in (
@@ -104,7 +118,7 @@ def _lol_squad(db: Session, window: Window, objective: dict) -> Dict[int, int]:
     games: Counter = Counter()
     for match_id, members in crew.items():
         if len(members) >= 2:
-            games.update(members & sent[match_id])
+            games.update(members if match_id in before_rule else members & sent[match_id])
     return games
 
 
@@ -143,8 +157,19 @@ def _chat_days(db: Session, window: Window, objective: dict) -> Dict[int, int]:
 
 
 def _rsvp_next(db: Session, window: Window, objective: dict) -> Dict[int, int]:
-    """Anyone with an answer for that LAN, given during the month or before."""
-    rows = db.query(EventRSVP.user_id).filter(EventRSVP.event_id == objective.get("event_id")).all()
+    """Anyone with an answer for that LAN, given during the month or before
+    (someone who answered long ago meets it from day one). An answer given
+    after the month doesn't fill that month's contract after the fact. An
+    answer is never deleted, only changed: `created_at` is the first one."""
+    _, end = window
+    rows = (
+        db.query(EventRSVP.user_id)
+        .filter(
+            EventRSVP.event_id == objective.get("event_id"),
+            or_(EventRSVP.created_at.is_(None), EventRSVP.created_at < end),
+        )
+        .all()
+    )
     return {uid: 1 for (uid,) in rows}
 
 

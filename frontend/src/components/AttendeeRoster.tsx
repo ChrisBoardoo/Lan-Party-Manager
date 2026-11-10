@@ -6,6 +6,10 @@ import { apiErrorMessage } from '../lib/apiError'
 import { LanEvent } from '../types'
 import { ChevronDown, ChevronUp, UserMinus } from 'lucide-react'
 
+// A date never splits across two lines ("06 DÉC." / "2026" in a phone-width
+// card): its spaces become non-breaking, so only the arrow between two dates can wrap.
+const unbroken = (date: string) => date.replace(/ /g, ' ')
+
 export default function AttendeeRoster({
   event,
   isAdmin,
@@ -67,22 +71,34 @@ export default function AttendeeRoster({
                   </div>
                 )}
               </div>
-              <span className="text-sm text-foreground truncate">{a.username}</span>
-              {a.arrival_date && a.departure_date && (
-                <span className="font-mono-label text-muted-foreground text-[10px] ml-auto flex-shrink-0">
-                  {formatDate(a.arrival_date)} → {formatDate(a.departure_date)}
-                </span>
-              )}
+              {/* Name and dates share a line when they fit; otherwise the dates
+                  drop under the name. They used to stay put and squeeze the
+                  name instead, down to two letters on a phone. Wraps on this
+                  block's own width, so the Events grid's narrow cards get it too. */}
+              <div className="min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-2">
+                <span className="text-sm text-foreground truncate max-w-full">{a.username}</span>
+                {a.arrival_date && a.departure_date && (
+                  <span className="font-mono-label text-muted-foreground text-[10px]">
+                    {unbroken(formatDate(a.arrival_date))} → {unbroken(formatDate(a.departure_date))}
+                  </span>
+                )}
+              </div>
               {isAdmin && a.user_id !== currentUserId && (
+                // Revealed on hover where there is a mouse. A touch screen has
+                // no hover, so it stays visible there (it was invisible, yet
+                // still tappable); keyboard focus shows it too.
                 <button
                   onClick={() => removeAttendance(a.user_id, a.username)}
                   disabled={busyId !== null}
                   title={t('events.roster.removeAttendance')}
-                  className="flex-shrink-0 p-1 opacity-0 group-hover/attendee:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity disabled:opacity-50"
+                  className="flex-shrink-0 p-1 text-muted-foreground hover:text-red-400 transition-opacity disabled:opacity-50 focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/attendee:opacity-100"
                 >
                   <UserMinus size={12} strokeWidth={1.5} />
                 </button>
               )}
+              {/* The admin's own row has no button: keep its width, so every
+                  row's dates end at the same place. */}
+              {isAdmin && a.user_id === currentUserId && <span aria-hidden className="w-5 flex-shrink-0" />}
             </div>
           ))}
           {error && <p className="font-mono-label text-[10px] text-red-400">{error}</p>}

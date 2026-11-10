@@ -7,7 +7,7 @@
 **Gestion d'événements auto-hébergée pour LAN parties** — invitations, tournois, trésorerie,
 médias et streams en direct, le tout sur votre propre matériel. D'un Raspberry Pi à un NUC.
 
-[![Version](https://img.shields.io/badge/version-1.5.1-FF3D00?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-1.5.3-FF3D00?style=flat-square)](#)
 [![Licence](https://img.shields.io/badge/licence-AGPL--3.0-4C566A?style=flat-square)](../LICENSE)
 [![Plateforme](https://img.shields.io/badge/plateforme-amd64%20%7C%20arm64%20(Pi%204%2F5)-555?style=flat-square)](#)
 [![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/crosswax/lanpartymanager-backend)
@@ -179,7 +179,7 @@ docker compose up -d
 Portainer transforme `${VAR:-défaut}` en chaîne vide au lieu de la valeur par défaut : écrivez des
 valeurs littérales dans la stack. Deux autres habitudes qui payent sur une machine auto-hébergée :
 
-- Épinglez les deux lignes `image:` à un numéro de version (`crosswax/lanpartymanager-backend:1.5.1`,
+- Épinglez les deux lignes `image:` à un numéro de version (`crosswax/lanpartymanager-backend:1.5.3`,
   pas `:latest`). Une mise à jour devient une modification délibérée, et revenir en arrière consiste
   à remettre le numéro précédent. Chaque version est poussée sous les deux tags.
 - Si le conteneur backend ne résout plus les noms (liaison Discord et Steam en échec toutes les deux,

@@ -269,6 +269,27 @@ def test_lol_squad_counts_games_with_another_member(client, crew):
     assert _current(client, crew, "bob")["objectives"][0]["progress"] == 1
 
 
+def test_lol_games_before_the_sender_rule_keep_counting_for_every_member(client, crew):
+    """The sender rule (1.4.1) isn't retroactive: a game captured before it
+    still counts for every crew member in it, as it did when the contract
+    showed it — and its XP may have been spent since."""
+    alice, bob = crew["ids"]["alice"], crew["ids"]["bob"]
+    cut = quests.LOL_SENDER_RULE_SINCE
+    month = quests.month_key(cut.date())
+    _contract({"code": "lol_squad", "target": 5}, month=month, required=1)
+    before, after = _add(models.LolMatch(riot_game_id="EUW1_1", created_at=cut - timedelta(hours=1)),
+                         models.LolMatch(riot_game_id="EUW1_2", created_at=cut + timedelta(hours=1)))
+    _add(*[models.LolMatchPlayer(match_id=m, user_id=uid, riot_id=f"{n}#EUW", riot_id_key=f"{n}#euw")
+           for m in (before, after) for uid, n in ((alice, "a"), (bob, "b"))])
+    _add(models.LolMatchSubmitter(match_id=before, user_id=alice), models.LolMatchSubmitter(match_id=after, user_id=alice))
+
+    def progress(uid):
+        return _db(lambda s: quests.contract_view(s, s.get(models.MonthlyContract, month), uid)["objectives"][0]["progress"])
+
+    # Only alice's app sent them: bob keeps the game from before the rule.
+    assert (progress(alice), progress(bob)) == (2, 1)
+
+
 def test_chat_days_are_local_days_with_a_message_that_counts(client, crew):
     alice = crew["ids"]["alice"]
     _add(models.AppSetting(key="app_timezone", value="Europe/Paris"))
@@ -290,12 +311,31 @@ def test_chat_days_are_local_days_with_a_message_that_counts(client, crew):
     assert _current(client, crew, "alice")["objectives"][0]["progress"] == 2
 
 
-def test_rsvp_next_counts_an_answer_given_any_time(client, crew):
+def test_rsvp_next_counts_an_answer_given_during_the_month_or_before(client, crew):
     lan = _lan(crew, 10)
     _contract({"code": "rsvp_next", "target": 1, "event_id": lan}, required=1)
-    _add(models.EventRSVP(event_id=lan, user_id=crew["ids"]["alice"], status="out"))
+    _add(models.EventRSVP(event_id=lan, user_id=crew["ids"]["alice"], status="out"))  # any answer
     assert _current(client, crew, "alice")["done"] is True
     assert _current(client, crew, "bob")["done"] is False
+
+
+def test_rsvp_next_doesnt_fill_a_past_month_after_the_fact(client, crew):
+    founder, alice, bob = (crew["ids"][n] for n in ("founder", "alice", "bob"))
+    lan = _lan(crew, 10)
+    _contract({"code": "rsvp_next", "target": 1, "event_id": lan}, month=_last_month(), required=1)
+    start = _start()  # this month's first instant: last month's end
+    _add(
+        models.EventRSVP(event_id=lan, user_id=founder, status="in", created_at=start - timedelta(days=40)),
+        models.EventRSVP(event_id=lan, user_id=bob, status="in", created_at=start - timedelta(days=2)),
+        models.EventRSVP(event_id=lan, user_id=alice, status="in", created_at=start + timedelta(hours=1)),
+    )
+
+    def done(uid):
+        return _db(lambda s: quests.contract_view(s, s.get(models.MonthlyContract, _last_month()), uid)["done"])
+
+    # Long before and during last month: met. This month: too late for it.
+    assert (done(founder), done(bob), done(alice)) == (True, True, False)
+    assert _quest_xp(bob) == (1, QUEST_XP) and _quest_xp(alice) == (0, 0)
 
 
 # ── The announcement ──────────────────────────────────────────────────────────

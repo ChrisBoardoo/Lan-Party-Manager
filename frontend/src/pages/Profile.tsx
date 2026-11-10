@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppConfig } from '../contexts/AppConfigContext'
 import { usersApi, eventsApi, discordApi, steamApi } from '../lib/api'
@@ -18,7 +18,7 @@ import MySetupCard from '../components/MySetupCard'
 import GamesLibraryCard from '../components/GamesLibraryCard'
 import RiotIdCard from '../components/RiotIdCard'
 import { CLOTHING_SIZES, LanEvent, BadgeAward } from '../types'
-import { Camera, Check, Shield, CalendarDays, RotateCw, KeyRound, Phone, Pencil, X, Link2, Unlink } from 'lucide-react'
+import { Camera, Check, Shield, CalendarDays, ChevronRight, RotateCw, KeyRound, Phone, Pencil, X, Link2, Unlink } from 'lucide-react'
 
 // The organizer role isn't here: an admin grants it from the member's player
 // page (PlayerProfile.tsx) — self-service let a member run a fake tournament
@@ -359,15 +359,24 @@ export default function Profile() {
               <CalendarDays size={12} strokeWidth={1.5} /> {t('profile.upcomingEvents')}
             </p>
             <div className="space-y-2">
+              {/* Each row opens its LAN: the profile is where a member checks
+                  their dates, the event page is where they act on them. */}
               {upcomingEvents.map((e) => (
-                <div key={e.id} className="border-t border-border pt-2 first:border-t-0 first:pt-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{e.title}</p>
-                  {e.my_arrival_date && e.my_departure_date && (
-                    <p className="font-mono-label text-accent text-[10px] mt-0.5">
-                      {formatDate(e.my_arrival_date)} → {formatDate(e.my_departure_date)}
-                    </p>
-                  )}
-                </div>
+                <Link
+                  key={e.id}
+                  to={`/events/${e.id}`}
+                  className="group flex items-center justify-between gap-3 border-t border-border pt-2 first:border-t-0 first:pt-0"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate transition-colors group-hover:text-accent">{e.title}</p>
+                    {e.my_arrival_date && e.my_departure_date && (
+                      <p className="font-mono-label text-accent text-[10px] mt-0.5">
+                        {formatDate(e.my_arrival_date)} → {formatDate(e.my_departure_date)}
+                      </p>
+                    )}
+                  </div>
+                  <ChevronRight size={14} strokeWidth={1.5} className="flex-shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-accent" />
+                </Link>
               ))}
             </div>
           </div>

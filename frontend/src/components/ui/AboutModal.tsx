@@ -73,7 +73,7 @@ export default function AboutModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <p className="font-mono-label text-muted-foreground text-[10px] pt-2 border-t border-border">
-            1.5.1
+            1.5.3
           </p>
         </div>
       </div>
